@@ -1,3 +1,5 @@
+import { logManager } from '../../core/LogManager.js';
+
 export class Entity {
     constructor(name, maxHP) {
         this.name = name;
@@ -17,9 +19,15 @@ export class Entity {
             if (this.block >= actualDamage) {
                 this.block -= actualDamage;
                 actualDamage = 0;
+                logManager.log(`${this.name} blocked ${amount} damage!`, 'block');
             } else {
                 actualDamage -= this.block;
+                logManager.log(`${this.name} blocked ${this.block} damage, took ${actualDamage}!`, 'damage');
                 this.block = 0;
+            }
+        } else {
+            if (actualDamage > 0) {
+                logManager.log(`${this.name} took ${actualDamage} damage!`, 'damage');
             }
         }
 
@@ -35,19 +43,24 @@ export class Entity {
     heal(amount) {
         if (this.isDead) return;
         this.currentHP = Math.min(this.maxHP, this.currentHP + amount);
+        logManager.log(`${this.name} healed for ${amount} HP.`, 'heal');
     }
 
     addBlock(amount) {
         if (this.isDead) return;
         this.block += amount;
+        logManager.log(`${this.name} gained ${amount} block.`, 'block');
     }
 
     resetBlock() {
-        this.block = 0;
+        if (this.block > 0) {
+            // logManager.log(`${this.name} block expired.`, 'info'); // Optional spam
+            this.block = 0;
+        }
     }
 
     die() {
         this.isDead = true;
-        console.log(`${this.name} has died!`);
+        logManager.log(`${this.name} has died!`, 'turn');
     }
 }

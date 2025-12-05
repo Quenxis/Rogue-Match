@@ -4,6 +4,7 @@ import { Enemy } from './entities/Enemy.js';
 import { ITEM_TYPES } from '../logic/GridDetails.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
+import { logManager } from '../core/LogManager.js';
 
 export class CombatManager {
     constructor(scene, data = {}) {
@@ -51,6 +52,8 @@ export class CombatManager {
         this.bindEvents();
         this.createUI();
         this.updateUI();
+
+        logManager.log(`Combat Started vs ${this.enemy.name}!`, 'turn');
     }
 
     bindEvents() {
@@ -81,16 +84,17 @@ export class CombatManager {
     createUI() {
         const style = { font: '18px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: { x: 5, y: 5 } };
 
-        // Player UI (Left Side)
-        this.playerUI = this.scene.add.text(10, 150, '', style);
+        // Player UI (Left Side) - Shifted to 100
+        this.playerUI = this.scene.add.text(50, 150, '', style);
         this.playerUI.setDepth(100);
 
-        // Enemy UI (Right Side)
-        this.enemyUI = this.scene.add.text(640, 150, '', style);
+        // Enemy UI (Right Side) - Shifted to 800 for clearance
+        this.enemyUI = this.scene.add.text(800, 150, '', style);
         this.enemyUI.setDepth(100);
 
         // Center Notification Text (Victory/Defeat)
-        this.centerText = this.scene.add.text(400, 300, '', {
+        // Center of Grid is 500, visible center is 550. Let's use 550.
+        this.centerText = this.scene.add.text(550, 300, '', {
             font: '48px Arial',
             fill: '#ffd700',
             stroke: '#000000',
@@ -99,11 +103,12 @@ export class CombatManager {
         }).setOrigin(0.5).setDepth(200).setVisible(false);
 
         // Create Skill Buttons (Phaser Graphics + Text)
+        // Shifted to 50
         this.createSkillButton(0, 'FIREBALL', '🔥 Fireball\n(5 Mana)', 0xff4400, () => this.tryUseSkill('FIREBALL'));
         this.createSkillButton(1, 'HEAL', '💚 Heal\n(8 Mana)', 0x00cc44, () => this.tryUseSkill('HEAL'));
 
-        // End Turn Button
-        this.endTurnBtn = this.scene.add.text(10, 500, 'END TURN', {
+        // End Turn Button - Shifted to 50
+        this.endTurnBtn = this.scene.add.text(50, 500, 'END TURN', {
             font: '24px Arial',
             fill: '#ffffff',
             backgroundColor: '#ff0000',
@@ -123,7 +128,7 @@ export class CombatManager {
     }
 
     createSkillButton(index, id, label, color, callback) {
-        const x = 10;
+        const x = 50;
         const y = 300 + (index * 70);
         const w = 140;
         const h = 50;
@@ -270,23 +275,23 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
             case ITEM_TYPES.SWORD:
                 const dmg = count * 2;
                 this.enemy.takeDamage(dmg);
-                console.log(`Dealt ${dmg} damage!`);
+                // logManager handled by Entity
                 break;
             case ITEM_TYPES.SHIELD:
                 const block = count * 2;
                 this.player.addBlock(block);
-                console.log(`Gained ${block} block!`);
                 break;
             case ITEM_TYPES.POTION:
                 const heal = count * 1;
                 this.player.heal(heal);
-                console.log(`Healed ${heal} HP!`);
                 break;
             case ITEM_TYPES.MANA:
                 this.player.addMana(count);
+                logManager.log(`Player gained ${count} Mana.`, 'info');
                 break;
             case ITEM_TYPES.COIN:
                 this.player.addGold(count);
+                logManager.log(`Found ${count} Gold.`, 'gold');
                 break;
         }
     }
@@ -295,6 +300,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         if (this.turn !== 'PLAYER') return;
         this.turn = 'ENEMY';
         this.updateUI();
+        logManager.log("-- ENEMY TURN --", 'turn');
 
         this.scene.time.delayedCall(800, () => {
             if (this.turn === 'ENDED') return;
@@ -315,6 +321,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         this.player.resetBlock();
         this.enemy.generateIntent();
         this.updateUI();
+        logManager.log("-- PLAYER TURN --", 'turn');
     }
 
     checkWinCondition() {

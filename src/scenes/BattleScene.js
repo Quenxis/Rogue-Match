@@ -9,6 +9,7 @@ import { GridData } from '../logic/GridData.js';
 import { AssetFactory } from '../view/AssetFactory.js';
 import { GridView } from '../view/GridView.js';
 import { CombatManager } from '../combat/CombatManager.js';
+import { CombatLogView } from '../view/CombatLogView.js';
 
 export class BattleScene extends Phaser.Scene {
     constructor() {
@@ -39,9 +40,14 @@ export class BattleScene extends Phaser.Scene {
         window.grid = this.gridLogic;
 
         // 3. Initialize View
-        // Center of 800x600 is 400,300.
-        // Shift down to 350 to make room for UI
-        this.gridView = new GridView(this, 400, 350);
+        // Canvas is 1100 wide.
+        // Grid Center: 550 (Absolute Center)
+        this.gridView = new GridView(this, 550, 350);
+
+        // 3b. Initialize Combat Log View (Right Side)
+        // x=920 (Right aligned with margin)
+        // Width 170 (Fixed)
+        this.logView = new CombatLogView(this, 920, 50, 170, 0);
 
         // 4. Start grid (will trigger events that View listens to)
         this.gridLogic.initialize();

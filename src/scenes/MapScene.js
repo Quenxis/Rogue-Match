@@ -11,16 +11,16 @@ export class MapScene extends Phaser.Scene {
             runManager.startNewRun();
         }
 
-        const titleText = this.add.text(400, 50, 'The Map', { font: '32px Arial', fill: '#ffffff' }).setOrigin(0.5);
+        const titleText = this.add.text(550, 50, 'The Map', { font: '32px Arial', fill: '#ffffff' }).setOrigin(0.5);
 
         const tiers = runManager.map;
 
         // CHECK IF RUN COMPLETED
         if (runManager.currentTier >= tiers.length) {
-            this.add.text(400, 300, 'VICTORY ROYALE!', { font: '48px Arial', fill: '#ffd700' }).setOrigin(0.5);
-            this.add.text(400, 380, `Final Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
+            this.add.text(550, 300, 'VICTORY ROYALE!', { font: '48px Arial', fill: '#ffd700' }).setOrigin(0.5);
+            this.add.text(550, 380, `Final Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
 
-            const restartBtn = this.add.text(400, 450, 'START NEW RUN', {
+            const restartBtn = this.add.text(550, 450, 'START NEW RUN', {
                 font: '24px Arial',
                 fill: '#000000',
                 backgroundColor: '#ffffff',
@@ -43,7 +43,7 @@ export class MapScene extends Phaser.Scene {
             // Center nodes horizontally
             const gapX = 150;
             const totalWidth = (tierNodes.length - 1) * gapX;
-            const startX = 400 - (totalWidth / 2);
+            const startX = 550 - (totalWidth / 2);
 
             tierNodes.forEach((node, nodeIndex) => {
                 // If tier is higher then max, don't draw (handled by Victory check above, but safety)
