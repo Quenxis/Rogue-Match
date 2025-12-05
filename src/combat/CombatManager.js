@@ -392,7 +392,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
             relicIds.forEach(id => {
                 const relic = RELICS[id];
                 if (relic && relic.hooks && relic.hooks.onVictory) {
-                    relic.hooks.onVictory(runManager);
+                    relic.hooks.onVictory(this); // Pass combat instance
                 }
             });
 

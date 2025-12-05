@@ -141,17 +141,14 @@ export class TopBar {
 
             // Interaction for Tooltip
             const hitArea = this.scene.add.rectangle(x + 12, y, 30, 30, 0x000000, 0).setOrigin(0.5)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .setScrollFactor(0); // Ensure input works with camera scroll
 
             hitArea.on('pointerover', () => {
                 // Ensure tooltip is top-most
                 this.relicTooltip.setDepth(9999);
                 this.relicTooltip.setText(`${data.name}\n${data.description}`);
                 // Position relative to container (which is 0,0 fixed)
-                // Relic icons are at 400 + x inside container.
-                // Tooltip needs to be nearby.
-                // NOTE: If container is scaled or moved, this might drift.
-                // But container is 0,0.
                 this.relicTooltip.setPosition(400 + x, 50);
                 this.relicTooltip.setVisible(true);
             });

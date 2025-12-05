@@ -24,9 +24,9 @@ export const RELICS = {
         color: 0xffd700,
         type: 'PASSIVE',
         hooks: {
-            onVictory: (runManager) => {
-                runManager.addGold(5);
-                console.log('Golden Idol: Added 5 Gold');
+            onVictory: (combat) => {
+                combat.player.addGold(5);
+                combat.log('Golden Idol: +5 Gold');
                 return true;
             }
         }
