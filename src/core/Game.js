@@ -8,6 +8,7 @@ import { BattleScene } from '../scenes/BattleScene.js';
 import { BootScene } from '../scenes/BootScene.js';
 import { MapScene } from '../scenes/MapScene.js';
 import { RewardScene } from '../scenes/RewardScene.js';
+import { ShopScene } from '../scenes/ShopScene.js';
 import { logManager } from './LogManager.js';
 
 const config = {
@@ -16,7 +17,7 @@ const config = {
     height: 600,
     parent: 'game-container',
     backgroundColor: '#000000',
-    scene: [MapScene, BattleScene, RewardScene, BootScene], // MapScene first for testing flow
+    scene: [BootScene, MapScene, BattleScene, RewardScene, ShopScene], // BootScene first usually
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
