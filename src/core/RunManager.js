@@ -139,6 +139,54 @@ export class RunManager {
         this.player.currentHP = hp;
         this.player.gold = gold;
     }
+
+    getRelics() {
+        return this.player.relics;
+    }
+
+    applyEffect(effects) {
+        let resultLog = [];
+
+        if (effects.heal) {
+            const oldHP = this.player.currentHP;
+            this.player.currentHP = Math.min(this.player.currentHP + effects.heal, this.player.maxHP);
+            resultLog.push(`Healed ${this.player.currentHP - oldHP} HP`);
+        }
+        if (effects.damage) {
+            this.player.currentHP = Math.max(0, this.player.currentHP - effects.damage);
+            resultLog.push(`Took ${effects.damage} Damage`);
+        }
+        if (effects.gold) {
+            this.player.gold += effects.gold;
+            if (this.player.gold < 0) this.player.gold = 0;
+            const sign = effects.gold > 0 ? '+' : '';
+            resultLog.push(`${sign}${effects.gold} Gold`);
+        }
+        if (effects.get_relic) {
+            // Add specific relic or random?
+            // For now assume logic handles selection, or effect passes ID
+            // Here assume effect.get_relic is boolean (True = random) or String ID
+            // BUT for simplicity let's say caller handles random selection if needed?
+            // Actually Event logic usually is specific.
+            // Let's defer random logic to EventScene.
+        }
+
+        // Simple Gambling Logic for Stranger Event
+        if (effects.gamble_relic) {
+            if (Math.random() < effects.gamble_relic) {
+                // Win Relic!
+                // Trigger in Scene? OR handle here?
+                // Let's return a flag.
+                resultLog.push("WON RELIC!");
+                return { success: true, log: resultLog, gambleWon: true };
+            } else {
+                resultLog.push("Lost the gamble...");
+                return { success: true, log: resultLog, gambleWon: false };
+            }
+        }
+
+        return { success: true, log: resultLog };
+    }
 }
 
 export const runManager = new RunManager();

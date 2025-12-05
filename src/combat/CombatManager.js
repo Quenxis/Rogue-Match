@@ -5,6 +5,7 @@ import { ITEM_TYPES } from '../logic/GridDetails.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
+import { RELICS } from '../data/relics.js';
 
 export class CombatManager {
     constructor(scene, data = {}) {
@@ -72,7 +73,6 @@ export class CombatManager {
         EventBus.off('item:swap_reverted', this.onSwapRevert);
         EventBus.off('potion:use_requested');
 
-        // ... (rest of destroy)
         // Clean up UI
         if (this.playerUI) this.playerUI.destroy();
         if (this.enemyUI) this.enemyUI.destroy();
@@ -112,8 +112,6 @@ export class CombatManager {
             logManager.log(`Used ${potion.name}!`, 'info');
         }
     }
-
-    // ... (rest of methods)
 
     createUI() {
         const style = { font: '18px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: { x: 5, y: 5 } };
@@ -221,6 +219,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         const canAct = this.turn === 'PLAYER';
 
         this.updateSkillButton('HEAL', canAct && p.mana >= 8);
+        this.updateSkillButton('FIREBALL', canAct && p.mana >= 5);
     }
 
     updateSkillButton(id, isEnabled) {
@@ -296,12 +295,30 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         });
 
         Object.entries(matchCounts).forEach(([type, count]) => {
+            // Trigger Hooks for Matches
+            this.triggerHooks('onMatch', count, type);
+
             this.applyEffect(type, count);
         });
 
         this.updateUI();
         this.checkWinCondition();
     }
+
+    triggerHooks(hookName, ...args) {
+        const relicIds = runManager.getRelics();
+        relicIds.forEach(id => {
+            const relic = RELICS[id];
+            if (relic && relic.hooks && relic.hooks[hookName]) {
+                try {
+                    relic.hooks[hookName](this, ...args);
+                } catch (e) {
+                    console.error(`Error in relic hook ${id}.${hookName}:`, e);
+                }
+            }
+        });
+    }
+
     applyEffect(type, count) {
         switch (type) {
             case ITEM_TYPES.SWORD:
@@ -337,7 +354,15 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         this.scene.time.delayedCall(800, () => {
             if (this.turn === 'ENDED') return;
             this.enemy.resetBlock(); // Reset block before new action
+
+            const intent = this.enemy.currentIntent;
             this.enemy.executeIntent(this.player);
+
+            // Hook: onDefend (Thorns)
+            if (intent && intent.type === 'ATTACK') {
+                this.triggerHooks('onDefend', intent.value);
+            }
+
             if (this.player.isDead) {
                 this.checkWinCondition();
                 return;
@@ -361,7 +386,15 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
 
         if (this.enemy.isDead) {
             this.turn = 'ENDED';
-            // Note: Victory notify is skipped because RewardScene handles it now
+
+            // Trigger Hooks for Victory (e.g. Golden Idol)
+            const relicIds = runManager.getRelics();
+            relicIds.forEach(id => {
+                const relic = RELICS[id];
+                if (relic && relic.hooks && relic.hooks.onVictory) {
+                    relic.hooks.onVictory(runManager);
+                }
+            });
 
             // SAVE STATE
             runManager.updatePlayerState(this.player.currentHP, this.player.gold + this.goldReward);
@@ -400,5 +433,9 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
             duration: 500,
             ease: 'Back.out'
         });
+    }
+
+    log(message, type = 'info') {
+        logManager.log(message, type);
     }
 }

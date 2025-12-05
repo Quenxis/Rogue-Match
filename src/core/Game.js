@@ -9,10 +9,12 @@ import { BootScene } from '../scenes/BootScene.js';
 import { MapScene } from '../scenes/MapScene.js';
 import { RewardScene } from '../scenes/RewardScene.js';
 import { ShopScene } from '../scenes/ShopScene.js';
+import { EventScene } from '../scenes/EventScene.js';
+import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.2.4';
+export const APP_VERSION = '0.2.5';
 
 const config = {
     type: Phaser.AUTO,
@@ -20,7 +22,7 @@ const config = {
     height: 600,
     parent: 'game-container',
     backgroundColor: '#000000',
-    scene: [BootScene, MapScene, BattleScene, RewardScene, ShopScene], // BootScene first usually
+    scene: [BootScene, MapScene, BattleScene, RewardScene, ShopScene, EventScene, TreasureScene], // BootScene first usually
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH

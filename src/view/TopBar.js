@@ -1,5 +1,6 @@
 import { runManager } from '../core/RunManager.js';
 import { EventBus } from '../core/EventBus.js';
+import { RELICS } from '../data/relics.js';
 
 export class TopBar {
     constructor(scene) {
@@ -23,10 +24,15 @@ export class TopBar {
 
         this.container.add([this.hpText, this.goldText]);
 
-        // --- Relics (Placeholder) ---
-        this.scene.add.text(400, 12, 'Relics:', { font: '12px Arial', fill: '#aaaaaa' });
-        // Draw relic icons dynamically... for now just text list?
-        // Let's implement dynamic icons later.
+        // --- Relics (Dynamic) ---
+        this.relicContainer = this.scene.add.container(400, 20);
+        this.container.add(this.relicContainer);
+        this.relicIcons = [];
+        this.relicTooltip = this.scene.add.text(0, 0, '', { font: '12px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
+            .setDepth(2001)
+            .setVisible(false)
+            .setScrollFactor(0);
+        this.container.add(this.relicTooltip);
 
         // --- Potions (Right Side) ---
         // Slots at x=800, 850, 900
@@ -99,7 +105,14 @@ export class TopBar {
         }
 
         // Tooltip Text
-        this.tooltip = this.scene.add.text(0, 0, '', { font: '12px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: 4 }).setDepth(2000).setVisible(false);
+        this.tooltip = this.scene.add.text(0, 0, '', { font: '12px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
+            .setDepth(2000)
+            .setVisible(false)
+            .setScrollFactor(0); // Fix to HUD
+        // Note: Adding to container usually handles scroll factor, BUT if MapScene camera moves, 
+        // global position calculations might be off if we rely on container relative pos?
+        // Actually, container is factor 0. Children inherit. 
+        // But let's be explicit.
         this.container.add(this.tooltip);
     }
 
@@ -108,6 +121,48 @@ export class TopBar {
         const p = runManager.player;
         this.hpText.setText(`HP: ${p.currentHP}/${p.maxHP}`);
         this.goldText.setText(`Gold: ${p.gold}`);
+
+        // --- Render Relics ---
+        this.relicIcons.forEach(icon => {
+            if (icon.destroy) icon.destroy();
+        });
+        this.relicIcons = [];
+        this.relicContainer.removeAll(true);
+
+        const relics = runManager.getRelics();
+        relics.forEach((relicId, index) => {
+            const data = RELICS[relicId];
+            if (!data) return;
+
+            const x = index * 40;
+            const y = 0;
+
+            const icon = this.scene.add.text(x, y, data.icon, { fontSize: '24px' }).setOrigin(0, 0.5);
+
+            // Interaction for Tooltip
+            const hitArea = this.scene.add.rectangle(x + 12, y, 30, 30, 0x000000, 0).setOrigin(0.5)
+                .setInteractive({ useHandCursor: true });
+
+            hitArea.on('pointerover', () => {
+                // Ensure tooltip is top-most
+                this.relicTooltip.setDepth(9999);
+                this.relicTooltip.setText(`${data.name}\n${data.description}`);
+                // Position relative to container (which is 0,0 fixed)
+                // Relic icons are at 400 + x inside container.
+                // Tooltip needs to be nearby.
+                // NOTE: If container is scaled or moved, this might drift.
+                // But container is 0,0.
+                this.relicTooltip.setPosition(400 + x, 50);
+                this.relicTooltip.setVisible(true);
+            });
+            hitArea.on('pointerout', () => {
+                this.relicTooltip.setVisible(false);
+            });
+
+            this.relicContainer.add([icon, hitArea]);
+            this.relicIcons.push(icon); // Keep track if needed, but removeAll handles container
+        });
+
 
         // Update Potions
         this.potionSlots.forEach((slot, index) => {

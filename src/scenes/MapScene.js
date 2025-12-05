@@ -134,14 +134,11 @@ export class MapScene extends Phaser.Scene {
         if (node.type === 'SHOP') {
             this.scene.start('ShopScene');
         } else if (node.type === 'TREASURE') {
-            // For now, instant loot
-            runManager.addGold(50);
-            runManager.completeLevel();
-            this.scene.restart(); // Refresh map
+            this.scene.start('TreasureScene');
         } else if (node.type === 'EVENT') {
-            // Placeholder: Just skip
-            runManager.completeLevel();
-            this.scene.restart();
+            // Pick a random event ID logic could be here, or inside EventScene init.
+            // Let's pass no ID so EventScene picks random.
+            this.scene.start('EventScene', { eventId: null });
         } else {
             // Battle / Elite / Boss
             this.scene.start('BattleScene', {

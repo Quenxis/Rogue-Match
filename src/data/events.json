@@ -1,0 +1,58 @@
+[
+    {
+        "id": "shrine_01",
+        "title": "Ancient Shrine",
+        "description": "You find a dusty shrine covered in cobwebs. A faint hum comes from within.",
+        "image": "event_shrine_bg",
+        "options": [
+            {
+                "text": "Pray (Heal 20 HP)",
+                "resultText": "You feel warm light embracing you.",
+                "effects": {
+                    "heal": 20
+                }
+            },
+            {
+                "text": "Desecrate (Gain 50 Gold, Lose 5 HP)",
+                "resultText": "You grab the gold, but the shrine shocks you!",
+                "effects": {
+                    "gold": 50,
+                    "damage": 5
+                }
+            },
+            {
+                "text": "Leave",
+                "resultText": "You walk away, leaving the shrine undisturbed.",
+                "effects": {}
+            }
+        ]
+    },
+    {
+        "id": "mysterious_stranger",
+        "title": "Mysterious Stranger",
+        "description": "A hooded figure approaches you in the dark corridor. 'Care to test your luck?' he whispers.",
+        "image": "event_stranger_bg",
+        "options": [
+            {
+                "text": "Gamble (Pay 20 Gold, 50% chance for Relic)",
+                "resultText": "You hand over the gold...",
+                "effects": {
+                    "gold": -20,
+                    "gamble_relic": 0.5
+                }
+            },
+            {
+                "text": "Attack (Simple Battle)",
+                "resultText": "The stranger draws a blade!",
+                "effects": {
+                    "start_battle": "thief"
+                }
+            },
+            {
+                "text": "Ignore",
+                "resultText": "You brush past him.",
+                "effects": {}
+            }
+        ]
+    }
+]

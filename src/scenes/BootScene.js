@@ -11,6 +11,7 @@ export class BootScene extends Phaser.Scene {
 
     preload() {
         // Load global assets here
+        this.load.json('events', 'src/data/events.json');
     }
 
     create() {
