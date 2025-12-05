@@ -13,6 +13,11 @@ export class GridData {
         this.cols = cols;
         this.grid = []; // 2D Array: grid[row][col]
         this.matches = []; // array of matched groups
+        this.isFastForward = false;
+    }
+
+    setFastForward(value) {
+        this.isFastForward = value;
     }
 
     /**
@@ -143,23 +148,23 @@ export class GridData {
         });
 
         // WAIT for Match Animation (Destroy)
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, this.isFastForward ? 1 : 300));
 
         // 2. Apply Gravity (Move items down)
+        // 2. Apply Gravity (Move items down)
         const gravityMoves = this.applyGravity();
-
-        // WAIT for Gravity Animation (Drop) if there were moves
-        // View: starts after 200ms, takes 400ms = 600ms total. Safe margin: 700ms.
-        if (gravityMoves > 0) {
-            await new Promise(resolve => setTimeout(resolve, 700));
-        }
 
         // 3. Refill (Spawn new items)
         this.refill();
 
-        // WAIT for Refill Animation (Spawn)
-        // View: max delay (row 7) is ~750ms + 500ms duration = ~1250ms. Safe margin: 1300ms.
-        await new Promise(resolve => setTimeout(resolve, 1300));
+        // WAIT for Physics Animation (Gravity + Spawn)
+        // Previous: Gravity Wait (700) + Refill Wait (1300) = 2000 total?
+        // Now they run concurrently-ish.
+        // View: Refill finishes at ~1350ms max.
+        // Gravity finishes at ~900ms.
+        // So we wait for the LONGEST animation.
+        // Let's stick to 1200-1300 to be safe for cascade check.
+        await new Promise(resolve => setTimeout(resolve, this.isFastForward ? 1 : 1200));
 
         // 4. Check for Cascading Matches
         const newMatches = this.findMatches();

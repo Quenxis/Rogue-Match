@@ -62,6 +62,7 @@ export class CombatManager {
         EventBus.on('item:swapped', this.onSwap);
         EventBus.on('item:swap_reverted', this.onSwapRevert);
         EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));
+        EventBus.on('ui:animation_complete', () => this.updateUI());
 
         window.combat = this;
     }
@@ -220,9 +221,21 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
 
         this.updateSkillButton('HEAL', canAct && p.mana >= 8);
         this.updateSkillButton('FIREBALL', canAct && p.mana >= 5);
+        this.updateSkillButton('END_TURN', canAct && (!this.scene.gridView || !this.scene.gridView.isAnimating)); // Lock if animating
     }
 
     updateSkillButton(id, isEnabled) {
+        if (id === 'END_TURN') {
+            if (this.endTurnBtn) {
+                if (isEnabled) {
+                    this.endTurnBtn.setAlpha(1).setInteractive();
+                } else {
+                    this.endTurnBtn.setAlpha(0.5).disableInteractive();
+                }
+            }
+            return;
+        }
+
         const btn = this.skillButtons[id];
         if (!btn) return;
 
@@ -347,6 +360,15 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
 
     endTurn() {
         if (this.turn !== 'PLAYER') return;
+
+        // Fast-forward any pending grid animations
+        if (this.scene.gridView) {
+            this.scene.gridView.skipAnimations();
+        }
+        if (window.grid) {
+            window.grid.setFastForward(true);
+        }
+
         this.turn = 'ENEMY';
         this.updateUI();
         logManager.log("-- ENEMY TURN --", 'turn');
@@ -374,6 +396,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
     startPlayerTurn() {
         if (this.turn === 'ENDED') return;
         this.turn = 'PLAYER';
+        if (window.grid) window.grid.setFastForward(false); // Reset speed
         this.currentMoves = this.maxMoves;
         this.player.resetBlock();
         this.enemy.generateIntent();

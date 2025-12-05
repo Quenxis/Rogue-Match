@@ -22,6 +22,7 @@ export class GridView {
         this.sprites = {}; // Map: id -> Phaser.GameObjects.Sprite
 
         this.isInputLocked = false;
+        this.isAnimating = false;
         this.selectedTile = null; // {r, c, sprite}
 
         // Create Container for Sprites
@@ -310,16 +311,30 @@ export class GridView {
         });
     }
 
+    setSkipMode(enabled) {
+        this.skipMode = enabled;
+        if (enabled) {
+            this.skipAnimations();
+        }
+    }
+
     animateMatches({ matches }) {
+        // If skipping, destroy instantly
+        if (this.skipMode) {
+            matches.forEach(coord => {
+                const currentItem = window.grid.grid[coord.r][coord.c];
+                if (currentItem && this.sprites[currentItem.id]) {
+                    this.sprites[currentItem.id].destroy();
+                    delete this.sprites[currentItem.id];
+                }
+            });
+            return;
+        }
+
         this.isInputLocked = true; // Lock
 
         matches.forEach(coord => {
             const currentItem = window.grid.grid[coord.r][coord.c];
-            // Note: GridData sets type to EMPTY, but keeps object ref so ID is valid.
-            // If it creates logic ID "temp_empty", this look up might resolve to nothing if we rely on coordinates matching old IDs.
-            // But wait, in applyGravity we move objects. In handleMatches we simply set type to EMPTY.
-            // The logic: `matches.forEach(({r, c}) => { this.grid[r][c].type = ITEM_TYPES.EMPTY; });`
-            // So the Item Object is SAME, just type changed. ID is preserved.
 
             if (currentItem && this.sprites[currentItem.id]) {
                 const sprite = this.sprites[currentItem.id];
@@ -340,6 +355,18 @@ export class GridView {
     }
 
     animateGravity({ moves }) {
+        if (this.skipMode) {
+            moves.forEach(move => {
+                const sprite = this.sprites[move.id];
+                if (sprite) {
+                    sprite.setData('row', move.toRow);
+                    sprite.setData('col', move.toCol);
+                    sprite.y = this.getY(move.toRow); // Snap
+                }
+            });
+            return;
+        }
+
         // moves: [{ id, fromRow, fromCol, toRow, toCol }]
         moves.forEach(move => {
             const sprite = this.sprites[move.id];
@@ -360,6 +387,28 @@ export class GridView {
     }
 
     animateRefill({ newItems }) {
+        if (this.skipMode) {
+            newItems.forEach(entry => {
+                const { item, row, col } = entry;
+                const targetY = this.getY(row);
+                const x = this.getX(col);
+
+                const sprite = this.scene.add.sprite(x, targetY, item.type);
+                this.tokenContainer.add(sprite);
+                sprite.setDisplaySize(50, 50);
+                sprite.setInteractive();
+                sprite.setData('row', row);
+                sprite.setData('col', col);
+                sprite.setData('id', item.id);
+
+                sprite.on('pointerdown', () => this.handleInput(sprite));
+
+                if (this.sprites[item.id]) this.sprites[item.id].destroy();
+                this.sprites[item.id] = sprite;
+            });
+            return;
+        }
+
         // newItems: [{ item, row, col }]
         newItems.forEach(entry => {
             const { item, row, col } = entry;
@@ -396,11 +445,39 @@ export class GridView {
         });
 
         // Unlock input after everything settles
-        this.scene.time.delayedCall(1200, () => {
+        if (this.refillTimer) this.refillTimer.remove();
+        this.refillTimer = this.scene.time.delayedCall(1200, () => {
             // Perform a self-healing sync to ensure no ghosts exist
             this.syncVisuals();
             this.isInputLocked = false;
+            this.refillTimer = null;
         });
+    }
+
+    /**
+     * Instantly finish all grid animations and sync state.
+     */
+    skipAnimations() {
+        console.log('Skipping/Fast-forwarding animations...');
+
+        // Kill active tweens on sprites
+        Object.values(this.sprites).forEach(sprite => {
+            this.scene.tweens.killTweensOf(sprite);
+        });
+
+        // Add safety kill for new items that might not be in sprites map yet (rare race condition)
+        // But logic creates sprites immediately.
+
+        // Cancel refill timer
+        if (this.refillTimer) {
+            this.refillTimer.remove();
+            this.refillTimer = null;
+        }
+
+        this.isInputLocked = false;
+        this.isAnimating = false;
+        this.syncVisuals();
+        EventBus.emit('ui:animation_complete');
     }
 
     /**
@@ -427,6 +504,8 @@ export class GridView {
                     }
 
                     const sprite = this.sprites[item.id];
+                    sprite.setAlpha(1); // Ensure visible
+                    sprite.setDisplaySize(50, 50); // Reset size correctly (Do NOT use setScale(1) if texture is large)
 
                     // Fix Data (Logic is truth)
                     sprite.setData('row', r);
@@ -437,8 +516,7 @@ export class GridView {
                     const expectedY = this.getY(r);
 
                     if (Math.abs(sprite.x - expectedX) > 2 || Math.abs(sprite.y - expectedY) > 2) {
-                        console.log(`Sync: Correcting sprite pos ${item.id}. Curr: ${sprite.y.toFixed(0)}, Exp: ${expectedY}`);
-                        // Snap immediately to prevent input errors
+                        // console.log(`Sync: Correcting sprite pos ${item.id}.`);
                         sprite.x = expectedX;
                         sprite.y = expectedY;
                     }
@@ -460,15 +538,6 @@ export class GridView {
                 this.sprites[id].destroy();
                 if (this.debugRects && this.debugRects[id]) this.debugRects[id].destroy();
                 delete this.sprites[id];
-            } else {
-                // Double check collision (Ghost at same position?)
-                // If this sprite thinks it is at R,C, but Logic says ID at R,C is DIFFERENT?
-                // Handled by Orphans check: If Logic says R,C is Item A, and this is Item A, we good.
-                // If this is Item B, and Logic has Item A at R,C? 
-                // Item B must be somewhere else in Logic.
-                // If Item B is not in Logic, it's an Orphan (Destroyed above).
-                // If Item B IS in Logic at R',C', we moved it above.
-                // So we are good.
             }
         });
     }
