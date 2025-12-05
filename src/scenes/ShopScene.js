@@ -26,6 +26,7 @@ export class ShopScene extends Phaser.Scene {
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', () => {
+                runManager.completeLevel();
                 this.scene.start('MapScene');
             });
 
