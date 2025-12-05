@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RogueMatch</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+</head>
+
+<body>
+    <div id="game-container"></div>
+    <div id="ui-overlay">
+        <!-- UI Elements will be injected here if needed -->
+    </div>
+    <script type="module">
+        import { startGame } from './src/core/Game.js';
+
+        window.onload = () => {
+            startGame();
+        };
+    </script>
+</body>
+
+</html>
