@@ -298,6 +298,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
 
         this.scene.time.delayedCall(800, () => {
             if (this.turn === 'ENDED') return;
+            this.enemy.resetBlock(); // Reset block before new action
             this.enemy.executeIntent(this.player);
             if (this.player.isDead) {
                 this.checkWinCondition();
