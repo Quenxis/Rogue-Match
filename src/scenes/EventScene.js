@@ -96,16 +96,20 @@ export class EventScene extends Phaser.Scene {
         let finalText = option.resultText;
 
         // Custom Logic for 'gamble_relic' from RunManager
+        // Custom Logic for 'gamble_relic' from RunManager
         if (result.gambleWon) {
             const keys = Object.keys(RELICS);
-            const randomId = keys[Math.floor(Math.random() * keys.length)];
-            const relic = RELICS[randomId];
+            const playerRelics = runManager.getRelics();
+            const available = keys.filter(id => !playerRelics.includes(id));
 
-            if (runManager.addRelic(randomId)) {
+            if (available.length > 0) {
+                const randomId = available[Math.floor(Math.random() * available.length)];
+                const relic = RELICS[randomId];
+                runManager.addRelic(randomId);
                 finalText += `\n\nReward: ${relic.name}\n${relic.description}`;
             } else {
-                finalText += `\n\n(You already have the reward, gave 20 Gold instead)`;
-                runManager.addGold(20);
+                finalText += `\n\n(All relics collected! +50 Gold)`;
+                runManager.addGold(50);
             }
         }
 
