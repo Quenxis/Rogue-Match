@@ -1,5 +1,7 @@
 import { runManager } from '../core/RunManager.js';
 import { createVersionWatermark } from '../view/UIHelper.js';
+import { TopBar } from '../view/TopBar.js';
+import { EventBus } from '../core/EventBus.js';
 
 export class MapScene extends Phaser.Scene {
     // ...
@@ -19,13 +21,17 @@ export class MapScene extends Phaser.Scene {
         // Height needed: 10 tiers * 150 gap + padding = ~1800px
         this.cameras.main.setBounds(0, 0, 1100, 2000);
 
+        // UI: TopBar
+        this.topBar = new TopBar(this);
+        this.topBar.setTitle('THE MAP');
+
+        // Listen for Potion Use (Map context)
+        EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));
+
         // Fixed UI (Title should stick to top?) 
         // For now, let's make title part of the world (scrolls away) or use a fixed container.
-        // Let's use a fixed container for HUD.
-        const hud = this.add.container(0, 0).setScrollFactor(0).setDepth(100);
 
-        hud.add(this.add.text(550, 40, 'The Map', { font: 'bold 32px Arial', fill: '#ffffff' }).setOrigin(0.5));
-        hud.add(this.add.text(10, 10, `HP: ${runManager.player.currentHP}/${runManager.player.maxHP} | Gold: ${runManager.player.gold}`, { font: '16px Arial', fill: '#ffffff' }));
+        // Removed old stats text as TopBar handles it
 
         const tiers = runManager.map;
 
@@ -142,6 +148,30 @@ export class MapScene extends Phaser.Scene {
                 nodeType: node.type,
                 enemyId: node.enemyId
             });
+        }
+    }
+
+    handlePotionUse(index) {
+        // Ensure we are the active scene (Basic check)
+        if (!this.scene.isActive()) return;
+
+        console.log('MapScene: Handling Potion', index);
+        const potion = runManager.player.potions[index];
+        if (!potion) return;
+
+        if (potion.type === 'POTION') {
+            // Logic duplicated from CombatManager somewhat, but simplified for Map
+            // Only Heal works on map usually
+            if (potion.id === 'potion_heal') {
+                runManager.removePotion(index);
+                // Heal logic
+                runManager.player.currentHP = Math.min(runManager.player.currentHP + 20, runManager.player.maxHP);
+                console.log('MapScene: Healed 20 HP');
+                EventBus.emit('ui:refresh_topbar'); // Update UI
+            } else {
+                console.log('MapScene: Cannot use this potion here.');
+                // Maybe show floating text?
+            }
         }
     }
 }

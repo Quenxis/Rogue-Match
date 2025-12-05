@@ -10,8 +10,9 @@ import { MapScene } from '../scenes/MapScene.js';
 import { RewardScene } from '../scenes/RewardScene.js';
 import { ShopScene } from '../scenes/ShopScene.js';
 import { logManager } from './LogManager.js';
+import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.2.2';
+export const APP_VERSION = '0.2.3';
 
 const config = {
     type: Phaser.AUTO,
@@ -31,5 +32,6 @@ let game = null;
 export function startGame() {
     logManager.init('log-content');
     logManager.log('<strong>Game Started</strong>', 'turn');
+    initDebugTools();
     game = new Phaser.Game(config);
 }

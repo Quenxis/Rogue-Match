@@ -9,6 +9,7 @@ export class TopBar {
 
         this.container = this.scene.add.container(0, 0);
         this.container.setDepth(1000); // High depth
+        this.container.setScrollFactor(0); // Fix to camera
 
         // Background Strip
         this.bg = this.scene.add.rectangle(0, 0, this.width, this.height, 0x222222).setOrigin(0, 0);
@@ -40,8 +41,20 @@ export class TopBar {
         // Or we subscribe to 'player:updated' if we had that.
         // For now, let's expose refresh().
 
+        // --- Scene Title (Top Right) ---
+        this.titleText = this.scene.add.text(1080, 20, '', {
+            font: 'bold 20px "Courier New", monospace', // Monospace/Tech look
+            fill: '#ffffff',
+            align: 'right'
+        }).setOrigin(1, 0.5);
+        this.container.add(this.titleText);
+
         // Hack: Update loop or invoked by CombatManager?
         // Invoked is better.
+    }
+
+    setTitle(text) {
+        this.titleText.setText(text.toUpperCase());
     }
 
     createPotionSlots(startX) {
@@ -97,6 +110,7 @@ export class TopBar {
     }
 
     usePotion(index) {
+        console.log(`TopBar: Clicked Potion ${index}`);
         // Emit event for CombatManager to handle
         EventBus.emit('potion:use_requested', index);
     }
