@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RogueMatch - Test Runner</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #222;
+            color: #ddd;
+            padding: 20px;
+        }
+
+        .suite {
+            margin-left: 20px;
+            border-left: 1px solid #444;
+            padding-left: 10px;
+            margin-bottom: 10px;
+        }
+
+        .test {
+            margin: 5px 0;
+        }
+
+        .pass {
+            color: #6f6;
+        }
+
+        .fail {
+            color: #f66;
+            font-weight: bold;
+        }
+
+        .summary {
+            font-size: 1.2em;
+            border-top: 1px solid #666;
+            padding-top: 10px;
+            margin-top: 20px;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>RogueMatch Unit Tests</h1>
+    <div id="output"></div>
+
+    <!-- Framework (Synchronous) -->
+    <script>
+        const output = document.getElementById('output');
+        let passes = 0;
+        let fails = 0;
+
+        function log(html, className = '') {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            if (className) div.className = className;
+            output.appendChild(div);
+        }
+
+        window.describe = (name, fn) => {
+            log(`<strong>${name}</strong>`, 'suite-header');
+            try {
+                fn();
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        window.it = (name, fn) => {
+            try {
+                const result = fn();
+                // Check if promise
+                if (result && typeof result.then === 'function') {
+                    result.then(() => {
+                        log(`✅ ${name}`, 'test pass');
+                        passes++;
+                    }).catch(e => {
+                        console.error(e);
+                        log(`❌ ${name} - ${e.message}`, 'test fail');
+                        fails++;
+                    });
+                } else {
+                    log(`✅ ${name}`, 'test pass');
+                    passes++;
+                }
+            } catch (e) {
+                console.error(e);
+                log(`❌ ${name} - ${e.message}`, 'test fail');
+                fails++;
+            }
+        };
+
+        window.expect = (actual) => ({
+            toBe: (expected) => {
+                if (actual !== expected) throw new Error(`Expected ${expected} but got ${actual}`);
+            },
+            toEqual: (expected) => {
+                const sActual = JSON.stringify(actual);
+                const sExpected = JSON.stringify(expected);
+                if (sActual !== sExpected) throw new Error(`Expected \n${sExpected}\n but got \n${sActual}`);
+            },
+            toBeGreaterThan: (expected) => {
+                if (!(actual > expected)) throw new Error(`Expected ${actual} > ${expected}`);
+            },
+            toBeTruthy: () => {
+                if (!actual) throw new Error(`Expected truthy but got ${actual}`);
+            }
+        });
+
+        // Mock EventBus for non-DOM logic testing
+        window.EventBus = {
+            emit: (event, data) => { },
+            on: () => { },
+            off: () => { }
+        };
+    </script>
+
+    <!-- Tests (Modules) -->
+    <script type="module">
+        import './GridData.test.js';
+
+        // Summary (delayed to catch async)
+        setTimeout(() => {
+            log(`<div class="summary">Tests: ${passes + fails} | Passed: ${passes} | Failed: ${fails}</div>`, fails === 0 ? 'pass' : 'fail');
+        }, 1000);
+    </script>
+</body>
+
+</html>

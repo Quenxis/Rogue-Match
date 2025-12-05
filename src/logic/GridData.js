@@ -248,8 +248,19 @@ export class GridData {
         }
     }
 
+
+
     getAllMatches() {
         const matches = [];
+        const uniqueSet = new Set();
+
+        const addMatch = (r, c) => {
+            const key = `${r},${c}`;
+            if (!uniqueSet.has(key)) {
+                uniqueSet.add(key);
+                matches.push({ r, c });
+            }
+        };
 
         // Vertical matches
         for (let c = 0; c < this.cols; c++) {
@@ -264,7 +275,7 @@ export class GridData {
 
                 if (matchLen >= 3) {
                     for (let i = 0; i < matchLen; i++) {
-                        matches.push({ r: r + i, c });
+                        addMatch(r + i, c);
                     }
                     r += matchLen - 1; // Skip checked
                 }
@@ -284,7 +295,7 @@ export class GridData {
 
                 if (matchLen >= 3) {
                     for (let i = 0; i < matchLen; i++) {
-                        matches.push({ r, c: c + i });
+                        addMatch(r, c + i);
                     }
                     c += matchLen - 1;
                 }

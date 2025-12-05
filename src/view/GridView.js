@@ -162,6 +162,36 @@ export class GridView {
         }
         if (window.combat && !window.combat.canInteract()) {
             console.log('Input ignored: Combat Turn/Moves');
+
+            // Visual Feedback for No Moves
+            if (window.combat.turn === 'PLAYER' && window.combat.currentMoves <= 0) {
+                const text = this.scene.add.text(sprite.x, sprite.y - 40, "NO MOVES!", {
+                    font: 'bold 24px Arial',
+                    fill: '#ff0000',
+                    stroke: '#000000',
+                    strokeThickness: 4
+                }).setOrigin(0.5).setDepth(200);
+
+                this.scene.tweens.add({
+                    targets: text,
+                    y: sprite.y - 80,
+                    alpha: 0,
+                    duration: 1000,
+                    ease: 'Power2',
+                    onComplete: () => text.destroy()
+                });
+
+                // Shake button hint
+                if (window.combat.endTurnBtn) {
+                    this.scene.tweens.add({
+                        targets: window.combat.endTurnBtn,
+                        scale: 1.2,
+                        yoyo: true,
+                        duration: 100,
+                        repeat: 1
+                    });
+                }
+            }
             return;
         }
 
