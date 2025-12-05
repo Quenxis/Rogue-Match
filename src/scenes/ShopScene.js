@@ -1,7 +1,14 @@
 import { runManager } from '../core/RunManager.js';
-import { AssetFactory } from '../view/AssetFactory.js'; // Reuse texture gen if needed or just use text/shapes
+import { AssetFactory } from '../view/AssetFactory.js';
+import { createVersionWatermark } from '../view/UIHelper.js';
 
 export class ShopScene extends Phaser.Scene {
+    //...
+    create() {
+        //...
+        this.generateShopItems();
+        createVersionWatermark(this);
+    }
     constructor() {
         super('ShopScene');
     }

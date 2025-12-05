@@ -1,6 +1,10 @@
 import { runManager } from '../core/RunManager.js';
+import { createVersionWatermark } from '../view/UIHelper.js';
 
 export class MapScene extends Phaser.Scene {
+    // ...
+    // ... existing code ...
+
     constructor() {
         super('MapScene');
     }
@@ -79,6 +83,8 @@ export class MapScene extends Phaser.Scene {
                 this.cameras.main.scrollY -= (pointer.y - pointer.prevPosition.y);
             }
         });
+
+        createVersionWatermark(this);
     }
 
     drawNode(x, y, node, tierIndex) {

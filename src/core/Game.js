@@ -11,6 +11,8 @@ import { RewardScene } from '../scenes/RewardScene.js';
 import { ShopScene } from '../scenes/ShopScene.js';
 import { logManager } from './LogManager.js';
 
+export const APP_VERSION = '0.2.2';
+
 const config = {
     type: Phaser.AUTO,
     width: 1100, // Widened for Combat Log

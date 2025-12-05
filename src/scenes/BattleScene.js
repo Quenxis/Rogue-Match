@@ -10,6 +10,8 @@ import { AssetFactory } from '../view/AssetFactory.js';
 import { GridView } from '../view/GridView.js';
 import { CombatManager } from '../combat/CombatManager.js';
 import { CombatLogView } from '../view/CombatLogView.js';
+import { TopBar } from '../view/TopBar.js';
+import { createVersionWatermark } from '../view/UIHelper.js';
 
 export class BattleScene extends Phaser.Scene {
     constructor() {
@@ -48,6 +50,11 @@ export class BattleScene extends Phaser.Scene {
         // x=920 (Right aligned with margin)
         // Width 170 (Fixed)
         this.logView = new CombatLogView(this, 920, 50, 170, 0);
+
+        // 3c. Initialize Top Bar
+        this.topBar = new TopBar(this);
+
+        createVersionWatermark(this);
 
         // 4. Start grid (will trigger events that View listens to)
         this.gridLogic.initialize();
