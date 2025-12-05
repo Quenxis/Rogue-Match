@@ -5,6 +5,11 @@ export class Player extends Entity {
         super('Player', maxHP);
         this.mana = 0;
         this.gold = 0;
+        this.strength = 0;
+    }
+
+    addStrength(amount) {
+        this.strength += amount;
     }
 
     addMana(amount) {

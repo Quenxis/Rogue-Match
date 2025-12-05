@@ -60,6 +60,7 @@ export class CombatManager {
         EventBus.on('matches:found', this.onMatchesFound);
         EventBus.on('item:swapped', this.onSwap);
         EventBus.on('item:swap_reverted', this.onSwapRevert);
+        EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));
 
         window.combat = this;
     }
@@ -69,7 +70,9 @@ export class CombatManager {
         EventBus.off('matches:found', this.onMatchesFound);
         EventBus.off('item:swapped', this.onSwap);
         EventBus.off('item:swap_reverted', this.onSwapRevert);
+        EventBus.off('potion:use_requested');
 
+        // ... (rest of destroy)
         // Clean up UI
         if (this.playerUI) this.playerUI.destroy();
         if (this.enemyUI) this.enemyUI.destroy();
@@ -80,6 +83,37 @@ export class CombatManager {
             if (btn.container) btn.container.destroy();
         });
     }
+
+    handlePotionUse(index) {
+        if (this.turn !== 'PLAYER') return;
+
+        const potion = runManager.player.potions[index];
+        if (!potion || potion.type !== 'POTION') return;
+
+        console.log(`CombatManager: Using potion ${potion.id}`);
+
+        let used = false;
+
+        if (potion.id === 'potion_heal') {
+            this.player.heal(20);
+            used = true;
+        } else if (potion.id === 'potion_mana') {
+            this.player.addMana(10);
+            used = true;
+        } else if (potion.id === 'potion_strength') {
+            this.player.addStrength(2);
+            used = true;
+        }
+
+        if (used) {
+            runManager.removePotion(index);
+            EventBus.emit('ui:refresh_topbar'); // Refresh HUD
+            this.updateUI(); // Refresh Stats
+            logManager.log(`Used ${potion.name}!`, 'info');
+        }
+    }
+
+    // ... (rest of methods)
 
     createUI() {
         const style = { font: '18px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: { x: 5, y: 5 } };
@@ -170,6 +204,7 @@ PLAYER
 HP: ${p.currentHP}/${p.maxHP}
 Block: ${p.block}
 Mana: ${p.mana}
+Str: ${p.strength}
 Gold: ${p.gold}
 MOVES: ${this.currentMoves}/${this.maxMoves}
         `.trim());
@@ -185,8 +220,6 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         // Update Skill Button States
         const canAct = this.turn === 'PLAYER';
 
-        // Fireball (5 Mana)
-        this.updateSkillButton('FIREBALL', canAct && p.mana >= 5);
         this.updateSkillButton('HEAL', canAct && p.mana >= 8);
     }
 
@@ -269,11 +302,10 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         this.updateUI();
         this.checkWinCondition();
     }
-
     applyEffect(type, count) {
         switch (type) {
             case ITEM_TYPES.SWORD:
-                const dmg = count * 2;
+                const dmg = count * (2 + this.player.strength);
                 this.enemy.takeDamage(dmg);
                 // logManager handled by Entity
                 break;

@@ -75,6 +75,12 @@ export class BattleScene extends Phaser.Scene {
             this.combatManager.destroy();
             this.combatManager = null;
         }
+        if (this.gridView) {
+            this.gridView.destroy();
+            this.gridView = null;
+        }
+        // TopBar usually cleans itself up via 'shutdown' event, but manual is safer?
+        // TopBar listens to 'shutdown'.
     }
 
     update() {

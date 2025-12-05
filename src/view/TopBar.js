@@ -49,8 +49,22 @@ export class TopBar {
         }).setOrigin(1, 0.5);
         this.container.add(this.titleText);
 
-        // Hack: Update loop or invoked by CombatManager?
         // Invoked is better.
+
+        // Listen for updates
+        this.render = this.render.bind(this);
+        EventBus.on('ui:refresh_topbar', this.render);
+
+        // Cleanup on scene shutdown
+        if (this.scene.events) {
+            this.scene.events.once('shutdown', this.destroy, this);
+            this.scene.events.once('destroy', this.destroy, this);
+        }
+    }
+
+    destroy() {
+        EventBus.off('ui:refresh_topbar', this.render);
+        if (this.container) this.container.destroy();
     }
 
     setTitle(text) {

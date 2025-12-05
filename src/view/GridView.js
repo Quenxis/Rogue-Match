@@ -48,17 +48,33 @@ export class GridView {
     }
 
     bindEvents() {
-        EventBus.on('grid:created', this.createGridVisuals.bind(this));
-        EventBus.on('item:swapped', this.animateSwap.bind(this));
-        EventBus.on('item:swap_reverted', this.animateSwapRevert.bind(this));
-        EventBus.on('matches:found', this.animateMatches.bind(this));
-        EventBus.on('grid:gravity', this.animateGravity.bind(this));
-        EventBus.on('grid:refilled', this.animateRefill.bind(this));
+        this.createGridVisualsBind = this.createGridVisuals.bind(this);
+        this.animateSwapBind = this.animateSwap.bind(this);
+        this.animateSwapRevertBind = this.animateSwapRevert.bind(this);
+        this.animateMatchesBind = this.animateMatches.bind(this);
+        this.animateGravityBind = this.animateGravity.bind(this);
+        this.animateRefillBind = this.animateRefill.bind(this);
+
+        EventBus.on('grid:created', this.createGridVisualsBind);
+        EventBus.on('item:swapped', this.animateSwapBind);
+        EventBus.on('item:swap_reverted', this.animateSwapRevertBind);
+        EventBus.on('matches:found', this.animateMatchesBind);
+        EventBus.on('grid:gravity', this.animateGravityBind);
+        EventBus.on('grid:refilled', this.animateRefillBind);
     }
 
     destroy() {
-        // Cleanup listeners if needed
-        // EventBus.off(...) 
+        EventBus.off('grid:created', this.createGridVisualsBind);
+        EventBus.off('item:swapped', this.animateSwapBind);
+        EventBus.off('item:swap_reverted', this.animateSwapRevertBind);
+        EventBus.off('matches:found', this.animateMatchesBind);
+        EventBus.off('grid:gravity', this.animateGravityBind);
+        EventBus.off('grid:refilled', this.animateRefillBind);
+
+        // Destroy container
+        if (this.tokenContainer) {
+            this.tokenContainer.destroy();
+        }
     }
 
     createGridVisuals({ grid, rows, cols }) {
