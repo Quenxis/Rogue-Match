@@ -183,12 +183,18 @@ export class GridView {
 
                 // Shake button hint
                 if (window.combat.endTurnBtn) {
+                    this.scene.tweens.killTweensOf(window.combat.endTurnBtn);
+                    window.combat.endTurnBtn.setScale(1);
+
                     this.scene.tweens.add({
                         targets: window.combat.endTurnBtn,
                         scale: 1.2,
                         yoyo: true,
                         duration: 100,
-                        repeat: 1
+                        repeat: 1,
+                        onComplete: () => {
+                            window.combat.endTurnBtn.setScale(1);
+                        }
                     });
                 }
             }

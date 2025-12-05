@@ -1,6 +1,7 @@
 export const ENEMIES = {
     'slime': {
         name: 'Acid Slime',
+        texture: 'tex_slime',
         hp: 40,
         maxHP: 40,
         intent: 'Attack',
@@ -9,6 +10,7 @@ export const ENEMIES = {
     },
     'rat': {
         name: 'Giant Rat',
+        texture: 'tex_rat',
         hp: 30,
         maxHP: 30,
         intent: 'Attack',
@@ -17,6 +19,7 @@ export const ENEMIES = {
     },
     'orc': {
         name: 'Orc Warrior',
+        texture: 'tex_orc',
         hp: 80,
         maxHP: 80,
         intent: 'Attack',
@@ -25,6 +28,7 @@ export const ENEMIES = {
     },
     'skeleton': {
         name: 'Skeleton',
+        texture: 'tex_skeleton',
         hp: 60,
         maxHP: 60,
         intent: 'Block', // Maybe defense
@@ -33,6 +37,7 @@ export const ENEMIES = {
     },
     'dragon': {
         name: 'Young Dragon',
+        texture: 'tex_dragon',
         hp: 150,
         maxHP: 150,
         intent: 'Attack',

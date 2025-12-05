@@ -46,10 +46,12 @@ export class BattleScene extends Phaser.Scene {
         // Grid Center: 550 (Absolute Center)
         this.gridView = new GridView(this, 550, 350);
 
-        // 3b. Initialize Combat Log View (Right Side)
+        // 3b. Initialize Combat Log View (Bottom Right Side)
         // x=920 (Right aligned with margin)
+        // Y=420 (Positioned to sit at bottom)
         // Width 170 (Fixed)
-        this.logView = new CombatLogView(this, 920, 50, 170, 0);
+        // Height 150 (Fixed)
+        this.logView = new CombatLogView(this, 920, 420, 170, 150);
 
         // 3c. Initialize Top Bar
         this.topBar = new TopBar(this);

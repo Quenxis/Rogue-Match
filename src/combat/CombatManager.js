@@ -115,18 +115,55 @@ export class CombatManager {
     }
 
     createUI() {
+        // Left Column Center X = 120
+        const LEFT_COL_X = 120;
         const style = { font: '18px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: { x: 5, y: 5 } };
 
-        // Player UI (Left Side) - Shifted to 100
-        this.playerUI = this.scene.add.text(50, 150, '', style);
+        // 1. Hero Sprite
+        if (this.scene.textures.exists('hero_sprite')) {
+            this.heroSprite = this.scene.add.image(LEFT_COL_X, 130, 'hero_sprite');
+            this.heroSprite.setDisplaySize(150, 150);
+            this.heroSprite.setDepth(100);
+        } else {
+            this.heroSprite = this.scene.add.rectangle(LEFT_COL_X, 130, 100, 100, 0x6666ff).setDepth(100);
+        }
+
+        // 2. Compact Stats Row (Below Sprite)
+        this.playerUI = this.scene.add.text(LEFT_COL_X, 220, '', {
+            font: 'bold 16px Arial',
+            fill: '#ffffff',
+            align: 'center'
+        }).setOrigin(0.5, 0);
         this.playerUI.setDepth(100);
 
-        // Enemy UI (Right Side) - Shifted to 800 for clearance
-        this.enemyUI = this.scene.add.text(800, 150, '', style);
+        // Enemy UI (Right Side)
+        const RIGHT_COL_X = 980;
+
+        // 3. Enemy Sprite (Fallback Logic)
+        let enemyTexture = 'tex_enemy_placeholder';
+        // Try to find texture by name in ENEMIES
+        const foundId = Object.keys(ENEMIES).find(key => ENEMIES[key].name === this.enemy.name);
+        if (foundId) {
+            const desired = ENEMIES[foundId].texture;
+            if (this.scene.textures.exists(desired)) {
+                enemyTexture = desired;
+            }
+        }
+
+        this.enemySprite = this.scene.add.sprite(RIGHT_COL_X, 130, enemyTexture);
+        this.enemySprite.setDisplaySize(150, 150);
+        this.enemySprite.setDepth(100);
+        this.enemySprite.setFlipX(false); // Face correct direction
+
+        // 4. Enemy Stats (Below Sprite)
+        this.enemyUI = this.scene.add.text(RIGHT_COL_X, 220, '', {
+            font: 'bold 16px Arial',
+            fill: '#ffffff',
+            align: 'center'
+        }).setOrigin(0.5, 0);
         this.enemyUI.setDepth(100);
 
         // Center Notification Text (Victory/Defeat)
-        // Center of Grid is 500, visible center is 550. Let's use 550.
         this.centerText = this.scene.add.text(550, 300, '', {
             font: '48px Arial',
             fill: '#ffd700',
@@ -135,25 +172,29 @@ export class CombatManager {
             align: 'center'
         }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-        // Create Skill Buttons (Phaser Graphics + Text)
-        // Shifted to 50
+        // Create Skill Buttons
         this.createSkillButton(0, 'FIREBALL', '🔥 Fireball\n(5 Mana)', 0xff4400, () => this.tryUseSkill('FIREBALL'));
         this.createSkillButton(1, 'HEAL', '💚 Heal\n(8 Mana)', 0x00cc44, () => this.tryUseSkill('HEAL'));
 
-        // End Turn Button - Shifted to 50
-        this.endTurnBtn = this.scene.add.text(50, 500, 'END TURN', {
+        // End Turn Button
+        this.endTurnBtn = this.scene.add.text(LEFT_COL_X, 550, 'END TURN', {
             font: '24px Arial',
             fill: '#ffffff',
             backgroundColor: '#ff0000',
             padding: { x: 10, y: 10 }
         })
+            .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', () => {
+                this.scene.tweens.killTweensOf(this.endTurnBtn);
+                this.endTurnBtn.setScale(1);
+
                 this.scene.tweens.add({
                     targets: this.endTurnBtn,
                     scale: 0.9,
                     duration: 100,
-                    yoyo: true
+                    yoyo: true,
+                    onComplete: () => this.endTurnBtn.setScale(1)
                 });
                 this.endTurn();
             })
@@ -161,17 +202,17 @@ export class CombatManager {
     }
 
     createSkillButton(index, id, label, color, callback) {
-        const x = 50;
-        const y = 300 + (index * 70);
+        const x = 120; // Left Column Center matches Sprite
+        const y = 280 + (index * 70); // Starts below stats
         const w = 140;
         const h = 50;
 
         const container = this.scene.add.container(x, y);
         container.setDepth(100);
 
-        // Background
+        // Background (Centered)
         const bg = this.scene.add.rectangle(0, 0, w, h, color)
-            .setOrigin(0, 0)
+            .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', callback);
 
@@ -179,8 +220,8 @@ export class CombatManager {
         bg.on('pointerover', () => bg.setAlpha(0.8));
         bg.on('pointerout', () => bg.setAlpha(1));
 
-        // Text
-        const text = this.scene.add.text(w / 2, h / 2, label, {
+        // Text (Centered)
+        const text = this.scene.add.text(0, 0, label, {
             font: '14px Arial',
             fill: '#ffffff',
             align: 'center',
@@ -188,32 +229,37 @@ export class CombatManager {
         }).setOrigin(0.5);
 
         container.add([bg, text]);
-
         this.skillButtons[id] = { container, bg, text, color };
     }
 
     updateUI() {
         if (!this.playerUI || !this.enemyUI) return;
 
+        // SYNC TO GLOBAL (Top Bar)
+        this.syncStateToGlobal();
+
         const p = this.player;
         const e = this.enemy;
 
-        this.playerUI.setText(`
-PLAYER
-HP: ${p.currentHP}/${p.maxHP}
-Block: ${p.block}
-Mana: ${p.mana}
-Str: ${p.strength}
-Gold: ${p.gold}
-MOVES: ${this.currentMoves}/${this.maxMoves}
-        `.trim());
+        // 3. Compact Stats Text
+        // "🛡️ Block: [x] | 🔮 Mana: [y] | 👟 Moves: [z]/3"
+        // Purple Crystal Ball for Mana
+        let stats = `🛡️ ${p.block} | 🔮 ${p.mana} | 👟 ${this.currentMoves}/${this.maxMoves}`;
+        if (p.strength > 0) {
+            stats += ` | 💪 ${p.strength}`;
+        }
+
+        this.playerUI.setText(stats);
+
+        // Enemy Text: Iconic
+        let intentIcon = '⚔️';
+        if (e.currentIntent && e.currentIntent.type === 'BLOCK') intentIcon = '🛡️';
 
         this.enemyUI.setText(`
 ${e.name.toUpperCase()}
-HP: ${e.currentHP}/${e.maxHP}
-Block: ${e.block}
-Intent:
-${e.currentIntent ? e.currentIntent.text : 'None'}
+❤️ ${e.currentHP}/${e.maxHP}
+🛡️ ${e.block}
+${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
         `.trim());
 
         // Update Skill Button States
@@ -222,6 +268,14 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
         this.updateSkillButton('HEAL', canAct && p.mana >= 8);
         this.updateSkillButton('FIREBALL', canAct && p.mana >= 5);
         this.updateSkillButton('END_TURN', canAct && (!this.scene.gridView || !this.scene.gridView.isAnimating)); // Lock if animating
+    }
+
+    syncStateToGlobal() {
+        // Push local combat state to global RunManager to update TopBar
+        runManager.player.currentHP = this.player.currentHP;
+        runManager.player.gold = this.player.gold;
+        // Triggers TopBar.render()
+        EventBus.emit('ui:refresh_topbar');
     }
 
     updateSkillButton(id, isEnabled) {
@@ -326,7 +380,7 @@ ${e.currentIntent ? e.currentIntent.text : 'None'}
                 try {
                     relic.hooks[hookName](this, ...args);
                 } catch (e) {
-                    console.error(`Error in relic hook ${id}.${hookName}:`, e);
+                    console.error(`Error in relic hook ${id}.${hookName}: `, e);
                 }
             }
         });

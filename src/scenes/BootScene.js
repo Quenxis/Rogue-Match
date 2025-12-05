@@ -12,6 +12,8 @@ export class BootScene extends Phaser.Scene {
     preload() {
         // Load global assets here
         this.load.json('events', 'src/data/events.json');
+        this.load.image('hero_sprite', 'assets/warrior.png');
+        this.load.image('tex_enemy_placeholder', 'assets/enemy.png');
     }
 
     create() {
