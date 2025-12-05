@@ -1,73 +1,80 @@
 import { EventBus } from '../core/EventBus.js';
 
 export class CombatLogView {
-    constructor(scene, x, y, width, height) {
+    constructor(scene, x, bottomY, width, height) {
         this.scene = scene;
-        this.baseX = x; // Capture initial X
-        this.baseY = y; // Capture initial Y
-        this.minWidth = width;
-        this.minHeight = 200; // Small height
-        this.maxWidth = width; // Fixed Width (Same as min)
-        this.maxHeight = 500;
+        this.baseX = x;
+        this.anchorBottomY = bottomY; // Fixed Bottom Y
+        this.width = width;
+        this.maxHeight = 200; // Expanded Height
+        this.minHeight = 30;  // Collapsed Height (Header only)
 
-        this.isExpanded = false;
+        this.isExpanded = true; // Default to open? Or user wants minimized first? User said "Minimize/Maximize". Let's start Open.
 
-        // Current Dimensions
-        this.currentWidth = this.minWidth;
-        this.currentHeight = this.minHeight;
+        // Initial Dimensions
+        this.currentHeight = this.maxHeight;
 
         this.lines = [];
-        this.scrollOffset = 0; // Pixels from top
+        this.textObjects = [];
+        this.totalTextHeight = 0;
 
-        this.container = this.scene.add.container(x, y);
-        this.container.setDepth(1000); // Top layer
+        // Container pivot is Top-Left, but position will be adjusted to simulate Bottom-Left anchor
+        this.container = this.scene.add.container(x, this.anchorBottomY - this.currentHeight);
+        this.container.setDepth(1000);
 
         // Background
-        this.bg = this.scene.add.rectangle(0, 0, this.currentWidth, this.currentHeight, 0x111111, 0.9)
+        this.bg = this.scene.add.rectangle(0, 0, this.width, this.currentHeight, 0x111111, 0.9)
             .setOrigin(0, 0)
             .setStrokeStyle(2, 0x444444)
-            .setInteractive(); // Intercept clicks
+            .setInteractive();
 
-        // Header (Click to Expand)
-        this.headerBg = this.scene.add.rectangle(0, 0, this.currentWidth, 25, 0x333333).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        this.headerText = this.scene.add.text(this.currentWidth / 2, 12.5, 'COMBAT LOG [+] ', {
-            font: 'bold 11px Arial',
+        // Header (Click to Toggle)
+        // Positioned at the TOP of the container (0, 0)
+        this.headerBg = this.scene.add.rectangle(0, 0, this.width, 30, 0x333333).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        this.headerText = this.scene.add.text(this.width / 2, 15, 'COMBAT LOG [-]', {
+            font: 'bold 12px Arial',
             fill: '#ffffff'
         }).setOrigin(0.5);
 
         this.headerBg.on('pointerdown', this.toggleExpand.bind(this));
 
-        // Mask for Scrolling
-        // Content Area: y=30 to height
-        this.contentHeight = this.currentHeight - 30;
-        const maskShape = this.scene.make.graphics();
-        maskShape.fillStyle(0xffffff);
-        maskShape.fillRect(x, y + 30, this.currentWidth, this.contentHeight);
-        const mask = maskShape.createGeometryMask();
-
-        // Content Container
+        // Content Container (Below Header)
         this.contentContainer = this.scene.add.container(0, 30);
+
+        // Mask
+        this.maskShape = this.scene.make.graphics();
+        this.updateMask(); // Initial mask
+
+        const mask = this.maskShape.createGeometryMask();
         this.contentContainer.setMask(mask);
-        this.maskShape = maskShape; // Keep ref to update
 
         this.container.add([this.bg, this.contentContainer, this.headerBg, this.headerText]);
 
-        this.textObjects = [];
-        this.totalTextHeight = 0;
-
         this.bindEvents();
 
-        // Mouse Wheel
+        // Mouse Wheel Scrolling
         this.scene.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
-            // Check if mouse is over log
-            // Note: pointer.x/y are world coordinates. Container opacity doesn't affect detection but position does.
-            // Since container is at x,y, we check relative bounds.
-            if (pointer.x >= this.container.x && pointer.x <= this.container.x + this.currentWidth &&
-                pointer.y >= this.container.y && pointer.y <= this.container.y + this.currentHeight) {
+            if (!this.isExpanded) return;
 
-                this.scroll(deltaY * 0.5); // Speed multiplier
+            // Check bounds (World coords)
+            const bounds = this.bg.getBounds();
+            if (bounds.contains(pointer.x, pointer.y)) {
+                this.scroll(deltaY * 0.5);
             }
         });
+    }
+
+    updateMask() {
+        this.maskShape.clear();
+        this.maskShape.fillStyle(0xffffff);
+        // Mask covers area from y=30 to height (relative to world? No, maskShape needs world coords if not in container?)
+        // Phaser Masks are tricky. GeometryMask uses World Coordinates.
+
+        // Container World Position
+        const wx = this.container.x;
+        const wy = this.container.y;
+
+        this.maskShape.fillRect(wx, wy + 30, this.width, this.currentHeight - 30);
     }
 
     bindEvents() {
@@ -78,60 +85,38 @@ export class CombatLogView {
     destroy() {
         EventBus.off('log:entry');
         EventBus.off('log:clear');
-        this.container.destroy();
+        if (this.container) this.container.destroy();
+        if (this.maskShape) this.maskShape.destroy();
     }
 
     toggleExpand() {
         this.isExpanded = !this.isExpanded;
 
         if (this.isExpanded) {
-            this.resize(this.maxWidth, this.maxHeight);
+            this.resize(this.maxHeight);
             this.headerText.setText('COMBAT LOG [-]');
-            // Bring to very top z-index if needed
-            this.container.setDepth(2000);
+            this.contentContainer.setVisible(true);
         } else {
-            this.resize(this.minWidth, this.minHeight);
+            this.resize(this.minHeight);
             this.headerText.setText('COMBAT LOG [+]');
-            this.container.setDepth(1000);
+            this.contentContainer.setVisible(false);
         }
     }
 
-    resize(w, h) {
-        this.currentWidth = w;
+    resize(h) {
         this.currentHeight = h;
 
-        // Update BG
-        this.bg.setSize(w, h);
-        this.headerBg.setSize(w, 25);
-        this.headerText.setPosition(w / 2, 12.5);
+        // Reposition container to keep bottom fixed
+        this.container.y = this.anchorBottomY - this.currentHeight;
 
-        // Update Mask
-        this.contentHeight = h - 30;
-        this.maskShape.clear();
-        this.maskShape.fillStyle(0xffffff);
-        this.maskShape.fillRect(this.baseX, this.baseY + 30, w, this.contentHeight);
+        // Resize BG
+        this.bg.setSize(this.width, this.currentHeight);
 
-        // Re-render text (wrapping might change if width changed)
-        this.render();
-    }
+        // Update Mask (Since world Y changed)
+        this.updateMask();
 
-    scroll(amount) {
-        // Amount > 0 = Scroll Down (Content moves UP)
-        // Offset is strictly positive (distance from top)
-        // wait, let's say scrollY is the y-position of contentContainer.
-        // It generally goes from 0 down to -(totalHeight - viewHeight).
-
-        if (this.totalTextHeight <= this.contentHeight) {
-            this.contentContainer.y = 30; // Reset to top
-            return;
-        }
-
-        const minY = 30 - (this.totalTextHeight - this.contentHeight) - 10; // Extra padding
-        const maxY = 30;
-
-        let newY = this.contentContainer.y - amount;
-        newY = Phaser.Math.Clamp(newY, minY, maxY);
-        this.contentContainer.y = newY;
+        // Ensure scroll is valid
+        this.scrollToBottom();
     }
 
     addEntry(entry) {
@@ -145,25 +130,14 @@ export class CombatLogView {
         };
 
         const color = colors[entry.type] || '#ffffff';
-        const textStr = `[${entry.time}] ${entry.message}`;
+        const textStr = `> ${entry.message}`;
 
         this.lines.push({ text: textStr, color: color });
 
-        // Limit history for performance
-        if (this.lines.length > 50) {
-            this.lines.shift();
-        }
+        if (this.lines.length > 50) this.lines.shift();
 
         this.render();
-        // Auto-scroll to bottom
-        // To do this, we want contentContainer.y to be at its minimum (scrolled all the way up/content moved up)
-        // Except if user is scrolling up? Let's just force snap for now as demanded by logs usually.
-
-        // Calculate min Y
-        if (this.totalTextHeight > this.contentHeight) {
-            const minY = 30 - (this.totalTextHeight - this.contentHeight) - 10;
-            this.contentContainer.y = minY;
-        }
+        this.scrollToBottom();
     }
 
     clear() {
@@ -176,18 +150,47 @@ export class CombatLogView {
         this.textObjects = [];
 
         let currentY = 0;
-
         this.lines.forEach(line => {
             const t = this.scene.add.text(5, currentY, line.text, {
-                font: '10px monospace',
+                font: '12px monospace',
                 fill: line.color,
-                wordWrap: { width: this.currentWidth - 10 }
+                wordWrap: { width: this.width - 10 }
             });
             this.contentContainer.add(t);
             this.textObjects.push(t);
-            currentY += t.height + 2;
+            currentY += t.height + 4; // Spacing
         });
 
         this.totalTextHeight = currentY;
+    }
+
+    scroll(amount) {
+        // Scrolling means moving contentContainer.y
+        // Visible Height
+        const visibleH = this.currentHeight - 30;
+
+        if (this.totalTextHeight <= visibleH) {
+            this.contentContainer.y = 30;
+            return;
+        }
+
+        // Min Y: Since content is taller, we move it UP (negative Y relative to 30)
+        // Bottom alignment: 30 - (total - visible)
+        const minY = 30 - (this.totalTextHeight - visibleH);
+        const maxY = 30;
+
+        let newY = this.contentContainer.y - amount;
+        newY = Phaser.Math.Clamp(newY, minY, maxY);
+        this.contentContainer.y = newY;
+    }
+
+    scrollToBottom() {
+        const visibleH = this.currentHeight - 30;
+        if (this.totalTextHeight > visibleH) {
+            // Move content up so bottom is visible
+            this.contentContainer.y = 30 - (this.totalTextHeight - visibleH);
+        } else {
+            this.contentContainer.y = 30;
+        }
     }
 }
