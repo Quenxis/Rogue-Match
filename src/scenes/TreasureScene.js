@@ -78,13 +78,13 @@ export class TreasureScene extends Phaser.Scene {
         });
 
         // Text
-        this.add.text(550, 450, name, {
+        this.add.text(550, 400, name, {
             font: 'bold 36px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5).setAlpha(0).setY(480);
+        }).setOrigin(0.5).setAlpha(0).setY(430);
 
-        this.add.text(550, 500, desc, {
+        this.add.text(550, 450, desc, {
             font: '20px Arial', fill: '#cccccc'
-        }).setOrigin(0.5).setAlpha(0).setY(530);
+        }).setOrigin(0.5).setAlpha(0).setY(480);
 
         // Animate Text In
         this.tweens.add({
@@ -97,7 +97,8 @@ export class TreasureScene extends Phaser.Scene {
 
         // Continue Button
         this.time.delayedCall(1200, () => {
-            const btn = this.add.text(550, 600, 'CONTINUE', {
+            const btnY = this.scale.height * 0.85;
+            const btn = this.add.text(550, btnY, 'CONTINUE', {
                 backgroundColor: '#444444', padding: { x: 20, y: 10 }, font: '20px Arial'
             }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
