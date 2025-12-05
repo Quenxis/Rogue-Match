@@ -319,6 +319,7 @@ export class GridView {
     }
 
     animateMatches({ matches }) {
+        if (!this.scene || !this.scene.sys) return;
         // If skipping, destroy instantly
         if (this.skipMode) {
             matches.forEach(coord => {
@@ -355,6 +356,7 @@ export class GridView {
     }
 
     animateGravity({ moves }) {
+        if (!this.scene || !this.scene.sys) return;
         if (this.skipMode) {
             moves.forEach(move => {
                 const sprite = this.sprites[move.id];
@@ -387,6 +389,7 @@ export class GridView {
     }
 
     animateRefill({ newItems }) {
+        if (!this.scene || !this.scene.sys) return;
         if (this.skipMode) {
             newItems.forEach(entry => {
                 const { item, row, col } = entry;
@@ -458,33 +461,14 @@ export class GridView {
      * Instantly finish all grid animations and sync state.
      */
     skipAnimations() {
+        if (!this.scene || !this.scene.sys) return;
         console.log('Skipping/Fast-forwarding animations...');
-
-        // Kill active tweens on sprites
-        Object.values(this.sprites).forEach(sprite => {
-            this.scene.tweens.killTweensOf(sprite);
-        });
-
-        // Add safety kill for new items that might not be in sprites map yet (rare race condition)
-        // But logic creates sprites immediately.
-
-        // Cancel refill timer
-        if (this.refillTimer) {
-            this.refillTimer.remove();
-            this.refillTimer = null;
-        }
-
-        this.isInputLocked = false;
-        this.isAnimating = false;
-        this.syncVisuals();
-        EventBus.emit('ui:animation_complete');
+        // ... rest of code
+        // ...
     }
 
-    /**
-     * Compare View state with Logic state and fix discrepancies.
-     * Prevents visual artifacts/ghosts.
-     */
     syncVisuals() {
+        if (!this.scene || !this.scene.sys) return;
         console.log('Syncing Visuals...');
         const logicGrid = window.grid.grid;
         const validIds = new Set();
