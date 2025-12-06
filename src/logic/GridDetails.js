@@ -4,14 +4,9 @@
  * @dependencies None
  */
 
-export const ITEM_TYPES = {
-    SWORD: 'SWORD',   // Attack
-    SHIELD: 'SHIELD', // Defense
-    POTION: 'POTION', // Health
-    MANA: 'MANA',     // Resource for Skills
-    COIN: 'COIN',     // Currency
-    EMPTY: 'EMPTY'    // Placeholder for cleared tiles
-};
+import { GEM_TYPES } from '../core/Constants.js';
+
+export const ITEM_TYPES = GEM_TYPES;
 
 export class GridItem {
     /**

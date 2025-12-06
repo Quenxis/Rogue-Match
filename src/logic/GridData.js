@@ -5,6 +5,7 @@
  */
 
 import { EventBus } from '../core/EventBus.js';
+import { EVENTS } from '../core/Constants.js';
 import { ITEM_TYPES, GridItem } from './GridDetails.js';
 
 export class GridData {
@@ -60,7 +61,7 @@ export class GridData {
         // Debug print
         this.debugPrint();
 
-        EventBus.emit('grid:created', {
+        EventBus.emit(EVENTS.GRID_CREATED, {
             grid: this.getGridSnapshot(),
             rows: this.rows,
             cols: this.cols
@@ -114,14 +115,14 @@ export class GridData {
         this.grid[r1][c1] = item2;
         this.grid[r2][c2] = item1;
 
-        EventBus.emit('item:swapped', { r1, c1, r2, c2 });
+        EventBus.emit(EVENTS.ITEM_SWAPPED, { r1, c1, r2, c2 });
 
         // 2. Check for Matches
         const matches = this.findMatches();
 
         if (matches.length > 0) {
             console.log('Match Found!', matches);
-            EventBus.emit('matches:found', { matches });
+            EventBus.emit(EVENTS.MATCHES_FOUND, { matches });
 
             // Proceed to resolution
             await this.handleMatchResolution(matches);
@@ -134,7 +135,7 @@ export class GridData {
             this.grid[r2][c2] = item2;
 
             // Emit revert event
-            EventBus.emit('item:swap_reverted', { r1, c1, r2, c2 });
+            EventBus.emit(EVENTS.ITEM_SWAP_REVERTED, { r1, c1, r2, c2 });
             return false;
         }
     }
@@ -172,7 +173,7 @@ export class GridData {
             console.log('Cascade Match Found! Resolving...');
 
             // CRITICAL: Tell the View to animate these matches!
-            EventBus.emit('matches:found', { matches: newMatches });
+            EventBus.emit(EVENTS.MATCHES_FOUND, { matches: newMatches });
 
             await this.handleMatchResolution(newMatches);
         }
@@ -211,7 +212,7 @@ export class GridData {
 
         if (moves.length > 0) {
             console.log('Gravity applied', moves);
-            EventBus.emit('grid:gravity', { moves });
+            EventBus.emit(EVENTS.GRID_GRAVITY, { moves });
             return moves.length;
         }
         return 0;
@@ -244,7 +245,7 @@ export class GridData {
 
         if (newItems.length > 0) {
             console.log('Grid Refilled', newItems);
-            EventBus.emit('grid:refilled', { newItems });
+            EventBus.emit(EVENTS.GRID_REFILLED, { newItems });
         }
     }
 

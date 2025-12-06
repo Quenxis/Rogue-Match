@@ -5,11 +5,14 @@
  */
 
 import { EventBus } from '../core/EventBus.js';
+import { EVENTS, ASSETS } from '../core/Constants.js';
 import { GridData } from '../logic/GridData.js';
 import { AssetFactory } from '../view/AssetFactory.js';
 import { GridView } from '../view/GridView.js';
 import { CombatManager } from '../combat/CombatManager.js';
+import { CombatView } from '../view/CombatView.js';
 import { CombatLogView } from '../view/CombatLogView.js';
+import { RelicSystem } from '../combat/RelicSystem.js';
 import { TopBar } from '../view/TopBar.js';
 import { createVersionWatermark } from '../view/UIHelper.js';
 
@@ -21,11 +24,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('SWORD', 'assets/sword.png');
-        this.load.image('SHIELD', 'assets/shield.png');
-        this.load.image('POTION', 'assets/potion.png');
-        this.load.image('COIN', 'assets/coin.png');
-        this.load.image('MANA', 'assets/mana.png');
+        this.load.image(ASSETS.SWORD, 'assets/sword.png');
+        this.load.image(ASSETS.SHIELD, 'assets/shield.png');
+        this.load.image(ASSETS.POTION, 'assets/potion.png');
+        this.load.image(ASSETS.COIN, 'assets/coin.png');
+        this.load.image(ASSETS.MANA, 'assets/mana.png');
     }
 
     create(data) {
@@ -63,11 +66,20 @@ export class BattleScene extends Phaser.Scene {
         this.gridLogic.initialize();
 
         // 5. Initialize Combat System
-        // Pass entire data object (includes enemyId, nodeType)
+        // Logic (Manager)
         this.combatManager = new CombatManager(this, data);
 
+        // Visuals (View)
+        this.combatView = new CombatView(this, this.combatManager);
+
+        // Systems (Relics)
+        this.relicSystem = new RelicSystem(this.combatManager);
+
         // Notify other systems that the scene is ready
-        EventBus.emit('scene:ready', { scene: 'BattleScene' });
+        EventBus.emit(EVENTS.SCENE_READY, { scene: 'BattleScene' });
+
+        // Start Combat Logic (Emits initial state to View)
+        this.combatManager.init();
 
         // Cleanup on shutdown
         this.events.on('shutdown', this.shutdown, this);
@@ -77,6 +89,14 @@ export class BattleScene extends Phaser.Scene {
         if (this.combatManager) {
             this.combatManager.destroy();
             this.combatManager = null;
+        }
+        if (this.combatView) {
+            this.combatView.destroy();
+            this.combatView = null;
+        }
+        if (this.relicSystem) {
+            this.relicSystem.destroy();
+            this.relicSystem = null;
         }
         if (this.gridView) {
             this.gridView.destroy();

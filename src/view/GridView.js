@@ -5,6 +5,7 @@
  */
 
 import { EventBus } from '../core/EventBus.js';
+import { EVENTS, ENTITIES, GAME_SETTINGS } from '../core/Constants.js';
 
 const DEBUG = false;
 
@@ -16,6 +17,7 @@ export class GridView {
      */
     constructor(scene, x, y) {
         this.scene = scene;
+        this.gridCenterX = x;
         this.gridCenterX = x;
         this.gridCenterY = y;
         this.tileSize = 60; // Reduced from 70 to fit 600px height with UI
@@ -56,21 +58,21 @@ export class GridView {
         this.animateGravityBind = this.animateGravity.bind(this);
         this.animateRefillBind = this.animateRefill.bind(this);
 
-        EventBus.on('grid:created', this.createGridVisualsBind);
-        EventBus.on('item:swapped', this.animateSwapBind);
-        EventBus.on('item:swap_reverted', this.animateSwapRevertBind);
-        EventBus.on('matches:found', this.animateMatchesBind);
-        EventBus.on('grid:gravity', this.animateGravityBind);
-        EventBus.on('grid:refilled', this.animateRefillBind);
+        EventBus.on(EVENTS.GRID_CREATED, this.createGridVisualsBind);
+        EventBus.on(EVENTS.ITEM_SWAPPED, this.animateSwapBind);
+        EventBus.on(EVENTS.ITEM_SWAP_REVERTED, this.animateSwapRevertBind);
+        EventBus.on(EVENTS.MATCHES_FOUND, this.animateMatchesBind);
+        EventBus.on(EVENTS.GRID_GRAVITY, this.animateGravityBind);
+        EventBus.on(EVENTS.GRID_REFILLED, this.animateRefillBind);
     }
 
     destroy() {
-        EventBus.off('grid:created', this.createGridVisualsBind);
-        EventBus.off('item:swapped', this.animateSwapBind);
-        EventBus.off('item:swap_reverted', this.animateSwapRevertBind);
-        EventBus.off('matches:found', this.animateMatchesBind);
-        EventBus.off('grid:gravity', this.animateGravityBind);
-        EventBus.off('grid:refilled', this.animateRefillBind);
+        EventBus.off(EVENTS.GRID_CREATED, this.createGridVisualsBind);
+        EventBus.off(EVENTS.ITEM_SWAPPED, this.animateSwapBind);
+        EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.animateSwapRevertBind);
+        EventBus.off(EVENTS.MATCHES_FOUND, this.animateMatchesBind);
+        EventBus.off(EVENTS.GRID_GRAVITY, this.animateGravityBind);
+        EventBus.off(EVENTS.GRID_REFILLED, this.animateRefillBind);
 
         // Destroy container
         if (this.tokenContainer) {
@@ -164,7 +166,7 @@ export class GridView {
             console.log('Input ignored: Combat Turn/Moves');
 
             // Visual Feedback for No Moves
-            if (window.combat.turn === 'PLAYER' && window.combat.currentMoves <= 0) {
+            if (window.combat.turn === ENTITIES.PLAYER && window.combat.currentMoves <= 0) {
                 const text = this.scene.add.text(sprite.x, sprite.y - 40, "NO MOVES!", {
                     font: 'bold 24px Arial',
                     fill: '#ff0000',

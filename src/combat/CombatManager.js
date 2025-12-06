@@ -2,14 +2,26 @@ import { EventBus } from '../core/EventBus.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { ITEM_TYPES } from '../logic/GridDetails.js';
+import { EVENTS, ENTITIES, ASSETS, SKILLS, GAME_SETTINGS } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
-import { RELICS } from '../data/relics.js';
+
 
 export class CombatManager {
     constructor(scene, data = {}) {
-        this.scene = scene;
+        // Scene no longer stored! Logic only.
+        // Wait, some logic like 'delayedCall' used scene.time. 
+        // We will need a Time Manager or pass scene context for Timers ONLY?
+        // Or better: Use standard setTimeout/setInterval wrapped? 
+        // Phaser's delayedCall is tied to game loop (pauses when game pauses). 
+        // For now, I will keep 'scene' ONLY for timer/tweens if absolutely necessary, 
+        // BUT ideally we should inject a 'timerProvider'.
+        // User said: "Headless" -> "No Phaser Imports". 
+        // But the scene argument is Phaser Scene. 
+        // Let's store logicScene for timers, but NOT for rendering.
+        this.scene = scene; // Kept strictly for .time (Timers)
+
         const enemyId = data.enemyId || 'slime';
         const nodeType = data.nodeType || 'BATTLE';
 
@@ -25,7 +37,7 @@ export class CombatManager {
 
         // Setup Enemy
         if (nodeType === 'BOSS') {
-            this.enemy = new Enemy(enemyData.name, enemyData.maxHP); // Override if boss specific logic needed later
+            this.enemy = new Enemy(enemyData.name, enemyData.maxHP);
         } else {
             this.enemy = new Enemy(enemyData.name, enemyData.maxHP);
         }
@@ -33,17 +45,12 @@ export class CombatManager {
         // Store reward info
         this.goldReward = enemyData.goldReward || 10;
 
-        this.turn = 'PLAYER'; // 'PLAYER' | 'ENEMY' | 'ENDED'
+        this.turn = ENTITIES.PLAYER;
 
-        this.maxMoves = 3;
-        this.currentMoves = 3;
+        this.maxMoves = GAME_SETTINGS.MAX_MOVES;
+        this.currentMoves = GAME_SETTINGS.MAX_MOVES;
 
-        this.playerUI = null;
-        this.enemyUI = null;
-        this.centerText = null; // For Victory/Defeat
-
-        // Skill Buttons (Phaser Objects)
-        this.skillButtons = {};
+        // NO UI OBJECTS HERE
 
         // Store bound handlers for cleanup
         this.onMatchesFound = this.handleMatches.bind(this);
@@ -51,42 +58,33 @@ export class CombatManager {
         this.onSwapRevert = this.handleSwapRevert.bind(this);
 
         this.bindEvents();
-        this.createUI();
-        this.updateUI();
+    }
 
-        logManager.log(`Combat Started vs ${this.enemy.name}!`, 'turn');
+    init() {
+        this.emitState();
     }
 
     bindEvents() {
-        EventBus.on('matches:found', this.onMatchesFound);
-        EventBus.on('item:swapped', this.onSwap);
-        EventBus.on('item:swap_reverted', this.onSwapRevert);
-        EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));
-        EventBus.on('ui:animation_complete', () => this.updateUI());
+        EventBus.on(EVENTS.MATCHES_FOUND, this.onMatchesFound);
+        EventBus.on(EVENTS.ITEM_SWAPPED, this.onSwap);
+        EventBus.on(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
+        EventBus.on(EVENTS.POTION_USE_REQUESTED, (index) => this.handlePotionUse(index));
+        EventBus.on(EVENTS.UI_ANIMATION_COMPLETE, () => this.emitState());
 
         window.combat = this;
     }
 
     destroy() {
-        // Clean up events
-        EventBus.off('matches:found', this.onMatchesFound);
-        EventBus.off('item:swapped', this.onSwap);
-        EventBus.off('item:swap_reverted', this.onSwapRevert);
-        EventBus.off('potion:use_requested');
+        EventBus.off(EVENTS.MATCHES_FOUND, this.onMatchesFound);
+        EventBus.off(EVENTS.ITEM_SWAPPED, this.onSwap);
+        EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
+        EventBus.off(EVENTS.POTION_USE_REQUESTED);
 
-        // Clean up UI
-        if (this.playerUI) this.playerUI.destroy();
-        if (this.enemyUI) this.enemyUI.destroy();
-        if (this.centerText) this.centerText.destroy();
-        if (this.endTurnBtn) this.endTurnBtn.destroy();
-
-        Object.values(this.skillButtons).forEach(btn => {
-            if (btn.container) btn.container.destroy();
-        });
+        // UI cleanup handled by View
     }
 
     handlePotionUse(index) {
-        if (this.turn !== 'PLAYER') return;
+        if (this.turn !== ENTITIES.PLAYER) return;
 
         const potion = runManager.player.potions[index];
         if (!potion || potion.type !== 'POTION') return;
@@ -94,7 +92,6 @@ export class CombatManager {
         console.log(`CombatManager: Using potion ${potion.id}`);
 
         let used = false;
-
         if (potion.id === 'potion_heal') {
             this.player.heal(20);
             used = true;
@@ -108,247 +105,75 @@ export class CombatManager {
 
         if (used) {
             runManager.removePotion(index);
-            EventBus.emit('ui:refresh_topbar'); // Refresh HUD
-            this.updateUI(); // Refresh Stats
+            // EventBus.emit(EVENTS.UI_REFRESH_TOPBAR); -> Handled by View/RunManager
+            this.emitState();
             logManager.log(`Used ${potion.name}!`, 'info');
         }
     }
 
-    createUI() {
-        // Left Column Center X = 120
-        const LEFT_COL_X = 120;
-        const style = { font: '18px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: { x: 5, y: 5 } };
+    // createUI() -> REMOVED
+    // createSkillButton() -> REMOVED
 
-        // 1. Hero Sprite
-        if (this.scene.textures.exists('hero_sprite')) {
-            this.heroSprite = this.scene.add.image(LEFT_COL_X, 130, 'hero_sprite');
-            this.heroSprite.setDisplaySize(150, 150);
-            this.heroSprite.setDepth(100);
-        } else {
-            this.heroSprite = this.scene.add.rectangle(LEFT_COL_X, 130, 100, 100, 0x6666ff).setDepth(100);
-        }
-
-        // 2. Compact Stats Row (Below Sprite)
-        this.playerUI = this.scene.add.text(LEFT_COL_X, 220, '', {
-            font: 'bold 16px Arial',
-            fill: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5, 0);
-        this.playerUI.setDepth(100);
-
-        // Enemy UI (Right Side)
-        const RIGHT_COL_X = 980;
-
-        // 3. Enemy Sprite (Fallback Logic)
-        let enemyTexture = 'tex_enemy_placeholder';
-        // Try to find texture by name in ENEMIES
-        const foundId = Object.keys(ENEMIES).find(key => ENEMIES[key].name === this.enemy.name);
-        if (foundId) {
-            const desired = ENEMIES[foundId].texture;
-            if (this.scene.textures.exists(desired)) {
-                enemyTexture = desired;
-            }
-        }
-
-        this.enemySprite = this.scene.add.sprite(RIGHT_COL_X, 130, enemyTexture);
-        this.enemySprite.setDisplaySize(150, 150);
-        this.enemySprite.setDepth(100);
-        this.enemySprite.setFlipX(false); // Face correct direction
-
-        // 4. Enemy Stats (Below Sprite)
-        this.enemyUI = this.scene.add.text(RIGHT_COL_X, 220, '', {
-            font: 'bold 16px Arial',
-            fill: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5, 0);
-        this.enemyUI.setDepth(100);
-
-        // Center Notification Text (Victory/Defeat)
-        this.centerText = this.scene.add.text(550, 300, '', {
-            font: '48px Arial',
-            fill: '#ffd700',
-            stroke: '#000000',
-            strokeThickness: 6,
-            align: 'center'
-        }).setOrigin(0.5).setDepth(200).setVisible(false);
-
-        // Create Skill Buttons
-        this.createSkillButton(0, 'FIREBALL', '🔥 Fireball\n(5 Mana)', 0xff4400, () => this.tryUseSkill('FIREBALL'));
-        this.createSkillButton(1, 'HEAL', '💚 Heal\n(8 Mana)', 0x00cc44, () => this.tryUseSkill('HEAL'));
-
-        // End Turn Button
-        this.endTurnBtn = this.scene.add.text(LEFT_COL_X, 550, 'END TURN', {
-            font: '24px Arial',
-            fill: '#ffffff',
-            backgroundColor: '#ff0000',
-            padding: { x: 10, y: 10 }
-        })
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerdown', () => {
-                this.scene.tweens.killTweensOf(this.endTurnBtn);
-                this.endTurnBtn.setScale(1);
-
-                this.scene.tweens.add({
-                    targets: this.endTurnBtn,
-                    scale: 0.9,
-                    duration: 100,
-                    yoyo: true,
-                    onComplete: () => this.endTurnBtn.setScale(1)
-                });
-                this.endTurn();
-            })
-            .setDepth(100);
-    }
-
-    createSkillButton(index, id, label, color, callback) {
-        const x = 120; // Left Column Center matches Sprite
-        const y = 280 + (index * 70); // Starts below stats
-        const w = 140;
-        const h = 50;
-
-        const container = this.scene.add.container(x, y);
-        container.setDepth(100);
-
-        // Background (Centered)
-        const bg = this.scene.add.rectangle(0, 0, w, h, color)
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerdown', callback);
-
-        // Hover effect
-        bg.on('pointerover', () => bg.setAlpha(0.8));
-        bg.on('pointerout', () => bg.setAlpha(1));
-
-        // Text (Centered)
-        const text = this.scene.add.text(0, 0, label, {
-            font: '14px Arial',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: w - 10 }
-        }).setOrigin(0.5);
-
-        container.add([bg, text]);
-        this.skillButtons[id] = { container, bg, text, color };
-    }
-
-    updateUI() {
-        if (!this.playerUI || !this.enemyUI) return;
-
-        // SYNC TO GLOBAL (Top Bar)
-        this.syncStateToGlobal();
-
-        const p = this.player;
-        const e = this.enemy;
-
-        // 3. Compact Stats Text
-        // "🛡️ Block: [x] | 🔮 Mana: [y] | 👟 Moves: [z]/3"
-        // Purple Crystal Ball for Mana
-        let stats = `🛡️ ${p.block} | 🔮 ${p.mana} | 👟 ${this.currentMoves}/${this.maxMoves}`;
-        if (p.strength > 0) {
-            stats += ` | 💪 ${p.strength}`;
-        }
-
-        this.playerUI.setText(stats);
-
-        // Enemy Text: Iconic
-        let intentIcon = '⚔️';
-        if (e.currentIntent && e.currentIntent.type === 'BLOCK') intentIcon = '🛡️';
-
-        this.enemyUI.setText(`
-${e.name.toUpperCase()}
-❤️ ${e.currentHP}/${e.maxHP}
-🛡️ ${e.block}
-${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
-        `.trim());
-
-        // Update Skill Button States
-        const canAct = this.turn === 'PLAYER';
-
-        this.updateSkillButton('HEAL', canAct && p.mana >= 8);
-        this.updateSkillButton('FIREBALL', canAct && p.mana >= 5);
-        this.updateSkillButton('END_TURN', canAct && (!this.scene.gridView || !this.scene.gridView.isAnimating)); // Lock if animating
-    }
-
-    syncStateToGlobal() {
-        // Push local combat state to global RunManager to update TopBar
+    emitState() {
+        // Sync to global
         runManager.player.currentHP = this.player.currentHP;
         runManager.player.gold = this.player.gold;
-        // Triggers TopBar.render()
-        EventBus.emit('ui:refresh_topbar');
+
+        EventBus.emit(EVENTS.UI_UPDATE, {
+            player: this.player,
+            enemy: this.enemy,
+            turn: this.turn,
+            currentMoves: this.currentMoves,
+            maxMoves: this.maxMoves
+        });
     }
 
-    updateSkillButton(id, isEnabled) {
-        if (id === 'END_TURN') {
-            if (this.endTurnBtn) {
-                if (isEnabled) {
-                    this.endTurnBtn.setAlpha(1).setInteractive();
-                } else {
-                    this.endTurnBtn.setAlpha(0.5).disableInteractive();
-                }
-            }
-            return;
-        }
-
-        const btn = this.skillButtons[id];
-        if (!btn) return;
-
-        if (isEnabled) {
-            btn.container.setAlpha(1);
-            btn.bg.setInteractive();
-        } else {
-            btn.container.setAlpha(0.3);
-            btn.bg.disableInteractive();
-        }
-    }
+    // updateSkillButton() -> REMOVED
 
     tryUseSkill(skillName) {
-        if (this.turn !== 'PLAYER') return;
+        if (this.turn !== ENTITIES.PLAYER) return;
         const p = this.player;
         const e = this.enemy;
 
-        if (skillName === 'FIREBALL') {
+        if (skillName === SKILLS.FIREBALL) {
             if (p.mana >= 5) {
                 p.mana -= 5;
                 e.takeDamage(15);
-                this.updateUI();
+                this.emitState();
                 this.checkWinCondition();
             }
-        } else if (skillName === 'HEAL') {
+        } else if (skillName === SKILLS.HEAL) {
             if (p.mana >= 8) {
                 p.mana -= 8;
                 p.heal(20);
-                this.updateUI();
+                this.emitState();
             }
         }
     }
 
     handleSwap() {
-        if (this.turn === 'PLAYER') {
+        if (this.turn === ENTITIES.PLAYER) {
             this.currentMoves--;
-            this.updateUI();
+            this.emitState();
         }
     }
 
     handleSwapRevert() {
-        if (this.turn === 'PLAYER') {
+        if (this.turn === ENTITIES.PLAYER) {
             this.currentMoves++;
-            this.updateUI();
+            this.emitState();
         }
     }
 
     canInteract() {
-        return this.turn === 'PLAYER' && this.currentMoves > 0;
+        return this.turn === ENTITIES.PLAYER && this.currentMoves > 0;
     }
 
     handleMatches(data) {
-        if (this.turn === 'ENDED') return;
-
-        // If enemy is dead or player dead, stop processing
+        if (this.turn === ENTITIES.ENDED) return;
         if (this.enemy.isDead || this.player.isDead) return;
 
         const { matches } = data;
-
         const matchCounts = {};
 
         matches.forEach(m => {
@@ -357,41 +182,24 @@ ${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
                 const item = window.grid.grid[m.r][m.c];
                 type = item.type;
             }
-
             matchCounts[type] = (matchCounts[type] || 0) + 1;
         });
 
         Object.entries(matchCounts).forEach(([type, count]) => {
-            // Trigger Hooks for Matches
-            this.triggerHooks('onMatch', count, type);
-
             this.applyEffect(type, count);
         });
 
-        this.updateUI();
+        this.emitState();
         this.checkWinCondition();
     }
 
-    triggerHooks(hookName, ...args) {
-        const relicIds = runManager.getRelics();
-        relicIds.forEach(id => {
-            const relic = RELICS[id];
-            if (relic && relic.hooks && relic.hooks[hookName]) {
-                try {
-                    relic.hooks[hookName](this, ...args);
-                } catch (e) {
-                    console.error(`Error in relic hook ${id}.${hookName}: `, e);
-                }
-            }
-        });
-    }
+
 
     applyEffect(type, count) {
         switch (type) {
             case ITEM_TYPES.SWORD:
                 const dmg = count * (2 + this.player.strength);
                 this.enemy.takeDamage(dmg);
-                // logManager handled by Entity
                 break;
             case ITEM_TYPES.SHIELD:
                 const block = count * 2;
@@ -413,9 +221,8 @@ ${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
     }
 
     endTurn() {
-        if (this.turn !== 'PLAYER') return;
+        if (this.turn !== ENTITIES.PLAYER) return;
 
-        // Fast-forward any pending grid animations
         if (this.scene.gridView) {
             this.scene.gridView.skipAnimations();
         }
@@ -423,20 +230,22 @@ ${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
             window.grid.setFastForward(true);
         }
 
-        this.turn = 'ENEMY';
-        this.updateUI();
+        this.turn = ENTITIES.ENEMY;
+        this.emitState();
         logManager.log("-- ENEMY TURN --", 'turn');
 
         this.scene.time.delayedCall(800, () => {
-            if (this.turn === 'ENDED') return;
-            this.enemy.resetBlock(); // Reset block before new action
+            if (this.turn === ENTITIES.ENDED) return;
+            this.enemy.resetBlock();
 
             const intent = this.enemy.currentIntent;
             this.enemy.executeIntent(this.player);
 
-            // Hook: onDefend (Thorns)
             if (intent && intent.type === 'ATTACK') {
-                this.triggerHooks('onDefend', intent.value);
+                EventBus.emit(EVENTS.ENEMY_ATTACK, {
+                    damage: intent.value,
+                    intent: intent
+                });
             }
 
             if (this.player.isDead) {
@@ -448,36 +257,27 @@ ${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
     }
 
     startPlayerTurn() {
-        if (this.turn === 'ENDED') return;
-        this.turn = 'PLAYER';
-        if (window.grid) window.grid.setFastForward(false); // Reset speed
+        if (this.turn === ENTITIES.ENDED) return;
+        this.turn = ENTITIES.PLAYER;
+        if (window.grid) window.grid.setFastForward(false);
         this.currentMoves = this.maxMoves;
         this.player.resetBlock();
         this.enemy.generateIntent();
-        this.updateUI();
+        this.emitState();
         logManager.log("-- PLAYER TURN --", 'turn');
     }
 
     checkWinCondition() {
-        if (this.turn === 'ENDED') return;
+        if (this.turn === ENTITIES.ENDED) return;
 
         if (this.enemy.isDead) {
-            this.turn = 'ENDED';
+            this.turn = ENTITIES.ENDED;
 
-            // Trigger Hooks for Victory (e.g. Golden Idol)
-            const relicIds = runManager.getRelics();
-            relicIds.forEach(id => {
-                const relic = RELICS[id];
-                if (relic && relic.hooks && relic.hooks.onVictory) {
-                    relic.hooks.onVictory(this); // Pass combat instance
-                }
-            });
+            EventBus.emit(EVENTS.VICTORY, { combat: this });
 
-            // SAVE STATE
             runManager.updatePlayerState(this.player.currentHP, this.player.gold + this.goldReward);
             runManager.completeLevel();
 
-            // DELAY THEN REWARD SCENE
             this.scene.time.delayedCall(1500, () => {
                 this.scene.scene.start('RewardScene', {
                     rewards: { gold: this.goldReward }
@@ -486,30 +286,15 @@ ${intentIcon} ${e.currentIntent ? e.currentIntent.text : 'Thinking...'}
             return;
         }
         if (this.player.isDead) {
-            this.turn = 'ENDED';
-            this.showNotification('DEFEAT', 0xff0000);
+            this.turn = ENTITIES.ENDED;
+            EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'DEFEAT', color: 0xff0000 });
 
-            // RESTART
             this.scene.time.delayedCall(3000, () => {
                 runManager.startNewRun();
                 this.scene.scene.start('MapScene');
             });
             return;
         }
-    }
-
-    showNotification(text, color) {
-        this.centerText.setText(text);
-        this.centerText.setColor('#' + color.toString(16));
-        this.centerText.setVisible(true);
-        this.centerText.setScale(0);
-
-        this.scene.tweens.add({
-            targets: this.centerText,
-            scale: 1.5,
-            duration: 500,
-            ease: 'Back.out'
-        });
     }
 
     log(message, type = 'info') {
