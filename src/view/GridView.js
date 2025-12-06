@@ -74,9 +74,13 @@ export class GridView {
         EventBus.off(EVENTS.GRID_GRAVITY, this.animateGravityBind);
         EventBus.off(EVENTS.GRID_REFILLED, this.animateRefillBind);
 
-        // Destroy container
         if (this.tokenContainer) {
             this.tokenContainer.destroy();
+        }
+
+        if (this.refillTimer) {
+            this.refillTimer.remove(false);
+            this.refillTimer = null;
         }
     }
 
@@ -501,8 +505,21 @@ export class GridView {
     skipAnimations() {
         if (!this.scene || !this.scene.sys) return;
         console.log('Skipping/Fast-forwarding animations...');
-        // ... rest of code
-        // ...
+
+        // Kill all tweens on sprites
+        Object.values(this.sprites).forEach(sprite => {
+            this.scene.tweens.killTweensOf(sprite);
+        });
+
+        // Kill refill timer
+        if (this.refillTimer) {
+            this.refillTimer.remove(false);
+            this.refillTimer = null;
+        }
+
+        // Force Sync immediately
+        this.syncVisuals();
+        this.isInputLocked = false;
     }
 
     syncVisuals() {

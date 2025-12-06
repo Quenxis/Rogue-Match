@@ -29,13 +29,16 @@ export class CombatView {
     }
 
     bindEvents() {
-        EventBus.on(EVENTS.UI_UPDATE, (state) => this.updateUI(state));
-        EventBus.on(EVENTS.SHOW_NOTIFICATION, (data) => this.showNotification(data.text, data.color));
+        this.updateUIBind = this.updateUI.bind(this);
+        this.showNotificationBind = (data) => this.showNotification(data.text, data.color);
+
+        EventBus.on(EVENTS.UI_UPDATE, this.updateUIBind);
+        EventBus.on(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
     }
 
     destroy() {
-        EventBus.off(EVENTS.UI_UPDATE);
-        EventBus.off(EVENTS.SHOW_NOTIFICATION);
+        EventBus.off(EVENTS.UI_UPDATE, this.updateUIBind);
+        EventBus.off(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
 
         if (this.playerUI) this.playerUI.destroy();
         if (this.enemyUI) this.enemyUI.destroy();
@@ -110,13 +113,16 @@ export class CombatView {
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', () => {
-                this.animateButton(this.endTurnBtn);
-                this.combatManager.endTurn();
+                if (this.endTurnBtn && this.endTurnBtn.active) {
+                    this.animateButton(this.endTurnBtn);
+                    this.combatManager.endTurn();
+                }
             })
             .setDepth(100);
     }
 
     animateButton(btn) {
+        if (!btn || !btn.active || !this.scene) return;
         this.scene.tweens.killTweensOf(btn);
         btn.setScale(1);
         this.scene.tweens.add({
@@ -124,7 +130,9 @@ export class CombatView {
             scale: 0.9,
             duration: 100,
             yoyo: true,
-            onComplete: () => btn.setScale(1)
+            onComplete: () => {
+                if (btn && btn.active) btn.setScale(1);
+            }
         });
     }
 

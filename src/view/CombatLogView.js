@@ -78,13 +78,16 @@ export class CombatLogView {
     }
 
     bindEvents() {
-        EventBus.on('log:entry', this.addEntry.bind(this));
-        EventBus.on('log:clear', this.clear.bind(this));
+        this.addEntryBind = this.addEntry.bind(this);
+        this.clearBind = this.clear.bind(this);
+
+        EventBus.on('log:entry', this.addEntryBind);
+        EventBus.on('log:clear', this.clearBind);
     }
 
     destroy() {
-        EventBus.off('log:entry');
-        EventBus.off('log:clear');
+        EventBus.off('log:entry', this.addEntryBind);
+        EventBus.off('log:clear', this.clearBind);
         if (this.container) this.container.destroy();
         if (this.maskShape) this.maskShape.destroy();
     }
@@ -120,6 +123,8 @@ export class CombatLogView {
     }
 
     addEntry(entry) {
+        if (!this.contentContainer || !this.scene) return;
+
         const colors = {
             'info': '#cccccc',
             'damage': '#ff6666',

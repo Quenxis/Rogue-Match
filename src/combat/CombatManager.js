@@ -80,6 +80,11 @@ export class CombatManager {
         EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
         EventBus.off(EVENTS.POTION_USE_REQUESTED);
 
+        if (this.turnTimer) {
+            this.turnTimer.remove(false);
+            this.turnTimer = null;
+        }
+
         // UI cleanup handled by View
     }
 
@@ -222,6 +227,7 @@ export class CombatManager {
 
     endTurn() {
         if (this.turn !== ENTITIES.PLAYER) return;
+        if (this.player.isDead || this.enemy.isDead) return;
 
         if (this.scene.gridView) {
             this.scene.gridView.skipAnimations();
@@ -232,9 +238,12 @@ export class CombatManager {
 
         this.turn = ENTITIES.ENEMY;
         this.emitState();
+        this.turn = ENTITIES.ENEMY;
+        this.emitState(); // Emits UI_UPDATE
         logManager.log("-- ENEMY TURN --", 'turn');
 
-        this.scene.time.delayedCall(800, () => {
+        if (this.turnTimer) this.turnTimer.remove(false);
+        this.turnTimer = this.scene.time.delayedCall(800, () => {
             if (this.turn === ENTITIES.ENDED) return;
             this.enemy.resetBlock();
 
