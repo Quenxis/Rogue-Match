@@ -272,13 +272,15 @@ export class CombatManager {
             if (intent && intent.type === 'DEFEND') {
                 EventBus.emit(EVENTS.ENEMY_DEFEND, { value: intent.value });
             } else if (intent && intent.type === 'BUFF') {
-                // Future proofing for Heal
-                if (intent.effect === 'HEAL') {
-                    EventBus.emit(EVENTS.ENEMY_HEAL, { value: intent.value });
-                }
+                // Placeholder Animation: Use HEAL animation for Buffs (e.g. Roar)
+                EventBus.emit(EVENTS.ENEMY_HEAL, { value: intent.value });
+
             } else if (intent && intent.type === 'DEBUFF') {
-                // Determine effect type for UI or just generic
-                // UI might not need specific event if we use SHOW_NOTIFICATION
+                // Placeholder Animation: Use ATTACK animation for Debuffs (e.g. Lock, Trash)
+                EventBus.emit(EVENTS.ENEMY_ATTACK, {
+                    damage: 0, // No damage, just animation
+                    intent: intent
+                });
             }
 
             this.executeEnemyIntent();

@@ -491,8 +491,14 @@ export class GridView {
                 sprite.setData('row', move.toRow);
                 sprite.setData('col', move.toCol);
 
+                const overlay = this.overlays[move.id];
+                const tweenTargets = [sprite];
+                if (overlay) {
+                    tweenTargets.push(overlay);
+                }
+
                 this.scene.tweens.add({
-                    targets: sprite,
+                    targets: tweenTargets,
                     y: this.getY(move.toRow),
                     duration: 400,
                     ease: 'Bounce.easeOut', // Fun bounce
