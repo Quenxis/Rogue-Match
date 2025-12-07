@@ -5,7 +5,7 @@ import { RELICS } from '../data/relics.js';
 export class TopBar {
     constructor(scene) {
         this.scene = scene;
-        this.width = 1100;
+        this.width = 1252;
         this.height = 40;
 
         this.container = this.scene.add.container(0, 0);
@@ -176,6 +176,7 @@ export class TopBar {
     }
 
     usePotion(index) {
+        this.hideTooltip(); // Fix: Force hide tooltip immediately on use
         console.log(`TopBar: Clicked Potion ${index}`);
         // Emit event for CombatManager to handle
         EventBus.emit('potion:use_requested', index);

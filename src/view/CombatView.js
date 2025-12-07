@@ -34,11 +34,31 @@ export class CombatView {
 
         EventBus.on(EVENTS.UI_UPDATE, this.updateUIBind);
         EventBus.on(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
+
+        // Animation Events
+        EventBus.on(EVENTS.PLAYER_ATTACK, () => {
+            this.animateAttack(this.heroSprite, this.enemySprite, 50);
+        });
+        EventBus.on(EVENTS.ENEMY_ATTACK, () => {
+            this.animateAttack(this.enemySprite, this.heroSprite, -50);
+        });
+
+        // Defensive Events
+        EventBus.on(EVENTS.PLAYER_DEFEND, () => this.animateDefend(this.heroSprite));
+        EventBus.on(EVENTS.PLAYER_HEAL, () => this.animateHeal(this.heroSprite));
+        EventBus.on(EVENTS.ENEMY_DEFEND, () => this.animateDefend(this.enemySprite));
+        EventBus.on(EVENTS.ENEMY_HEAL, () => this.animateHeal(this.enemySprite));
     }
 
     destroy() {
         EventBus.off(EVENTS.UI_UPDATE, this.updateUIBind);
         EventBus.off(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
+        EventBus.off(EVENTS.PLAYER_ATTACK);
+        EventBus.off(EVENTS.ENEMY_ATTACK);
+        EventBus.off(EVENTS.PLAYER_DEFEND);
+        EventBus.off(EVENTS.PLAYER_HEAL);
+        EventBus.off(EVENTS.ENEMY_DEFEND);
+        EventBus.off(EVENTS.ENEMY_HEAL);
 
         if (this.playerUI) this.playerUI.destroy();
         if (this.enemyUI) this.enemyUI.destroy();
@@ -53,37 +73,61 @@ export class CombatView {
     }
 
     createUI() {
-        // Left Column Center X = 120
-        const LEFT_COL_X = 120;
+        // --- Refined Slay The Spire Layout ---
+        // TopBar: 40px. Playable: 560px. Mid Y: 320.
+        // Grid: 626, 320 -> 300. Bounds Y: 80 to 520.
+
+        // Entities Y (Lower Mid - "Standing" feel)
+        // Entities Y (Lower Mid - "Standing" feel)
+        const ENTITY_Y = 360;
+        const HP_BAR_Y = 445;
+        const STATS_Y = 470;
+
+        // Left Flank (Player) - Centered in left space (0-406) -> X=200
+        const LEFT_X = 200;
 
         // 1. Hero Sprite
         if (this.scene.textures.exists(ASSETS.HERO)) {
-            this.heroSprite = this.scene.add.image(LEFT_COL_X, 130, ASSETS.HERO);
+            this.heroSprite = this.scene.add.image(LEFT_X, ENTITY_Y, ASSETS.HERO);
             this.heroSprite.setDisplaySize(150, 150);
             this.heroSprite.setDepth(100);
         } else {
-            this.heroSprite = this.scene.add.rectangle(LEFT_COL_X, 130, 100, 100, 0x6666ff).setDepth(100);
+            this.heroSprite = this.scene.add.rectangle(LEFT_X, ENTITY_Y, 100, 100, 0x6666ff).setDepth(100);
         }
 
-        // 2. Compact Stats Row (Below Sprite)
-        this.playerUI = this.scene.add.text(LEFT_COL_X, 220, '', {
+        // 2. Player Stats
+        // HP Bar
+        this.playerHPBar = this.createHealthBar(LEFT_X, HP_BAR_Y, 150, 20, 0xff4444);
+
+        // Other Stats
+        this.playerUI = this.scene.add.text(LEFT_X, STATS_Y, '', {
             font: 'bold 16px Arial',
             fill: '#ffffff',
             align: 'center'
         }).setOrigin(0.5, 0);
         this.playerUI.setDepth(100);
 
-        // Enemy UI (Right Side)
-        const RIGHT_COL_X = 980;
+        // Right Flank (Enemy) - Centered in right space (846-1252) -> X=1050
+        const RIGHT_X = 1050;
 
-        // 3. Enemy Sprite - Initialize with placeholder, update later
-        this.enemySprite = this.scene.add.sprite(RIGHT_COL_X, 130, ASSETS.ENEMY_PLACEHOLDER);
+        // 3. Enemy Sprite
+        this.enemySprite = this.scene.add.sprite(RIGHT_X, ENTITY_Y, ASSETS.ENEMY_PLACEHOLDER);
         this.enemySprite.setDisplaySize(150, 150);
         this.enemySprite.setDepth(100);
         this.enemySprite.setFlipX(false);
 
-        // 4. Enemy Stats (Below Sprite)
-        this.enemyUI = this.scene.add.text(RIGHT_COL_X, 220, '', {
+        // 4. Enemy Stats
+        // Name (Above Sprite)
+        this.enemyName = this.scene.add.text(RIGHT_X, ENTITY_Y - 90, '', {
+            font: 'bold 14px Arial',
+            fill: '#aaaaaa', // Greyish, less prominent
+            align: 'center'
+        }).setOrigin(0.5);
+
+        // HP Bar
+        this.enemyHPBar = this.createHealthBar(RIGHT_X, HP_BAR_Y, 150, 20, 0xff4444);
+
+        this.enemyUI = this.scene.add.text(RIGHT_X, STATS_Y, '', {
             font: 'bold 16px Arial',
             fill: '#ffffff',
             align: 'center'
@@ -91,7 +135,7 @@ export class CombatView {
         this.enemyUI.setDepth(100);
 
         // Center Notification
-        this.centerText = this.scene.add.text(550, 300, '', {
+        this.centerText = this.scene.add.text(626, 300, '', {
             font: '48px Arial',
             fill: '#ffd700',
             stroke: '#000000',
@@ -99,16 +143,21 @@ export class CombatView {
             align: 'center'
         }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-        // Skills
-        this.createSkillButton(0, SKILLS.FIREBALL, '🔥 Fireball\n(5 Mana)', 0xff4400, () => this.combatManager.tryUseSkill(SKILLS.FIREBALL));
-        this.createSkillButton(1, SKILLS.HEAL, '💚 Heal\n(8 Mana)', 0x00cc44, () => this.combatManager.tryUseSkill(SKILLS.HEAL));
+        // Skills (Compact Row UNDER Grid)
+        // Grid Bottom = 520. Place buttons at Y=560.
+        const SKILL_CENTER_X = 626;
+        const SKILL_Y = 560;
+        const SKILL_SPACING = 170;
 
-        // End Turn Button
-        this.endTurnBtn = this.scene.add.text(LEFT_COL_X, 550, 'END TURN', {
-            font: '24px Arial',
+        this.createCompactSkillButton(0, SKILLS.FIREBALL, '🔥 Fireball', 0xff4400, SKILL_CENTER_X - (SKILL_SPACING / 2), SKILL_Y, () => this.combatManager.tryUseSkill(SKILLS.FIREBALL));
+        this.createCompactSkillButton(1, SKILLS.HEAL, '💚 Heal', 0x00cc44, SKILL_CENTER_X + (SKILL_SPACING / 2), SKILL_Y, () => this.combatManager.tryUseSkill(SKILLS.HEAL));
+
+        // End Turn Button (Right Side, below entity)
+        this.endTurnBtn = this.scene.add.text(RIGHT_X, 550, 'END TURN', {
+            font: 'bold 20px Arial',
             fill: '#ffffff',
-            backgroundColor: '#ff0000',
-            padding: { x: 10, y: 10 }
+            backgroundColor: '#cc0000',
+            padding: { x: 20, y: 12 }
         })
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
@@ -119,6 +168,59 @@ export class CombatView {
                 }
             })
             .setDepth(100);
+
+        this.endTurnBtn.on('pointerover', () => this.endTurnBtn.setTint(0xffcccc));
+        this.endTurnBtn.on('pointerout', () => this.endTurnBtn.clearTint());
+    }
+
+    createHealthBar(x, y, width, height, color) {
+        const container = this.scene.add.container(x, y);
+        container.setDepth(100);
+
+        // Background
+        const bg = this.scene.add.rectangle(0, 0, width, height, 0x000000).setOrigin(0.5);
+        bg.setStrokeStyle(2, 0xffffff);
+
+        // Fill (Left Anchored inside container)
+        // Container 0,0 is center. Left edge is -width/2.
+        const fill = this.scene.add.rectangle(-width / 2 + 2, 0, width - 4, height - 4, color).setOrigin(0, 0.5);
+
+        // Text
+        const text = this.scene.add.text(0, 0, '', {
+            font: 'bold 12px Arial',
+            fill: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+
+        container.add([bg, fill, text]);
+
+        return { container, fill, text, maxWidth: width - 4, currentVal: -1 };
+    }
+
+    updateHealthBar(bar, current, max) {
+        if (!bar) return;
+
+        // Text
+        bar.text.setText(`${current}/${max}`);
+
+        // Animation
+        if (bar.currentVal !== current) {
+            bar.currentVal = current;
+            const percent = Math.max(0, Math.min(1, current / max));
+            const newWidth = bar.maxWidth * percent;
+
+            this.scene.tweens.add({
+                targets: bar.fill,
+                width: newWidth,
+                duration: 300,
+                ease: 'Power2'
+            });
+
+            // Color feedback?
+            // If healing vs damage?
+            // Could tint flash.
+        }
     }
 
     animateButton(btn) {
@@ -136,31 +238,41 @@ export class CombatView {
         });
     }
 
-    createSkillButton(index, id, label, color, callback) {
-        const x = 120;
-        const y = 280 + (index * 70);
-        const w = 140;
-        const h = 50;
+    createCompactSkillButton(index, id, label, color, x, y, callback) {
+        const w = 150;
+        const h = 40;
 
         const container = this.scene.add.container(x, y);
         container.setDepth(100);
 
+        // Background (Pill shape)
         const bg = this.scene.add.rectangle(0, 0, w, h, color)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', callback);
 
-        bg.on('pointerover', () => bg.setAlpha(0.8));
-        bg.on('pointerout', () => bg.setAlpha(1));
+        // Add subtle border
+        const border = this.scene.add.rectangle(0, 0, w, h, 0x000000, 0).setStrokeStyle(2, 0xffffff, 0.5);
+        border.setOrigin(0.5);
+
+        bg.on('pointerover', () => {
+            bg.setAlpha(0.8);
+            border.setStrokeStyle(2, 0xffffff, 1);
+            this.scene.tweens.add({ targets: container, scale: 1.05, duration: 100 });
+        });
+        bg.on('pointerout', () => {
+            bg.setAlpha(1);
+            border.setStrokeStyle(2, 0xffffff, 0.5);
+            this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
+        });
 
         const text = this.scene.add.text(0, 0, label, {
-            font: '14px Arial',
+            font: 'bold 14px Arial',
             fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: w - 10 }
+            align: 'center'
         }).setOrigin(0.5);
 
-        container.add([bg, text]);
+        container.add([bg, border, text]);
         this.skillButtons[id] = { container, bg, text, color };
     }
 
@@ -174,8 +286,6 @@ export class CombatView {
         this.currentTurn = turn; // Store for local checks if needed
 
         if (!this.playerUI || !this.playerUI.active || !this.enemyUI || !this.enemyUI.active) return;
-
-        this.currentTurn = turn; // Store for local checks if needed
 
         // Update Global TopBar (still coupled to RunManager via EventBus)
         EventBus.emit(EVENTS.UI_REFRESH_TOPBAR);
@@ -191,6 +301,9 @@ export class CombatView {
                 stats += ` | 💪 ${strength}`;
             }
             this.playerUI.setText(stats);
+
+            // Update HP Bar
+            this.updateHealthBar(this.playerHPBar, player.currentHP, player.maxHP);
         }
 
         // Enemy Visuals
@@ -210,18 +323,19 @@ export class CombatView {
             let intentIcon = '⚔️';
             if (enemy.currentIntent && enemy.currentIntent.type === 'BLOCK') intentIcon = '🛡️';
 
-            const eName = enemy.name ? enemy.name.toUpperCase() : 'ENEMY';
-            const eHp = enemy.currentHP || 0;
-            const eMaxHp = enemy.maxHP || 0;
+            // Enemy Name (Updated separately)
+            if (this.enemyName) {
+                this.enemyName.setText(enemy.name ? enemy.name.toUpperCase() : 'ENEMY');
+            }
+
             const eBlock = enemy.block || 0;
             const intentText = enemy.currentIntent ? enemy.currentIntent.text : 'Thinking...';
 
-            this.enemyUI.setText(`
-${eName}
-❤️ ${eHp}/${eMaxHp}
-🛡️ ${eBlock}
-${intentIcon} ${intentText}
-            `.trim());
+            // Simplified Stats (Shield + Intent)
+            this.enemyUI.setText(`🛡️ ${eBlock} | ${intentIcon} ${intentText}`);
+
+            // Update HP Bar
+            this.updateHealthBar(this.enemyHPBar, enemy.currentHP, enemy.maxHP);
         }
 
         // Update Buttons
@@ -265,6 +379,89 @@ ${intentIcon} ${intentText}
             scale: 1.5,
             duration: 500,
             ease: 'Back.out'
+        });
+    }
+
+    animateAttack(attacker, target, offset) {
+        if (!attacker || !target || !this.scene) return;
+
+        const startX = attacker.x;
+
+        // Lunge Tween
+        this.scene.tweens.add({
+            targets: attacker,
+            x: startX + offset,
+            duration: 150,
+            yoyo: true,
+            ease: 'Power1',
+            onYoyo: () => {
+                // Impact point - trigger Hit on target
+                this.animateHit(target);
+            },
+            onComplete: () => {
+                attacker.x = startX; // Reset safety
+            }
+        });
+    }
+
+    animateHit(target) {
+        if (!target || !this.scene) return;
+
+        // Flash Red
+        if (target.setTint) target.setTint(0xff0000);
+        this.scene.time.delayedCall(200, () => {
+            target.clearTint();
+        });
+
+        // Shake Effect
+        this.scene.tweens.add({
+            targets: target,
+            x: '+=5', // Relative shake
+            yoyo: true,
+            duration: 50,
+            repeat: 3
+        });
+    }
+
+    animateDefend(target) {
+        if (!target || !this.scene) return;
+
+        // Blue Bounce
+        const startScaleX = target.scaleX;
+        const startScaleY = target.scaleY;
+
+        if (target.setTint) target.setTint(0x4444ff);
+        this.scene.tweens.add({
+            targets: target,
+            scaleY: startScaleY * 0.9,
+            scaleX: startScaleX * 1.1,
+            duration: 100,
+            yoyo: true,
+            onComplete: () => {
+                target.setScale(startScaleX, startScaleY); // Reset to ORIGINAL
+                target.clearTint();
+            }
+        });
+    }
+
+    animateHeal(target) {
+        if (!target || !this.scene) return;
+
+        // Green Pulse
+        const startScaleX = target.scaleX;
+        const startScaleY = target.scaleY;
+
+        if (target.setTint) target.setTint(0x44ff44);
+        this.scene.tweens.add({
+            targets: target,
+            scaleX: startScaleX * 1.2,
+            scaleY: startScaleY * 1.2,
+            duration: 200,
+            yoyo: true,
+            onComplete: () => {
+                target.setScale(startScaleX, startScaleY);
+                target.clearTint();
+            }
         });
     }
 }

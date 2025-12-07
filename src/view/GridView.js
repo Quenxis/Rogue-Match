@@ -20,7 +20,7 @@ export class GridView {
         this.gridCenterX = x;
         this.gridCenterX = x;
         this.gridCenterY = y;
-        this.tileSize = 60; // Reduced from 70 to fit 600px height with UI
+        this.tileSize = 55; // Slay-the-Spire Size
         this.sprites = {}; // Map: id -> Phaser.GameObjects.Sprite
 
         this.isInputLocked = false;
@@ -78,6 +78,7 @@ export class GridView {
         if (this.tokenContainer) {
             this.tokenContainer.destroy();
         }
+        if (this.gridBackground) this.gridBackground.destroy();
 
         if (this.refillTimer) {
             this.refillTimer.remove(false);
@@ -118,6 +119,12 @@ export class GridView {
 
         const mask = shape.createGeometryMask();
         this.tokenContainer.setMask(mask);
+
+        // Dark Background Overlay (Visibility Polish)
+        if (this.gridBackground) this.gridBackground.destroy();
+        this.gridBackground = this.scene.add.rectangle(this.gridCenterX, this.gridCenterY, width + 20, height + 20, 0x000000, 0.7);
+        this.gridBackground.setDepth(0); // Behind tokens (depth 1)
+        this.gridBackground.setStrokeStyle(2, 0xffffff, 0.3); // Subtle border
     }
 
     createToken(r, c, item) {
@@ -241,7 +248,7 @@ export class GridView {
             if (dist === 1) {
                 // Execute Swap Logic
                 console.log('Valid Swap. Executing...');
-                this.isInputLocked = true;
+                this.setInteractionLock(true);
                 window.grid.swapItems(first.r, first.c, r, c);
             } else {
                 // Clicked far away, select new
@@ -249,6 +256,28 @@ export class GridView {
                 this.selectedTile = { r, c, sprite };
                 sprite.setAlpha(0.6);
             }
+        }
+    }
+
+    setInteractionLock(isLocked) {
+        if (isLocked) {
+            // Immediate Lock
+            if (this.unlockTimer) {
+                this.unlockTimer.remove(false);
+                this.unlockTimer = null;
+            }
+            this.isInputLocked = true;
+            this.isAnimating = true; // Sync
+            if (window.combat) window.combat.emitState();
+        } else {
+            // Delayed Unlock (Debounce) to bridge gaps between animations (e.g. Match -> Gravity)
+            if (this.unlockTimer) this.unlockTimer.remove(false);
+            this.unlockTimer = this.scene.time.delayedCall(200, () => {
+                this.isInputLocked = false;
+                this.isAnimating = false; // Sync
+                if (window.combat) window.combat.emitState();
+                this.unlockTimer = null;
+            });
         }
     }
 
@@ -348,7 +377,7 @@ export class GridView {
             duration: 300,
             ease: 'Power2',
             onComplete: () => {
-                this.isInputLocked = false; // Unlock input
+                this.setInteractionLock(false); // Unlock input
                 this.syncVisuals(); // Safety sync
             }
         });
@@ -375,7 +404,7 @@ export class GridView {
             return;
         }
 
-        this.isInputLocked = true; // Lock
+        this.setInteractionLock(true); // Lock
 
         matches.forEach(coord => {
             const currentItem = window.grid.grid[coord.r][coord.c];
@@ -500,7 +529,7 @@ export class GridView {
         this.refillTimer = this.scene.time.delayedCall(1200, () => {
             // Perform a self-healing sync to ensure no ghosts exist
             this.syncVisuals();
-            this.isInputLocked = false;
+            this.setInteractionLock(false);
             this.refillTimer = null;
         });
     }
@@ -517,6 +546,9 @@ export class GridView {
             this.scene.tweens.killTweensOf(sprite);
         });
 
+        // CRITICAL FIX: Clear animatingIds so syncVisuals doesn't protect "dead" animations
+        this.animatingIds.clear();
+
         // Kill refill timer
         if (this.refillTimer) {
             this.refillTimer.remove(false);
@@ -525,7 +557,7 @@ export class GridView {
 
         // Force Sync immediately
         this.syncVisuals();
-        this.isInputLocked = false;
+        this.setInteractionLock(false);
     }
 
     syncVisuals() {

@@ -1,25 +1,24 @@
 import { EventBus } from '../core/EventBus.js';
 
 export class CombatLogView {
-    constructor(scene, x, bottomY, width, height) {
+    constructor(scene, x, topY, width, height) {
         this.scene = scene;
         this.baseX = x;
-        this.anchorBottomY = bottomY; // Fixed Bottom Y
+        this.anchorTopY = topY; // Fixed Top Y
         this.width = width;
         this.maxHeight = 200; // Expanded Height
         this.minHeight = 30;  // Collapsed Height (Header only)
 
-        this.isExpanded = true; // Default to open? Or user wants minimized first? User said "Minimize/Maximize". Let's start Open.
+        this.isExpanded = false; // Start minimized to not block view
 
-        // Initial Dimensions
-        this.currentHeight = this.maxHeight;
+        this.currentHeight = this.minHeight;
 
         this.lines = [];
         this.textObjects = [];
         this.totalTextHeight = 0;
 
-        // Container pivot is Top-Left, but position will be adjusted to simulate Bottom-Left anchor
-        this.container = this.scene.add.container(x, this.anchorBottomY - this.currentHeight);
+        // Container anchored at Top-Left
+        this.container = this.scene.add.container(x, this.anchorTopY);
         this.container.setDepth(1000);
 
         // Background
@@ -109,8 +108,7 @@ export class CombatLogView {
     resize(h) {
         this.currentHeight = h;
 
-        // Reposition container to keep bottom fixed
-        this.container.y = this.anchorBottomY - this.currentHeight;
+        // Container Y is already fixed at TopY, no need to move it.
 
         // Resize BG
         this.bg.setSize(this.width, this.currentHeight);

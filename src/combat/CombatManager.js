@@ -142,6 +142,8 @@ export class CombatManager {
         if (skillName === SKILLS.FIREBALL) {
             if (p.mana >= 5) {
                 p.mana -= 5;
+                // Emit Attack Animation Event (Skill)
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: 15, type: 'SKILL', skill: 'FIREBALL' });
                 e.takeDamage(15);
                 this.emitState();
                 this.checkWinCondition();
@@ -149,6 +151,7 @@ export class CombatManager {
         } else if (skillName === SKILLS.HEAL) {
             if (p.mana >= 8) {
                 p.mana -= 8;
+                EventBus.emit(EVENTS.PLAYER_HEAL, { value: 20, type: 'SKILL' });
                 p.heal(20);
                 this.emitState();
             }
@@ -203,14 +206,18 @@ export class CombatManager {
         switch (type) {
             case ITEM_TYPES.SWORD:
                 const dmg = count * (2 + this.player.strength);
+                // Emit Attack Animation Event
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: 'NORMAL' });
                 this.enemy.takeDamage(dmg);
                 break;
             case ITEM_TYPES.SHIELD:
                 const block = count * 2;
+                EventBus.emit(EVENTS.PLAYER_DEFEND, { value: block });
                 this.player.addBlock(block);
                 break;
             case ITEM_TYPES.POTION:
                 const heal = count * 1;
+                EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal });
                 this.player.heal(heal);
                 break;
             case ITEM_TYPES.MANA:
@@ -247,14 +254,25 @@ export class CombatManager {
             this.enemy.resetBlock();
 
             const intent = this.enemy.currentIntent;
-            this.enemy.executeIntent(this.player);
 
+            // Emit Attack Event BEFORE damage is applied (so Relics like Spiked Shield see current Block)
             if (intent && intent.type === 'ATTACK') {
                 EventBus.emit(EVENTS.ENEMY_ATTACK, {
                     damage: intent.value,
                     intent: intent
                 });
             }
+
+            if (intent && intent.type === 'DEFEND') {
+                EventBus.emit(EVENTS.ENEMY_DEFEND, { value: intent.value });
+            } else if (intent && intent.type === 'BUFF') {
+                // Future proofing for Heal
+                if (intent.effect === 'HEAL') {
+                    EventBus.emit(EVENTS.ENEMY_HEAL, { value: intent.value });
+                }
+            }
+
+            this.enemy.executeIntent(this.player);
 
             if (this.player.isDead) {
                 this.checkWinCondition();

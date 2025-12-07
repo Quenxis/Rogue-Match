@@ -24,15 +24,32 @@ export class BattleScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image(ASSETS.SWORD, 'assets/sword.png');
-        this.load.image(ASSETS.SHIELD, 'assets/shield.png');
-        this.load.image(ASSETS.POTION, 'assets/potion.png');
-        this.load.image(ASSETS.COIN, 'assets/coin.png');
-        this.load.image(ASSETS.MANA, 'assets/mana.png');
+        // Items
+        this.load.image(ASSETS.SWORD, 'assets/items/sword.png');
+        this.load.image(ASSETS.SHIELD, 'assets/items/shield.png');
+        this.load.image(ASSETS.POTION, 'assets/items/potion.png');
+        this.load.image(ASSETS.COIN, 'assets/items/coin.png');
+        this.load.image(ASSETS.MANA, 'assets/items/mana.png');
+
+        // Entities
+        // If we have entity sprites, load them here. 
+        // Note: The previous code didn't load warrior/enemy explicitly here?
+        // Let's check if they are used. The moved files were 'warrior.png' and 'enemy.png'.
+        // Assuming they might be used later or were unused.
+        // Let's load them just in case if keys exist, otherwise ignore for now.
+        // Actually, let's stick to what was there + background.
+
+        // Background
+        this.load.image('background', 'assets/backgrounds/background.jpg');
     }
 
     create(data) {
         console.log('Battle Scene Ready', data);
+
+        // 0. Background
+        // Added before everything else so it's at the back
+        this.add.image(this.scale.width / 2, this.scale.height / 2, 'background')
+            .setDisplaySize(this.scale.width, this.scale.height); // Stretch to fit
 
         // 1. Generate Assets
         const assetFactory = new AssetFactory(this);
@@ -45,17 +62,16 @@ export class BattleScene extends Phaser.Scene {
         window.grid = this.gridLogic;
 
         // 3. Initialize View
-        // Canvas is 1100 wide.
-        // Grid Center: 550 (Absolute Center)
-        this.gridView = new GridView(this, 550, 350);
+        // Initialize View (Visuals)
+        // Canvas is 1252 wide.
+        // Grid Center: 626 (Center X), 300 (Center Y, slightly higher for balance)
+        this.gridView = new GridView(this, 626, 300);
 
-        // 3b. Initialize Combat Log View (Bottom Right Side)
-        // 3b. Initialize Combat Log View (Bottom Right Side)
-        // x=870 (Centered on Right Column 980, Width 220 means 870->1090)
-        // bottomY=590 (Anchored 10px from bottom)
-        // Width 220 (Wider for single line text)
-        // Height 200 (Max Expanded Height)
-        this.logView = new CombatLogView(this, 870, 590, 220, 200);
+        // 3b. Initialize Combat Log View (Top Right Side)
+        // x=1030 (Right side of grid)
+        // topY=50 (Below Top Bar)
+        // Width 220
+        this.logView = new CombatLogView(this, 1030, 50, 220, 200);
 
         // 3c. Initialize Top Bar
         this.topBar = new TopBar(this);

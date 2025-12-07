@@ -21,20 +21,23 @@ export class EventScene extends Phaser.Scene {
     }
 
     create() {
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
+
         // UI Setup
-        this.add.rectangle(550, 400, 1100, 800, 0x111111); // Dark BG
+        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x111111); // Dark BG
 
         this.topBar = new TopBar(this);
         this.topBar.setTitle('EVENT');
 
         if (!this.event) {
-            this.add.text(550, 300, 'Error: Event not found', { font: '32px Arial', fill: '#ff0000' }).setOrigin(0.5);
+            this.add.text(centerX, 300, 'Error: Event not found', { font: '32px Arial', fill: '#ff0000' }).setOrigin(0.5);
             this.time.delayedCall(2000, () => this.scene.start('MapScene'));
             return;
         }
 
         // Title
-        this.add.text(550, 150, this.event.title, {
+        this.add.text(centerX, 150, this.event.title, {
             font: 'bold 42px serif',
             fill: '#ffd700',
             stroke: '#000000',
@@ -42,11 +45,11 @@ export class EventScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Image Placeholder
-        this.add.rectangle(550, 300, 400, 200, 0x333333).setStrokeStyle(2, 0x666666);
-        this.add.text(550, 300, '[ IMAGE ]', { font: '20px Arial', fill: '#888888' }).setOrigin(0.5);
+        this.add.rectangle(centerX, 300, 400, 200, 0x333333).setStrokeStyle(2, 0x666666);
+        this.add.text(centerX, 300, '[ IMAGE ]', { font: '20px Arial', fill: '#888888' }).setOrigin(0.5);
 
         // Description
-        this.add.text(550, 450, this.event.description, {
+        this.add.text(centerX, 450, this.event.description, {
             font: '24px Arial',
             fill: '#cccccc',
             wordWrap: { width: 800 },
@@ -54,7 +57,7 @@ export class EventScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Options container
-        this.renderOptions(550, 550);
+        this.renderOptions(centerX, 550);
     }
 
     renderOptions(x, startY) {
@@ -96,7 +99,6 @@ export class EventScene extends Phaser.Scene {
         let finalText = option.resultText;
 
         // Custom Logic for 'gamble_relic' from RunManager
-        // Custom Logic for 'gamble_relic' from RunManager
         if (result.gambleWon) {
             const keys = Object.keys(RELICS);
             const playerRelics = runManager.getRelics();
@@ -122,8 +124,10 @@ export class EventScene extends Phaser.Scene {
             return;
         }
 
+        const centerX = this.scale.width / 2;
+
         // Show Result
-        this.add.text(550, 600, finalText, {
+        this.add.text(centerX, 600, finalText, {
             font: '24px Arial',
             fill: '#ffffff',
             wordWrap: { width: 800 },
@@ -132,7 +136,7 @@ export class EventScene extends Phaser.Scene {
 
         // Continue Button
         this.time.delayedCall(1000, () => {
-            this.createButton(550, 500, "Continue", () => { // Fixed Y position
+            this.createButton(centerX, 500, "Continue", () => { // Fixed Y position
                 runManager.completeLevel();
                 this.scene.start('MapScene');
             });

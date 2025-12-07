@@ -8,7 +8,11 @@ export const EVENTS = {
     TURN_START: 'combat:turn_start',
     TURN_END: 'combat:turn_end',
     PLAYER_ATTACK: 'combat:player_attack',
+    PLAYER_DEFEND: 'combat:player_defend',
+    PLAYER_HEAL: 'combat:player_heal',
     ENEMY_ATTACK: 'combat:enemy_attack',
+    ENEMY_DEFEND: 'combat:enemy_defend',
+    ENEMY_HEAL: 'combat:enemy_heal',
     VICTORY: 'game:victory',
     DEFEAT: 'game:defeat',
 

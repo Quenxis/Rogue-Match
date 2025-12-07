@@ -10,11 +10,14 @@ export class RewardScene extends Phaser.Scene {
     }
 
     create() {
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
+
         // Overlay Background
-        this.add.rectangle(550, 300, 1100, 600, 0x000000, 0.9);
+        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000, 0.9);
 
         // Title
-        this.add.text(550, 100, 'VICTORY!', {
+        this.add.text(centerX, 100, 'VICTORY!', {
             font: '48px Arial',
             fill: '#ffd700',
             stroke: '#000000',
@@ -22,9 +25,9 @@ export class RewardScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Reward 1: Gold
-        this.add.text(550, 250, `Loot Found:`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
+        this.add.text(centerX, 250, `Loot Found:`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
 
-        const goldText = this.add.text(550, 300, `💰 ${this.rewards.gold} Gold`, {
+        const goldText = this.add.text(centerX, 300, `💰 ${this.rewards.gold} Gold`, {
             font: '32px Arial',
             fill: '#ffff00'
         }).setOrigin(0.5);
@@ -39,7 +42,7 @@ export class RewardScene extends Phaser.Scene {
         });
 
         // Reward 2: Placeholder for Card/Skill Draft
-        const skillBtn = this.add.container(550, 400);
+        const skillBtn = this.add.container(centerX, 400);
         const btnBg = this.add.rectangle(0, 0, 250, 60, 0x4444ff).setInteractive({ useHandCursor: true });
         const btnTx = this.add.text(0, 0, 'New Skill (Coming Soon)', { font: '20px Arial', fill: '#ffffff' }).setOrigin(0.5);
         skillBtn.add([btnBg, btnTx]);
@@ -50,7 +53,7 @@ export class RewardScene extends Phaser.Scene {
         });
 
         // Continue Button
-        const continueBtn = this.add.text(550, 520, 'Continue to Map >>', {
+        const continueBtn = this.add.text(centerX, 520, 'Continue to Map >>', {
             font: '28px Arial',
             fill: '#ffffff',
             backgroundColor: '#00aa00',

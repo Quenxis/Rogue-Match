@@ -14,17 +14,20 @@ export class ShopScene extends Phaser.Scene {
     }
 
     create() {
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
+
         // Background
-        this.add.rectangle(550, 300, 1100, 600, 0x111111);
+        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x111111);
 
         // Title
-        this.add.text(550, 50, 'MERCHANT', { font: '32px Arial', fill: '#ffd700' }).setOrigin(0.5);
+        this.add.text(centerX, 50, 'MERCHANT', { font: '32px Arial', fill: '#ffd700' }).setOrigin(0.5);
 
         // Gold Display
-        this.goldText = this.add.text(550, 90, `Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
+        this.goldText = this.add.text(centerX, 90, `Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
 
         // Exit Button
-        const exitBtn = this.add.text(550, 520, 'Leave Shop', {
+        const exitBtn = this.add.text(centerX, 520, 'Leave Shop', {
             font: '24px Arial',
             fill: '#ffffff',
             backgroundColor: '#444444',
@@ -51,8 +54,9 @@ export class ShopScene extends Phaser.Scene {
         ];
 
         // Display 3 Items
-        const startX = 350; // Center 550. Gap 200. Left 350, Center 550, Right 750
+        const centerX = this.scale.width / 2;
         const gap = 200;
+        const startX = centerX - gap; // Center item is at index 1 -> startX + gap = centerX
 
         items.forEach((item, index) => {
             const x = startX + (index * gap);

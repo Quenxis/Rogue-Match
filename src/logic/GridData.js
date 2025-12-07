@@ -29,7 +29,7 @@ export class GridData {
         let attempts = 0;
         let valid = false;
 
-        while (!valid && attempts < 10) {
+        while (!valid && attempts < 100) {
             attempts++;
             this.grid = [];
             let idCounter = 0;

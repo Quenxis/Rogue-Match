@@ -18,7 +18,7 @@ export const APP_VERSION = '0.3.6';
 
 const config = {
     type: Phaser.AUTO,
-    width: 1100, // Widened for Combat Log
+    width: 1252, // Widened for Combat Log
     height: 600,
     parent: 'game-container',
     backgroundColor: '#000000',

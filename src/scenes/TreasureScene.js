@@ -8,17 +8,20 @@ export class TreasureScene extends Phaser.Scene {
     }
 
     create() {
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
+
         // UI Setup
-        this.add.rectangle(550, 400, 1100, 800, 0x111122); // Dark Blue BG
+        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x111122); // Dark Blue BG
 
         this.topBar = new TopBar(this);
         this.topBar.setTitle('TREASURE');
 
         // Chest Visual
-        this.chest = this.add.text(550, 300, '📦', { fontSize: '120px' }).setOrigin(0.5);
+        this.chest = this.add.text(centerX, 300, '📦', { fontSize: '120px' }).setOrigin(0.5);
         this.chest.setInteractive({ useHandCursor: true });
 
-        this.instruction = this.add.text(550, 450, 'Click to Open', {
+        this.instruction = this.add.text(centerX, 450, 'Click to Open', {
             font: '24px Arial', color: '#aaaaaa'
         }).setOrigin(0.5);
 
@@ -57,8 +60,10 @@ export class TreasureScene extends Phaser.Scene {
     }
 
     showReward(name, desc, icon, color) {
+        const centerX = this.scale.width / 2;
+
         // Shine Effect
-        const glow = this.add.circle(550, 300, 10, color).setAlpha(0.5);
+        const glow = this.add.circle(centerX, 300, 10, color).setAlpha(0.5);
         this.tweens.add({
             targets: glow,
             scale: 20,
@@ -67,22 +72,22 @@ export class TreasureScene extends Phaser.Scene {
         });
 
         // Icon Pop
-        this.add.text(550, 300, icon, { fontSize: '100px' }).setOrigin(0.5)
+        this.add.text(centerX, 300, icon, { fontSize: '100px' }).setOrigin(0.5)
             .setScale(0).setDepth(10);
 
         this.tweens.add({
-            targets: this.add.text(550, 300, icon, { fontSize: '100px' }).setOrigin(0.5).setDepth(10),
+            targets: this.add.text(centerX, 300, icon, { fontSize: '100px' }).setOrigin(0.5).setDepth(10),
             scale: 1,
             duration: 500,
             ease: 'Back.out'
         });
 
         // Text
-        this.add.text(550, 400, name, {
+        this.add.text(centerX, 400, name, {
             font: 'bold 36px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
         }).setOrigin(0.5).setAlpha(0).setY(430);
 
-        this.add.text(550, 450, desc, {
+        this.add.text(centerX, 450, desc, {
             font: '20px Arial', fill: '#cccccc'
         }).setOrigin(0.5).setAlpha(0).setY(480);
 
@@ -98,7 +103,7 @@ export class TreasureScene extends Phaser.Scene {
         // Continue Button
         this.time.delayedCall(1200, () => {
             const btnY = this.scale.height * 0.85;
-            const btn = this.add.text(550, btnY, 'CONTINUE', {
+            const btn = this.add.text(centerX, btnY, 'CONTINUE', {
                 backgroundColor: '#444444', padding: { x: 20, y: 10 }, font: '20px Arial'
             }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 

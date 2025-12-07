@@ -35,16 +35,20 @@ export class MapScene extends Phaser.Scene {
 
         const tiers = runManager.map;
 
+        // Center Calculation
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
+
         // CHECK IF RUN COMPLETED
         if (runManager.currentTier >= tiers.length) {
             // Victory Screen logic (keep static/no scroll needed usually, or center it)
             this.cameras.main.setScroll(0, 0); // Reset scroll
-            this.add.rectangle(550, 300, 1100, 600, 0x000000).setScrollFactor(0);
+            this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000).setScrollFactor(0);
 
-            this.add.text(550, 300, 'VICTORY ROYALE!', { font: '48px Arial', fill: '#ffd700' }).setOrigin(0.5).setScrollFactor(0);
-            this.add.text(550, 380, `Final Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5).setScrollFactor(0);
+            this.add.text(centerX, centerY, 'VICTORY ROYALE!', { font: '48px Arial', fill: '#ffd700' }).setOrigin(0.5).setScrollFactor(0);
+            this.add.text(centerX, centerY + 80, `Final Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5).setScrollFactor(0);
 
-            const restartBtn = this.add.text(550, 450, 'START NEW RUN', {
+            const restartBtn = this.add.text(centerX, centerY + 150, 'START NEW RUN', {
                 font: '24px Arial',
                 fill: '#000000',
                 backgroundColor: '#ffffff',
@@ -68,7 +72,7 @@ export class MapScene extends Phaser.Scene {
             // Center nodes horizontally
             const gapX = 150;
             const totalWidth = (tierNodes.length - 1) * gapX;
-            const startX = 550 - (totalWidth / 2);
+            const startX = centerX - (totalWidth / 2);
 
             // Draw line to next tier logic (optional visuals)
 
@@ -81,7 +85,7 @@ export class MapScene extends Phaser.Scene {
         // Camera Logic
         // Focus on current tier
         const currentY = startY - (runManager.currentTier * gapY);
-        this.cameras.main.centerOn(550, currentY);
+        this.cameras.main.centerOn(centerX, currentY);
 
         // Drag to scroll
         this.input.on('pointermove', (pointer) => {
