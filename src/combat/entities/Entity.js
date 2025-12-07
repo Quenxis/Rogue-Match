@@ -33,7 +33,8 @@ export class Entity {
 
         this.currentHP = Math.max(0, this.currentHP - actualDamage);
 
-        if (this.currentHP === 0) {
+        if (this.currentHP <= 0) {
+            this.currentHP = 0;
             this.die();
         }
 

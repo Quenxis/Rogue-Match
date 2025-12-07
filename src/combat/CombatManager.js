@@ -178,7 +178,12 @@ export class CombatManager {
 
     handleMatches(data) {
         if (this.turn === ENTITIES.ENDED) return;
-        if (this.enemy.isDead || this.player.isDead) return;
+        if (this.turn === ENTITIES.ENDED) return;
+        if (this.enemy.isDead || this.player.isDead) {
+            console.warn('CombatManager: Dead entity detected, logic somehow missed it. Re-checking win condition.');
+            this.checkWinCondition();
+            return;
+        }
 
         const { matches } = data;
         const matchCounts = {};
@@ -295,6 +300,8 @@ export class CombatManager {
 
     checkWinCondition() {
         if (this.turn === ENTITIES.ENDED) return;
+
+        console.log(`CombatManager: Checking Win Condition. Enemy Dead? ${this.enemy.isDead} (${this.enemy.currentHP}), Player Dead? ${this.player.isDead}`);
 
         if (this.enemy.isDead) {
             this.turn = ENTITIES.ENDED;
