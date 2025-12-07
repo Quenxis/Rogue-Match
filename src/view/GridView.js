@@ -98,14 +98,88 @@ export class GridView {
         this.offsetX = this.gridCenterX - (cols * this.tileSize) / 2 + this.tileSize / 2;
         this.offsetY = this.gridCenterY - (rows * this.tileSize) / 2 + this.tileSize / 2;
 
-        // Clear existing
-        Object.values(this.sprites).forEach(s => s.destroy());
+        const oldSprites = Object.values(this.sprites);
         this.sprites = {};
+        const oldOverlays = Object.values(this.overlays);
+        this.overlays = {};
 
+        // --- Shuffle Animation Sequence ---
+
+        // 1. Implode Old (if any)
+        const duration = oldSprites.length > 0 ? 250 : 0;
+
+        if (duration > 0) {
+            this.scene.tweens.add({
+                targets: oldSprites,
+                scale: 0,
+                duration: duration,
+                ease: 'Back.in',
+                onComplete: () => {
+                    oldSprites.forEach(s => s.destroy());
+                    // Also destroy overlays for cleanup?
+                    // createGrid will overwrite this.overlays usually or we should clear them.
+                    // Let's ensure old overlays are destroyed.
+                    // Currently destroyOrphanOverlays or similar logic exists?
+                    // Best to explicitly destroy old overlays if we are replacing everything.
+                    // But overlays are tied to IDs. IDs persist? 
+                    // Reshuffle keeps IDs mostly?
+                    // No, reshuffle reassigns IDs in logic? No, id = info.id.
+                    // So overlays might persist if IDs persist.
+                    // But sprite instances change.
+                    // Let's just create new sprites.
+                    this.createTokensAndExplode(grid);
+                }
+            });
+
+            // Also tween overlays if possible? 
+            // Overlays are just text objects in `this.overlays`.
+            if (oldOverlays.length > 0) {
+                this.scene.tweens.add({
+                    targets: oldOverlays,
+                    scale: 0,
+                    duration: duration,
+                    ease: 'Back.in',
+                    onComplete: () => {
+                        // We don't destroy overlays here because logic keeps them?
+                        // Actually, if we rebuild grid, we should rebuild overlays too.
+                        // But GridView usually manages overlays via `addOverlay`.
+                        // If we destroy tokens, overlays might be orphaned visually.
+                        // Let's just hide/destroy them.
+                        oldOverlays.forEach(o => o.destroy());
+                    }
+                });
+            }
+
+        } else {
+            this.createTokensAndExplode(grid);
+        }
+    }
+
+    createTokensAndExplode(grid) {
         // Create Items
         grid.forEach((row, r) => {
             row.forEach((item, c) => {
-                this.createToken(r, c, item);
+                const sprite = this.createToken(r, c, item);
+                if (sprite) {
+                    sprite.setScale(0);
+                    this.scene.tweens.add({
+                        targets: sprite,
+                        scale: 1, // displaySize logic usually handles setScale(1) to match 50x50?
+                        // Wait, createToken sets displaySize(50,50).
+                        // setScale(0) overrides.
+                        // Tween to scale 1 might reset displaySize if not careful?
+                        // Phaser: setDisplaySize sets scale.
+                        // So tweening scale from 0 to 'targetScale' is better.
+                        // displaySize 50 / textureSize = targetScale.
+                        // Let's use displayWidth/height tween? Or just scale.
+                        // Easier: setDisplaySize(0,0) -> tween to 50,50.
+                        displayWidth: 50,
+                        displayHeight: 50,
+                        duration: 300,
+                        ease: 'Back.out',
+                        delay: Math.random() * 100 // Stagger
+                    });
+                }
             });
         });
 

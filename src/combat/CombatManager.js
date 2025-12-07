@@ -62,6 +62,7 @@ export class CombatManager {
     }
 
     init() {
+        this.generateEnemyIntent();
         this.emitState();
     }
 
@@ -347,6 +348,12 @@ export class CombatManager {
         if (this.turn === ENTITIES.ENDED) return;
         this.turn = ENTITIES.PLAYER;
         if (window.grid) window.grid.setFastForward(false);
+
+        // Check for Deadlock (if enemy locked everything)
+        if (this.scene && this.scene.gridLogic) {
+            this.scene.gridLogic.checkDeadlock();
+        }
+
         this.currentMoves = this.maxMoves;
         this.player.resetBlock();
         // Tick Buffs (Duration Based)

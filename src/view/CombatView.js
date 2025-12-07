@@ -39,8 +39,10 @@ export class CombatView {
         EventBus.on(EVENTS.PLAYER_ATTACK, () => {
             this.animateAttack(this.heroSprite, this.enemySprite, 50);
         });
-        EventBus.on(EVENTS.ENEMY_ATTACK, () => {
-            this.animateAttack(this.enemySprite, this.heroSprite, -50);
+        EventBus.on(EVENTS.ENEMY_ATTACK, (data) => {
+            const damage = data ? (data.damage || 0) : 0;
+            const tint = damage > 0 ? 0xff0000 : 0x888888; // Red for Damage, Gray for Debuff
+            this.animateAttack(this.enemySprite, this.heroSprite, -50, tint);
         });
 
         // Defensive Events
@@ -464,7 +466,7 @@ export class CombatView {
         });
     }
 
-    animateAttack(attacker, target, offset) {
+    animateAttack(attacker, target, offset, tint = 0xff0000) {
         if (!attacker || !target || !this.scene) return;
 
         const startX = attacker.x;
@@ -478,7 +480,7 @@ export class CombatView {
             ease: 'Power1',
             onYoyo: () => {
                 // Impact point - trigger Hit on target
-                this.animateHit(target);
+                this.animateHit(target, tint);
             },
             onComplete: () => {
                 attacker.x = startX; // Reset safety
@@ -486,11 +488,11 @@ export class CombatView {
         });
     }
 
-    animateHit(target) {
+    animateHit(target, tint = 0xff0000) {
         if (!target || !this.scene) return;
 
-        // Flash Red
-        if (target.setTint) target.setTint(0xff0000);
+        // Flash Tint
+        if (target.setTint) target.setTint(tint);
         this.scene.time.delayedCall(200, () => {
             target.clearTint();
         });

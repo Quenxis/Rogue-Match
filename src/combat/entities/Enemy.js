@@ -5,7 +5,7 @@ export class Enemy extends Entity {
         super(name, maxHP);
         this.currentIntent = null; // { type: 'ATTACK' | 'DEFEND', value: number }
         this.buffs = []; // Array of { type: string, value: number, duration: number }
-        this.generateIntent();
+        // this.generateIntent(); // REMOVED: Managed by CombatManager
     }
 
     addBuff(type, value, duration) {

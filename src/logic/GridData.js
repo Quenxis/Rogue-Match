@@ -182,8 +182,9 @@ export class GridData {
             return false;
         }
         if (this.grid[r1][c1].isTrash || this.grid[r2][c2].isTrash) {
-            // Trash IS movable usually, but let's check specs.
-            // User spec: "Lze s ním hýbat (Swap)." -> OK.
+            // Trash IS NOT movable (Blocker)
+            console.log('Swap Blocked: Item is Trash');
+            return false;
         }
 
         // 2. Perform Swap
@@ -335,7 +336,8 @@ export class GridData {
         // Locked items cannot swap
         if (item1.isLocked || item2.isLocked) return false;
 
-        // Trash IS moveable, so we proceed.
+        // Trash IS NOT movable, so we block.
+        if (item1.isTrash || item2.isTrash) return false;
 
         const t1 = item1.type;
         const t2 = item2.type;
@@ -387,6 +389,9 @@ export class GridData {
                 for (let c = 0; c < this.cols; c++) {
                     const info = flatItems[idx++];
                     this.grid[r][c].type = info.type;
+                    // CRITICAL: Must update Lock/Trash state for simulation to be valid!
+                    this.grid[r][c].isLocked = info.isLocked;
+                    this.grid[r][c].isTrash = info.isTrash;
                 }
             }
 
@@ -418,10 +423,41 @@ export class GridData {
                 cols: this.cols
             });
         } else {
-            console.warn('Reshuffle failed to find valid config. Forcing full re-init.');
-            this.initialize();
+            console.warn('Reshuffle failed to find valid config. Deadlock Protocol Initiated.');
+            this.deadlockPurge();
         }
     }
+
+    deadlockPurge() {
+        console.log('DEADLOCK PROTOCOL: Purging Grid...');
+        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: "GRID BLOCKED! PURGING...", color: 0xff0000 });
+
+        // Purge all debuffs
+        this.grid.forEach(row => {
+            row.forEach(item => {
+                if (item.type !== ITEM_TYPES.EMPTY) {
+                    item.isLocked = false;
+                    item.isTrash = false;
+                    if (item.type === 'TRASH') {
+                        // Restore to random valid gem? Or just reroll in next shuffle?
+                        // If we leave it as TRASH type but !isTrash, it might act weird if not handled.
+                        // Safest: Reroll type now or let reshuffle handle it if we change type here.
+                        // Let's randomize it to a valid base type.
+                        const types = Object.values(ITEM_TYPES).filter(t => t !== ITEM_TYPES.EMPTY);
+                        item.type = types[Math.floor(Math.random() * types.length)];
+                    }
+                }
+            });
+        });
+
+        // Trigger updates so View sees the purge?
+        // Actually, immediately reshuffle. View will see the FINAL Result.
+        // We might want a small delay? But logic is sync.
+        // Let's just reshuffle immediately.
+
+        this.reshuffle();
+    }
+
 
     applyGravity() {
         const moves = []; // { id, fromRow, fromCol, toRow, toCol }
@@ -581,5 +617,14 @@ export class GridData {
         }
         console.log(output);
         console.groupEnd();
+    }
+
+    checkDeadlock() {
+        if (!this.hasPossibleMoves()) {
+            console.log('Deadlock detected by external check (Start Turn). Reshuffling...');
+            this.reshuffle();
+            return true;
+        }
+        return false;
     }
 }
