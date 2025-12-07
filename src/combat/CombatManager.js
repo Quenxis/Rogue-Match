@@ -2,7 +2,7 @@ import { EventBus } from '../core/EventBus.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { ITEM_TYPES } from '../logic/GridDetails.js';
-import { EVENTS, ENTITIES, ASSETS, SKILLS, GAME_SETTINGS } from '../core/Constants.js';
+import { EVENTS, ENTITIES, ASSETS, SKILLS, GAME_SETTINGS, MOVESET_TYPES } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
@@ -41,6 +41,7 @@ export class CombatManager {
         } else {
             this.enemy = new Enemy(enemyData.name, enemyData.maxHP);
         }
+        this.enemy.moveset = enemyData.moveset;
 
         // Store reward info
         this.goldReward = enemyData.goldReward || 10;
@@ -275,9 +276,12 @@ export class CombatManager {
                 if (intent.effect === 'HEAL') {
                     EventBus.emit(EVENTS.ENEMY_HEAL, { value: intent.value });
                 }
+            } else if (intent && intent.type === 'DEBUFF') {
+                // Determine effect type for UI or just generic
+                // UI might not need specific event if we use SHOW_NOTIFICATION
             }
 
-            this.enemy.executeIntent(this.player);
+            this.executeEnemyIntent();
 
             if (this.player.isDead) {
                 this.checkWinCondition();
@@ -287,15 +291,96 @@ export class CombatManager {
         });
     }
 
+    executeEnemyIntent() {
+        if (!this.enemy.currentIntent) return;
+
+        const intent = this.enemy.currentIntent;
+        logManager.log(`Enemy executes: ${intent.text || intent.type}`, 'combat');
+
+        switch (intent.type) {
+            case MOVESET_TYPES.ATTACK:
+                // Calculate damage including strength
+                // If value is base damage from moveset, we add strength here or in Enemy class?
+                // Enemy data has 'value': 6.
+                // We should add this.enemy.getStrength() - but wait, getStrength includes base?
+                // No, getStrength currently returns buff total. Base is 0.
+                // Re-reading Enemy.js: getStrength returns (this.strength || 0) + buffs.
+                // So we add that to the attack value.
+                const totalDmg = intent.value + this.enemy.getStrength();
+                this.player.takeDamage(totalDmg);
+                logManager.log(`Enemy attacks for ${totalDmg} (Base ${intent.value} + Str ${this.enemy.getStrength()})`, 'combat');
+                break;
+            case MOVESET_TYPES.DEFEND:
+                this.enemy.addBlock(intent.value);
+                break;
+            case MOVESET_TYPES.BUFF:
+                if (intent.effect === 'STRENGTH') {
+                    // Apply temporary buff (Duration: 2 turns default as requested)
+                    const duration = 2; // Default
+                    this.enemy.addBuff('STRENGTH', intent.value, duration);
+                    // this.enemy.strength = (this.enemy.strength || 0) + intent.value;
+                    logManager.log(`Enemy gains ${intent.value} Strength for ${duration} turns!`, 'warning');
+                } else if (intent.effect === 'HEAL') {
+                    this.enemy.heal(intent.value);
+                }
+                break;
+            case MOVESET_TYPES.DEBUFF:
+                if (intent.effect === 'LOCK') {
+                    if (window.grid) {
+                        const count = window.grid.lockRandomGems(intent.value);
+                        logManager.log(`Enemy Locked ${count} Gems!`, 'warning');
+                        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'LOCKED!', color: 0x9900cc });
+                    }
+                } else if (intent.effect === 'TRASH') {
+                    if (window.grid) {
+                        const count = window.grid.trashRandomGems(intent.value);
+                        logManager.log(`Enemy Trashed ${count} Gems!`, 'warning');
+                        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'TRASHED!', color: 0x333333 });
+                    }
+                }
+        }
+    }
+
     startPlayerTurn() {
         if (this.turn === ENTITIES.ENDED) return;
         this.turn = ENTITIES.PLAYER;
         if (window.grid) window.grid.setFastForward(false);
         this.currentMoves = this.maxMoves;
         this.player.resetBlock();
-        this.enemy.generateIntent();
+        // Tick Buffs (Duration Based)
+        this.enemy.tickBuffs();
+
+        // Generate Next Intent
+        // Ideally this logic lives in Enemy class, but for "data-driven" centralization:
+        this.generateEnemyIntent();
+
         this.emitState();
         logManager.log("-- PLAYER TURN --", 'turn');
+    }
+
+    generateEnemyIntent() {
+        const moveset = this.enemy.moveset;
+        if (!moveset || moveset.length === 0) {
+            // Fallback
+            this.enemy.currentIntent = { type: 'ATTACK', value: 5, text: 'Attack (5)' };
+            return;
+        }
+
+        // Weighted Random Selection
+        const totalWeight = moveset.reduce((sum, move) => sum + (move.weight || 1), 0);
+        let random = Math.random() * totalWeight;
+
+        let selectedMove = moveset[0];
+        for (const move of moveset) {
+            random -= (move.weight || 1);
+            if (random <= 0) {
+                selectedMove = move;
+                break;
+            }
+        }
+
+        this.enemy.currentIntent = selectedMove;
+        console.log(`Enemy Intent Generated: ${selectedMove.text}`);
     }
 
     checkWinCondition() {

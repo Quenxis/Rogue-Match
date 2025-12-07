@@ -1,48 +1,61 @@
+// Probabilities sum to 1.0 (or logic handles weight)
 export const ENEMIES = {
     'slime': {
         name: 'Acid Slime',
         texture: 'tex_slime',
         hp: 40,
         maxHP: 40,
-        intent: 'Attack',
-        value: 6, // Damage
-        goldReward: 15
+        goldReward: 15,
+        moveset: [
+            { type: 'ATTACK', value: 6, weight: 0.6, text: 'Attack (6)' },
+            { type: 'DEBUFF', effect: 'LOCK', value: 2, weight: 0.4, text: 'Sticky Spit (Lock 2)' }
+        ]
     },
     'rat': {
         name: 'Giant Rat',
         texture: 'tex_rat',
         hp: 30,
         maxHP: 30,
-        intent: 'Attack',
-        value: 8,
-        goldReward: 10
+        goldReward: 10,
+        moveset: [
+            { type: 'ATTACK', value: 5, weight: 0.5, text: 'Attack (5)' },
+            { type: 'DEBUFF', effect: 'TRASH', value: 1, weight: 0.5, text: 'Kick Dirt (Trash 1)' }
+        ]
     },
     'orc': {
         name: 'Orc Warrior',
         texture: 'tex_orc',
         hp: 80,
         maxHP: 80,
-        intent: 'Attack',
-        value: 12,
-        goldReward: 25
+        goldReward: 25,
+        moveset: [
+            { type: 'ATTACK', value: 12, weight: 0.7, text: 'Attack (12)' },
+            { type: 'DEFEND', value: 10, weight: 0.3, text: 'Defend (10)' }
+        ]
     },
     'skeleton': {
         name: 'Skeleton',
         texture: 'tex_skeleton',
         hp: 60,
         maxHP: 60,
-        intent: 'Block', // Maybe defense
-        value: 10,
-        goldReward: 20
+        goldReward: 20,
+        moveset: [
+            { type: 'ATTACK', value: 8, weight: 0.5, text: 'Attack (8)' },
+            { type: 'DEFEND', value: 5, weight: 0.3, text: 'Defend (5)' },
+            { type: 'ATTACK', value: 10, weight: 0.2, text: 'Heavy Attack (10)' }
+        ]
     },
     'dragon': {
         name: 'Young Dragon',
         texture: 'tex_dragon',
         hp: 150,
         maxHP: 150,
-        intent: 'Attack',
-        value: 20,
         goldReward: 100,
-        isBoss: true
-    }
+        isBoss: true,
+        moveset: [
+            { type: 'ATTACK', value: 15, weight: 0.5, text: 'Attack (15)' },
+            { type: 'BUFF', effect: 'STRENGTH', value: 2, weight: 0.2, text: 'Roar (+2 Str)' },
+            { type: 'DEBUFF', effect: 'TRASH', value: 3, weight: 0.3, text: 'Tail Sweep (Trash 3)' }
+        ]
+    },
 };

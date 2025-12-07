@@ -20,8 +20,10 @@ export class GridView {
         this.gridCenterX = x;
         this.gridCenterX = x;
         this.gridCenterY = y;
+        this.gridCenterY = y;
         this.tileSize = 55; // Slay-the-Spire Size
         this.sprites = {}; // Map: id -> Phaser.GameObjects.Sprite
+        this.overlays = {}; // Map: id -> Phaser.GameObjects.Text/Sprite (Overlays like Locks)
 
         this.isInputLocked = false;
         this.isAnimating = false;
@@ -64,7 +66,9 @@ export class GridView {
         EventBus.on(EVENTS.ITEM_SWAP_REVERTED, this.animateSwapRevertBind);
         EventBus.on(EVENTS.MATCHES_FOUND, this.animateMatchesBind);
         EventBus.on(EVENTS.GRID_GRAVITY, this.animateGravityBind);
+        EventBus.on(EVENTS.GRID_GRAVITY, this.animateGravityBind);
         EventBus.on(EVENTS.GRID_REFILLED, this.animateRefillBind);
+        EventBus.on(EVENTS.GRID_ITEM_UPDATED, (data) => this.handleItemUpdate(data));
     }
 
     destroy() {
@@ -144,11 +148,30 @@ export class GridView {
 
         if (this.sprites[item.id]) {
             this.sprites[item.id].destroy();
-            if (this.debugRects && this.debugRects[item.id]) {
-                this.debugRects[item.id].destroy();
-            }
         }
+
+        // --- VISUAL MODS ---
+
+        // 1. TRASH: Use dedicate icon (Added by User)
+        // If type is TRASH or flag is set, overwrite texture.
+        if (item.isTrash || item.type === 'TRASH') {
+            sprite.setTexture('trash');
+            sprite.setDisplaySize(50, 50); // Ensure size matches standard items
+            sprite.clearTint(); // Ensure no tint if recycled
+        }
+
+        // Removed old tint logic
+        // if (item.isTrash) { sprite.setTint(0x555555); }
+
         this.sprites[item.id] = sprite;
+
+        // 2. LOCKED: Add Overlay
+        if (item.isLocked) {
+            // Updated to use 'lock' texture via addOverlay helper
+            this.addOverlay(item.id, x, y, 'lock');
+        } else {
+            this.removeOverlay(item.id);
+        }
 
         // DEBUG: Draw Hitbox
         if (DEBUG) {
@@ -180,11 +203,11 @@ export class GridView {
             // Visual Feedback for No Moves
             if (window.combat.turn === ENTITIES.PLAYER && window.combat.currentMoves <= 0) {
                 const text = this.scene.add.text(sprite.x, sprite.y - 40, "NO MOVES!", {
-                    font: 'bold 24px Arial',
+                    font: 'bold 24px Verdana',
                     fill: '#ff0000',
                     stroke: '#000000',
-                    strokeThickness: 4
-                }).setOrigin(0.5).setDepth(200);
+                    strokeThickness: 3
+                }).setOrigin(0.5).setDepth(200).setResolution(2);
 
                 this.scene.tweens.add({
                     targets: text,
@@ -249,7 +272,15 @@ export class GridView {
                 // Execute Swap Logic
                 console.log('Valid Swap. Executing...');
                 this.setInteractionLock(true);
-                window.grid.swapItems(first.r, first.c, r, c);
+
+                // CRITICAL FIX: Handle synchronous rejection (Lock) or Async success
+                window.grid.swapItems(first.r, first.c, r, c).then(success => {
+                    if (!success) {
+                        console.log('Swap Rejected by Logic (e.g. Locked). Unlocking Input.');
+                        this.setInteractionLock(false);
+                        this.selectedTile = null; // Clear selection
+                    }
+                });
             } else {
                 // Clicked far away, select new
                 console.log('Invalid Swap (Distance mismatch). New Selection.');
@@ -413,6 +444,12 @@ export class GridView {
                 const sprite = this.sprites[currentItem.id];
                 const id = currentItem.id;
                 this.animatingIds.add(id);
+
+                // FIX: Immediately remove overlay/lock on match start
+                this.removeOverlay(id);
+
+                // FIX: Immediately clear Trash tint on match start
+                sprite.clearTint();
 
                 this.scene.tweens.add({
                     targets: sprite,
@@ -623,5 +660,56 @@ export class GridView {
                 delete this.sprites[id];
             }
         });
+
+        // 3. Destroy Orphan Overlays
+        // Overlays are indexed by ID same as sprites
+        Object.keys(this.overlays).forEach(id => {
+            let isValid = false;
+            if (validIds.has(id) || validIds.has(Number(id)) || validIds.has(String(id))) {
+                isValid = true;
+            }
+
+            if (!isValid) {
+                this.overlays[id].destroy();
+                delete this.overlays[id];
+            }
+        });
+    }
+    handleItemUpdate({ item }) {
+        if (!item) return;
+        // Re-create token to reflect new state (Lock/Trash)
+        const r = -1; // We don't have Row/Col easily in event? 
+        // Wait, item has ID. We have sprites[id].
+        const sprite = this.sprites[item.id];
+        if (sprite) {
+            const r = sprite.getData('row');
+            const c = sprite.getData('col');
+            this.createToken(r, c, item);
+        }
+    }
+
+    addOverlay(id, x, y, content) {
+        if (this.overlays[id]) this.overlays[id].destroy();
+
+        let overlay;
+        if (content === 'lock') {
+            overlay = this.scene.add.image(x, y, 'lock').setDepth(2);
+            overlay.setDisplaySize(40, 40); // Slightly smaller than tile
+        } else {
+            overlay = this.scene.add.text(x, y, content, { fontSize: '24px' }).setOrigin(0.5).setDepth(2);
+        }
+
+        this.tokenContainer.add(overlay);
+        this.overlays[id] = overlay;
+    }
+
+    removeOverlay(id) {
+        if (this.overlays[id]) {
+            this.overlays[id].destroy();
+            delete this.overlays[id];
+        } else if (this.overlays[String(id)]) { // Robust Lock
+            this.overlays[String(id)].destroy();
+            delete this.overlays[String(id)];
+        }
     }
 }

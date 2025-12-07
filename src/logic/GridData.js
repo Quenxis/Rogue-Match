@@ -15,10 +15,69 @@ export class GridData {
         this.grid = []; // 2D Array: grid[row][col]
         this.matches = []; // array of matched groups
         this.isFastForward = false;
+        this.matches = []; // array of matched groups
+        this.isFastForward = false;
     }
+
+    // --- MANIPULATION API FOR ENEMIES ---
 
     setFastForward(value) {
         this.isFastForward = value;
+    }
+
+    // --- MANIPULATION API FOR ENEMIES ---
+
+    lockRandomGems(count) {
+        let available = [];
+        this.grid.forEach((row, r) => {
+            row.forEach((item, c) => {
+                if (!item.isLocked && item.type !== ITEM_TYPES.EMPTY) {
+                    available.push(item);
+                }
+            });
+        });
+
+        let lockedCount = 0;
+        for (let i = 0; i < count && available.length > 0; i++) {
+            const index = Math.floor(Math.random() * available.length);
+            const item = available.splice(index, 1)[0];
+            item.isLocked = true;
+            lockedCount++;
+            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item });
+        }
+        return lockedCount;
+    }
+
+    trashRandomGems(count) {
+        let available = [];
+        this.grid.forEach((row, r) => {
+            row.forEach((item, c) => {
+                if (!item.isTrash && !item.isLocked && item.type !== ITEM_TYPES.EMPTY) {
+                    available.push(item);
+                }
+            });
+        });
+
+        let trashedCount = 0;
+        for (let i = 0; i < count && available.length > 0; i++) {
+            const index = Math.floor(Math.random() * available.length);
+            const item = available.splice(index, 1)[0];
+            item.isTrash = true;
+            item.originalType = item.type; // Optional: if we want to revert? But usually permanent.
+            item.type = 'TRASH'; // Or keep type but treat as trash?
+            // Spec: "Mění typ drahokamu na bezbarvý/neutrální... Netvoří trojice."
+            // So changing type to 'TRASH' (defined in Constants?) or specific type is safest.
+            // We need ITEM_TYPES.TRASH or similar.
+            // Let's use ITEM_TYPES.TRASH defined in next step or use 'TRASH' string.
+            // Wait, we defined GRID_STATUS.TRASH but not ITEM_TYPES.TRASH.
+            // If we change type, matching logic breaks (good).
+            // But texture mapping needs to handle it.
+            // Let's assume ITEM_TYPES will satisfy or we add it.
+
+            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item });
+            trashedCount++;
+        }
+        return trashedCount;
     }
 
     /**
@@ -87,7 +146,12 @@ export class GridData {
 
     getGridSnapshot() {
         // Return simple copy for UI
-        return this.grid.map(row => row.map(item => ({ type: item.type, id: item.id })));
+        return this.grid.map(row => row.map(item => ({
+            type: item.type,
+            id: item.id,
+            isLocked: item.isLocked,
+            isTrash: item.isTrash
+        })));
     }
 
     getItemAt(row, col) {
@@ -111,7 +175,18 @@ export class GridData {
             return false;
         }
 
-        // 1. Perform Swap
+        // 1. Check Locks
+        if (this.grid[r1][c1].isLocked || this.grid[r2][c2].isLocked) {
+            console.log('Swap Blocked: Item is Locked');
+            // Visual feedback could be triggered here?
+            return false;
+        }
+        if (this.grid[r1][c1].isTrash || this.grid[r2][c2].isTrash) {
+            // Trash IS movable usually, but let's check specs.
+            // User spec: "Lze s ním hýbat (Swap)." -> OK.
+        }
+
+        // 2. Perform Swap
         const item1 = this.grid[r1][c1];
         const item2 = this.grid[r2][c2];
 
@@ -125,7 +200,7 @@ export class GridData {
 
         if (matches.length > 0) {
             console.log('Match Found!', matches);
-            EventBus.emit(EVENTS.MATCHES_FOUND, { matches });
+            // EventBus.emit(EVENTS.MATCHES_FOUND, { matches }); // MOVED to handleMatchResolution
 
             // Proceed to resolution
             await this.handleMatchResolution(matches);
@@ -144,9 +219,29 @@ export class GridData {
     }
 
     async handleMatchResolution(matches) {
+        // 0. Include Adjacent Trash in Matches (Destruction Logic)
+        const trashMatches = this.checkAdjacentTrash(matches);
+        // Combine matches, ensuring no duplicates if possible (though Set inside checkAdjacentTrash helps)
+        // Actually, let's just push unique items to matches array if formatted same
+        trashMatches.forEach(tm => {
+            // Check if already in matches to avoid double counting?
+            if (!matches.some(m => m.r === tm.r && m.c === tm.c)) {
+                matches.push(tm);
+            }
+            if (!matches.some(m => m.r === tm.r && m.c === tm.c)) {
+                matches.push(tm);
+            }
+        });
+
+        // CRITICAL: Tell View about ALL matches (core + adjacent trash)
+        EventBus.emit(EVENTS.MATCHES_FOUND, { matches });
+
         // 1. Clear Matched Items
         matches.forEach(({ r, c }) => {
             if (this.grid[r][c].type !== ITEM_TYPES.EMPTY) {
+                // Clear state
+                this.grid[r][c].isLocked = false;
+                this.grid[r][c].isTrash = false;
                 this.grid[r][c].type = ITEM_TYPES.EMPTY;
             }
         });
@@ -176,9 +271,155 @@ export class GridData {
             console.log('Cascade Match Found! Resolving...');
 
             // CRITICAL: Tell the View to animate these matches!
-            EventBus.emit(EVENTS.MATCHES_FOUND, { matches: newMatches });
+            // EventBus.emit(EVENTS.MATCHES_FOUND, { matches: newMatches }); // MOVED to handleMatchResolution logic
 
             await this.handleMatchResolution(newMatches);
+        } else {
+            // MATCHING SETTLED - CHECK FOR DEADLOCK
+            if (!this.hasPossibleMoves()) {
+                console.log('No moves possible! Reshuffling...');
+                await new Promise(resolve => setTimeout(resolve, 500)); // Delay for clarity
+                await this.reshuffle();
+            }
+        }
+    }
+
+    checkAdjacentTrash(matches) {
+        const trashToDestroy = [];
+        const checked = new Set(); // Prevent duplicates
+
+        matches.forEach(({ r, c }) => {
+            const neighbors = [
+                { r: r - 1, c: c },
+                { r: r + 1, c: c },
+                { r: r, c: c - 1 },
+                { r: r, c: c + 1 }
+            ];
+
+            neighbors.forEach(n => {
+                if (this.isValidCoord(n.r, n.c)) {
+                    const id = `${n.r},${n.c}`;
+                    if (!checked.has(id)) {
+                        checked.add(id);
+                        const item = this.grid[n.r][n.c];
+                        if (item.isTrash && item.type !== ITEM_TYPES.EMPTY) {
+                            trashToDestroy.push({ r: n.r, c: n.c, type: 'TRASH' });
+                        }
+                    }
+                }
+            });
+        });
+        return trashToDestroy;
+    }
+
+    hasPossibleMoves() {
+        // Horizontal Swaps
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols - 1; c++) {
+                if (this.canSwapSimulate(r, c, r, c + 1)) return true;
+            }
+        }
+        // Vertical Swaps
+        for (let c = 0; c < this.cols; c++) {
+            for (let r = 0; r < this.rows - 1; r++) {
+                if (this.canSwapSimulate(r, c, r + 1, c)) return true;
+            }
+        }
+        return false;
+    }
+
+    canSwapSimulate(r1, c1, r2, c2) {
+        const item1 = this.grid[r1][c1];
+        const item2 = this.grid[r2][c2];
+
+        // Locked items cannot swap
+        if (item1.isLocked || item2.isLocked) return false;
+
+        // Trash IS moveable, so we proceed.
+
+        const t1 = item1.type;
+        const t2 = item2.type;
+
+        if (t1 === t2) return false;
+
+        // Simulate
+        this.grid[r1][c1] = item2;
+        this.grid[r2][c2] = item1;
+
+        const hasMatch = this.findMatches().length > 0;
+
+        // Revert
+        this.grid[r1][c1] = item1;
+        this.grid[r2][c2] = item2;
+
+        return hasMatch;
+    }
+
+    async reshuffle() {
+        console.log('Reshuffling Grid...');
+        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'NO MOVES! SHUFFLING...', color: 0xff0000 });
+
+        let valid = false;
+        let attempts = 0;
+        const flatItems = [];
+
+        // Extract content
+        this.grid.forEach(row => row.forEach(item => {
+            flatItems.push({
+                type: item.type,
+                isLocked: item.isLocked,
+                isTrash: item.isTrash,
+                id: item.id
+            });
+        }));
+
+        while (!valid && attempts < 100) {
+            attempts++;
+            // Shuffle flatItems
+            for (let i = flatItems.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [flatItems[i], flatItems[j]] = [flatItems[j], flatItems[i]];
+            }
+
+            // Apply to grid temporarily
+            let idx = 0;
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    const info = flatItems[idx++];
+                    this.grid[r][c].type = info.type;
+                }
+            }
+
+            // Check matches and moves
+            if (this.findMatches().length === 0) {
+                if (this.hasPossibleMoves()) {
+                    valid = true;
+                }
+            }
+        }
+
+        if (valid) {
+            let idx = 0;
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    const info = flatItems[idx++];
+                    const item = this.grid[r][c];
+                    item.type = info.type;
+                    item.isLocked = info.isLocked;
+                    item.isTrash = info.isTrash;
+                    item.id = info.id;
+                }
+            }
+
+            // Emit Update
+            EventBus.emit(EVENTS.GRID_CREATED, {
+                grid: this.getGridSnapshot(),
+                rows: this.rows,
+                cols: this.cols
+            });
+        } else {
+            console.warn('Reshuffle failed to find valid config. Forcing full re-init.');
+            this.initialize();
         }
     }
 

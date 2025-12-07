@@ -30,6 +30,8 @@ export class BattleScene extends Phaser.Scene {
         this.load.image(ASSETS.POTION, 'assets/items/potion.png');
         this.load.image(ASSETS.COIN, 'assets/items/coin.png');
         this.load.image(ASSETS.MANA, 'assets/items/mana.png');
+        this.load.image('trash', 'assets/items/trash.png');
+        this.load.image('lock', 'assets/items/lock.png');
 
         // Entities
         // If we have entity sprites, load them here. 

@@ -114,11 +114,12 @@ export class CombatView {
 
         // 4. Enemy Stats
         // Name (Above Sprite)
+        // Name (Above Sprite)
         this.enemyName = this.scene.add.text(RIGHT_X, ENTITY_Y - 90, '', {
-            font: 'bold 14px Arial',
+            font: 'bold 13px Verdana',
             fill: '#aaaaaa', // Greyish, less prominent
             align: 'center'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setResolution(2);
 
         // HP Bar
         this.enemyHPBar = this.createHealthBar(RIGHT_X, HP_BAR_Y, 150, 20, 0xff4444);
@@ -128,12 +129,12 @@ export class CombatView {
 
         // Center Notification
         this.centerText = this.scene.add.text(626, 300, '', {
-            font: '48px Arial',
+            font: 'bold 40px Verdana',
             fill: '#ffd700',
             stroke: '#000000',
             strokeThickness: 6,
             align: 'center'
-        }).setOrigin(0.5).setDepth(200).setVisible(false);
+        }).setOrigin(0.5).setDepth(200).setVisible(false).setResolution(2);
 
         // Skills (Compact Row UNDER Grid)
         // Grid Bottom = 520. Place buttons at Y=560.
@@ -146,7 +147,7 @@ export class CombatView {
 
         // End Turn Button (Right Side, below entity)
         this.endTurnBtn = this.scene.add.text(RIGHT_X, 550, 'END TURN', {
-            font: 'bold 20px Arial',
+            font: 'bold 18px Verdana',
             fill: '#ffffff',
             backgroundColor: '#cc0000',
             padding: { x: 20, y: 12 }
@@ -179,11 +180,9 @@ export class CombatView {
 
         // Text
         const text = this.scene.add.text(0, 0, '', {
-            font: 'bold 12px Arial',
-            fill: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 2
-        }).setOrigin(0.5);
+            font: 'bold 13px Verdana',
+            fill: '#ffffff'
+        }).setOrigin(0.5).setResolution(2);
 
         container.add([bg, fill, text]);
 
@@ -259,10 +258,10 @@ export class CombatView {
         });
 
         const text = this.scene.add.text(0, 0, label, {
-            font: 'bold 14px Arial',
+            font: 'bold 14px Verdana',
             fill: '#ffffff',
             align: 'center'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setResolution(2);
 
         container.add([bg, border, text]);
         this.skillButtons[id] = { container, bg, text, color };
@@ -288,16 +287,16 @@ export class CombatView {
 
             if (item.text) {
                 const textObj = this.scene.add.text(currentX, 0, item.text, {
-                    font: 'bold 18px Arial',
+                    font: 'bold 16px Verdana',
                     fill: '#ffffff'
-                }).setOrigin(0, 0.5);
+                }).setOrigin(0, 0.5).setResolution(2);
                 container.add(textObj);
                 currentX += textObj.width;
             }
 
             if (item.separator) {
                 currentX += 5; // Reduced 8->5
-                const sep = this.scene.add.text(currentX, 0, '|', { font: '16px Arial', fill: '#888888' }).setOrigin(0, 0.5);
+                const sep = this.scene.add.text(currentX, 0, '|', { font: '16px Verdana', fill: '#888888' }).setOrigin(0, 0.5).setResolution(2);
                 container.add(sep);
                 currentX += 5; // Reduced 12->5
             }
@@ -443,12 +442,25 @@ export class CombatView {
         this.centerText.setColor('#' + color.toString(16));
         this.centerText.setVisible(true);
         this.centerText.setScale(0);
+        this.centerText.setAlpha(1);
 
         this.scene.tweens.add({
             targets: this.centerText,
             scale: 1.5,
             duration: 500,
-            ease: 'Back.out'
+            ease: 'Back.out',
+            onComplete: () => {
+                this.scene.tweens.add({
+                    targets: this.centerText,
+                    alpha: 0,
+                    scale: 2.0,
+                    duration: 300,
+                    delay: 500, // Hold for 500ms
+                    onComplete: () => {
+                        this.centerText.setVisible(false);
+                    }
+                });
+            }
         });
     }
 

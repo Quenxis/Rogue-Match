@@ -31,7 +31,8 @@ export const EVENTS = {
     SHOW_NOTIFICATION: 'ui:show_notification',
     POTION_USE_REQUESTED: 'potion:use_requested',
     SCENE_READY: 'scene:ready',
-    RELIC_TRIGGERED: 'ui:relic_triggered'
+    RELIC_TRIGGERED: 'ui:relic_triggered',
+    GRID_ITEM_UPDATED: 'grid:item_updated'
 };
 
 export const ASSETS = {
@@ -61,6 +62,18 @@ export const ENTITIES = {
 export const SKILLS = {
     FIREBALL: 'FIREBALL',
     HEAL: 'HEAL'
+};
+
+export const MOVESET_TYPES = {
+    ATTACK: 'ATTACK',
+    DEFEND: 'DEFEND',
+    BUFF: 'BUFF',
+    DEBUFF: 'DEBUFF'
+};
+
+export const GRID_STATUS = {
+    LOCKED: 'LOCKED',
+    TRASH: 'TRASH'
 };
 
 export const GAME_SETTINGS = {

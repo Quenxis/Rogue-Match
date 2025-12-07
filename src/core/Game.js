@@ -14,7 +14,7 @@ import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.3.9';
+export const APP_VERSION = '0.3.10';
 
 const config = {
     type: Phaser.AUTO,
@@ -30,7 +30,7 @@ const config = {
     render: {
         pixelArt: false,
         antialias: true,
-        roundPixels: false
+        roundPixels: true
     }
 };
 

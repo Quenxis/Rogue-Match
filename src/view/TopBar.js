@@ -17,10 +17,10 @@ export class TopBar {
         this.container.add(this.bg);
 
         // --- HP Display ---
-        this.hpText = this.scene.add.text(20, 10, '', { font: 'bold 16px Arial', fill: '#ff4444' });
+        this.hpText = this.scene.add.text(20, 10, '', { font: 'bold 15px Verdana', fill: '#ff4444' }).setResolution(2);
 
         // --- Gold Display ---
-        this.goldText = this.scene.add.text(200, 10, '', { font: 'bold 16px Arial', fill: '#ffd700' });
+        this.goldText = this.scene.add.text(200, 10, '', { font: 'bold 15px Verdana', fill: '#ffd700' }).setResolution(2);
 
         this.container.add([this.hpText, this.goldText]);
 
@@ -28,9 +28,10 @@ export class TopBar {
         this.relicContainer = this.scene.add.container(400, 20);
         this.container.add(this.relicContainer);
         this.relicIcons = [];
-        this.relicTooltip = this.scene.add.text(0, 0, '', { font: '12px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
+        this.relicTooltip = this.scene.add.text(0, 0, '', { font: '13px Verdana', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
             .setDepth(2001)
             .setVisible(false)
+            .setResolution(2)
             .setScrollFactor(0);
         this.container.add(this.relicTooltip);
 
@@ -49,10 +50,10 @@ export class TopBar {
 
         // --- Scene Title (Top Right) ---
         this.titleText = this.scene.add.text(1080, 20, '', {
-            font: 'bold 20px "Courier New", monospace', // Monospace/Tech look
+            font: 'bold 18px Verdana', // Monospace/Tech look
             fill: '#ffffff',
             align: 'right'
-        }).setOrigin(1, 0.5);
+        }).setOrigin(1, 0.5).setResolution(2);
         this.container.add(this.titleText);
 
         // Invoked is better.
@@ -78,7 +79,7 @@ export class TopBar {
     }
 
     createPotionSlots(startX) {
-        this.scene.add.text(startX - 60, 12, 'Potions:', { font: '12px Arial', fill: '#aaaaaa' });
+        this.scene.add.text(startX - 60, 12, 'Potions:', { font: '13px Verdana', fill: '#aaaaaa' }).setResolution(2);
 
         for (let i = 0; i < 3; i++) {
             const x = startX + (i * 50);
@@ -105,9 +106,10 @@ export class TopBar {
         }
 
         // Tooltip Text
-        this.tooltip = this.scene.add.text(0, 0, '', { font: '12px Arial', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
+        this.tooltip = this.scene.add.text(0, 0, '', { font: '13px Verdana', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
             .setDepth(2000)
             .setVisible(false)
+            .setResolution(2)
             .setScrollFactor(0); // Fix to HUD
         // Note: Adding to container usually handles scroll factor, BUT if MapScene camera moves, 
         // global position calculations might be off if we rely on container relative pos?

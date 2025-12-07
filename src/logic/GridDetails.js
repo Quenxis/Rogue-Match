@@ -17,9 +17,15 @@ export class GridItem {
         this.type = type;
         this.id = id;
         this.isMatched = false;
+        this.isLocked = false;
+        this.isTrash = false;
     }
 
     isEmpty() {
         return this.type === ITEM_TYPES.EMPTY;
+    }
+
+    isTrashItem() {
+        return this.type === 'TRASH' || this.isTrash;
     }
 }
