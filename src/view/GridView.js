@@ -26,6 +26,7 @@ export class GridView {
         this.isInputLocked = false;
         this.isAnimating = false;
         this.selectedTile = null; // {r, c, sprite}
+        this.animatingIds = new Set(); // Track sprites being animated (e.g. matches) to prevent Sync destruction
 
         // Create Container for Sprites
         this.tokenContainer = this.scene.add.container(0, 0);
@@ -381,6 +382,8 @@ export class GridView {
 
             if (currentItem && this.sprites[currentItem.id]) {
                 const sprite = this.sprites[currentItem.id];
+                const id = currentItem.id;
+                this.animatingIds.add(id);
 
                 this.scene.tweens.add({
                     targets: sprite,
@@ -389,8 +392,11 @@ export class GridView {
                     alpha: 0,
                     duration: 200,
                     onComplete: () => {
-                        sprite.destroy();
-                        delete this.sprites[currentItem.id];
+                        this.animatingIds.delete(id);
+                        if (this.sprites[id]) {
+                            this.sprites[id].destroy();
+                            delete this.sprites[id];
+                        }
                     }
                 });
             }
@@ -573,6 +579,12 @@ export class GridView {
             }
 
             if (!isValid) {
+                // Protect animating sprites (e.g. dying matches)
+                if (this.animatingIds.has(id)) {
+                    // console.log(`Sync: Skipping destruction of animating sprite ${id}`);
+                    return;
+                }
+
                 console.log(`Sync: Destroying Orphan Sprite ${id}`);
                 this.sprites[id].destroy();
                 if (this.debugRects && this.debugRects[id]) this.debugRects[id].destroy();

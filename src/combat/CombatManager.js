@@ -116,8 +116,7 @@ export class CombatManager {
         }
     }
 
-    // createUI() -> REMOVED
-    // createSkillButton() -> REMOVED
+
 
     emitState() {
         // Sync to global
@@ -133,7 +132,7 @@ export class CombatManager {
         });
     }
 
-    // updateSkillButton() -> REMOVED
+
 
     tryUseSkill(skillName) {
         if (this.turn !== ENTITIES.PLAYER) return;

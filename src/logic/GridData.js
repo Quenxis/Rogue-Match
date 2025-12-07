@@ -74,10 +74,12 @@ export class GridData {
     wouldCauseMatch(r, c, type, currentRow) {
         // Check horizontal (left)
         if (c >= 2) {
+            // Check the row currently being built
             if (currentRow[c - 1].type === type && currentRow[c - 2].type === type) return true;
         }
         // Check vertical (up)
         if (r >= 2) {
+            // Check the previous rows in the grid
             if (this.grid[r - 1][c].type === type && this.grid[r - 2][c].type === type) return true;
         }
         return false;
@@ -103,6 +105,7 @@ export class GridData {
      * Attempt to swap two items.
      */
     async swapItems(r1, c1, r2, c2) {
+        console.log(`GridData: Swap Requested [${r1},${c1}] <-> [${r2},${c2}]`);
         if (!this.isValidCoord(r1, c1) || !this.isValidCoord(r2, c2)) {
             console.warn('Invalid swap coordinates');
             return false;
