@@ -99,12 +99,8 @@ export class CombatView {
         // HP Bar
         this.playerHPBar = this.createHealthBar(LEFT_X, HP_BAR_Y, 150, 20, 0xff4444);
 
-        // Other Stats
-        this.playerUI = this.scene.add.text(LEFT_X, STATS_Y, '', {
-            font: 'bold 16px Arial',
-            fill: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5, 0);
+        // Other Stats (Container for Sprites + Text)
+        this.playerUI = this.scene.add.container(LEFT_X, STATS_Y);
         this.playerUI.setDepth(100);
 
         // Right Flank (Enemy) - Centered in right space (846-1252) -> X=1050
@@ -127,11 +123,7 @@ export class CombatView {
         // HP Bar
         this.enemyHPBar = this.createHealthBar(RIGHT_X, HP_BAR_Y, 150, 20, 0xff4444);
 
-        this.enemyUI = this.scene.add.text(RIGHT_X, STATS_Y, '', {
-            font: 'bold 16px Arial',
-            fill: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5, 0);
+        this.enemyUI = this.scene.add.container(RIGHT_X, STATS_Y);
         this.enemyUI.setDepth(100);
 
         // Center Notification
@@ -276,6 +268,50 @@ export class CombatView {
         this.skillButtons[id] = { container, bg, text, color };
     }
 
+    // Helper to render icon + text group
+    renderStatGroup(container, items) {
+        container.removeAll(true);
+
+        let currentX = 0;
+
+        items.forEach((item, index) => {
+            // Spacing
+            if (index > 0) currentX += 5; // Reduced 8->5
+
+            if (item.icon) {
+                const sprite = this.scene.add.image(currentX, 0, item.icon);
+                sprite.setDisplaySize(24, 24);
+                sprite.setOrigin(0, 0.5);
+                container.add(sprite);
+                currentX += 26; // Icon width (24) + tiny gap (2) - Reduced 28->26
+            }
+
+            if (item.text) {
+                const textObj = this.scene.add.text(currentX, 0, item.text, {
+                    font: 'bold 18px Arial',
+                    fill: '#ffffff'
+                }).setOrigin(0, 0.5);
+                container.add(textObj);
+                currentX += textObj.width;
+            }
+
+            if (item.separator) {
+                currentX += 5; // Reduced 8->5
+                const sep = this.scene.add.text(currentX, 0, '|', { font: '16px Arial', fill: '#888888' }).setOrigin(0, 0.5);
+                container.add(sep);
+                currentX += 5; // Reduced 12->5
+            }
+        });
+
+        // Center the content?
+        // Container is at LEFT_X (200) or RIGHT_X
+        // If we want it centered on that X, we shift children left by half width
+        const width = currentX;
+        container.list.forEach(child => {
+            child.x -= width / 2;
+        });
+    }
+
     /**
      * @param {Object} state - { player, enemy, turn, currentMoves, maxMoves }
      */
@@ -296,11 +332,18 @@ export class CombatView {
             const mana = player.mana || 0;
             const strength = player.strength || 0;
 
-            let stats = `🛡️ ${block} | 🔮 ${mana} | 👟 ${currentMoves}/${maxMoves}`;
+            const items = [
+                { icon: ASSETS.ICON_SHIELD, text: `${block}`, separator: true },
+                { icon: ASSETS.ICON_MANA, text: `${mana}`, separator: true }, // Crystal/Mana
+                { text: `👟 ${currentMoves}/${maxMoves}` }
+            ];
+
             if (strength > 0) {
-                stats += ` | 💪 ${strength}`;
+                items[2].separator = true;
+                items.push({ icon: ASSETS.ICON_SWORD, text: `${strength}` });
             }
-            this.playerUI.setText(stats);
+
+            this.renderStatGroup(this.playerUI, items);
 
             // Update HP Bar
             this.updateHealthBar(this.playerHPBar, player.currentHP, player.maxHP);
@@ -320,8 +363,18 @@ export class CombatView {
 
         // Enemy Stats
         if (this.enemyUI && this.enemyUI.active && enemy) {
-            let intentIcon = '⚔️';
-            if (enemy.currentIntent && enemy.currentIntent.type === 'BLOCK') intentIcon = '🛡️';
+            let intentIconKey = ASSETS.ICON_SWORD; // Default Attack
+            let isBlockIntent = false;
+
+            if (enemy.currentIntent && enemy.currentIntent.type === 'DEFEND') { // Or BLOCK? Checked logic earlier, used 'DEFEND' in generated intent but 'BLOCK' constant?
+                // Logic: type: 'DEFEND' or 'ATTACK' string literal from Enemy.js
+                intentIconKey = ASSETS.ICON_SHIELD;
+                isBlockIntent = true;
+            } else if (enemy.currentIntent && enemy.currentIntent.type === 'BLOCK') {
+                // For safety if legacy
+                intentIconKey = ASSETS.ICON_SHIELD;
+                isBlockIntent = true;
+            }
 
             // Enemy Name (Updated separately)
             if (this.enemyName) {
@@ -332,7 +385,24 @@ export class CombatView {
             const intentText = enemy.currentIntent ? enemy.currentIntent.text : 'Thinking...';
 
             // Simplified Stats (Shield + Intent)
-            this.enemyUI.setText(`🛡️ ${eBlock} | ${intentIcon} ${intentText}`);
+            // If intent is block, we show Shield + Value? 
+            // Intent text usually says "Attack (12)" or "Block (5)"
+
+            const items = [
+                { icon: ASSETS.ICON_SHIELD, text: `${eBlock}`, separator: true },
+            ];
+
+            // Intent Icon
+            // For intent, we might want to just show the icon next to text
+            if (enemy.currentIntent) {
+                // Check if intent is Attack/Defend to choose icon
+                // Already determined intentIconKey
+                items.push({ icon: intentIconKey, text: intentText });
+            } else {
+                items.push({ text: 'Thinking...' });
+            }
+
+            this.renderStatGroup(this.enemyUI, items);
 
             // Update HP Bar
             this.updateHealthBar(this.enemyHPBar, enemy.currentHP, enemy.maxHP);

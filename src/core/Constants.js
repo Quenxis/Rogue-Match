@@ -43,7 +43,13 @@ export const ASSETS = {
     SHIELD: 'SHIELD',
     POTION: 'POTION',
     COIN: 'COIN',
-    MANA: 'MANA'
+    COIN: 'COIN',
+    MANA: 'MANA',
+
+    // UI Icons
+    ICON_SWORD: 'icon_sword',
+    ICON_SHIELD: 'icon_shield',
+    ICON_MANA: 'icon_mana'
 };
 
 export const ENTITIES = {
