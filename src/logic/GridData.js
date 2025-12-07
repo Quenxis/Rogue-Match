@@ -546,11 +546,12 @@ export class GridData {
         // Vertical matches
         for (let c = 0; c < this.cols; c++) {
             for (let r = 0; r < this.rows - 2; r++) {
-                const type = this.grid[r][c].type;
-                if (type === ITEM_TYPES.EMPTY) continue;
+                const item = this.grid[r][c];
+                const type = item.type;
+                if (type === ITEM_TYPES.EMPTY || item.isTrash || type === ITEM_TYPES.TRASH) continue;
 
                 let matchLen = 1;
-                while (r + matchLen < this.rows && this.grid[r + matchLen][c].type === type) {
+                while (r + matchLen < this.rows && this.grid[r + matchLen][c].type === type && !this.grid[r + matchLen][c].isTrash) {
                     matchLen++;
                 }
 
@@ -566,11 +567,12 @@ export class GridData {
         // Horizontal matches
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols - 2; c++) {
-                const type = this.grid[r][c].type;
-                if (type === ITEM_TYPES.EMPTY) continue;
+                const item = this.grid[r][c];
+                const type = item.type;
+                if (type === ITEM_TYPES.EMPTY || item.isTrash || type === ITEM_TYPES.TRASH) continue;
 
                 let matchLen = 1;
-                while (c + matchLen < this.cols && this.grid[r][c + matchLen].type === type) {
+                while (c + matchLen < this.cols && this.grid[r][c + matchLen].type === type && !this.grid[r][c + matchLen].isTrash) {
                     matchLen++;
                 }
 
