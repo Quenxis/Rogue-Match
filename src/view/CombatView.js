@@ -7,6 +7,7 @@ import { EventBus } from '../core/EventBus.js';
 import { EVENTS, ASSETS, SKILLS, ENTITIES } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
+import { HEROES } from '../data/heroes.js';
 
 export class CombatView {
     constructor(scene, combatManager) {
@@ -81,52 +82,66 @@ export class CombatView {
 
         // Entities Y (Lower Mid - "Standing" feel)
         // Entities Y (Lower Mid - "Standing" feel)
-        const ENTITY_Y = 360;
-        const HP_BAR_Y = 445;
-        const STATS_Y = 470;
+        // Entities Y (Floor alignment - Anchor at feet)
+        // Entities Y (Floor alignment - Anchor at feet)
+        this.groundY = 440;
+        const HP_BAR_Y = 455;
+        const STATS_Y = 480;
 
         // Left Flank (Player) - Centered in left space (0-406) -> X=200
-        const LEFT_X = 200;
+        this.leftX = 200;
 
         // 1. Hero Sprite
+        const heroConfig = HEROES['warrior'] || {};
+        const heroScale = heroConfig.scale || 1;
+        const heroOffset = heroConfig.yOffset || 0;
+        const heroXOffset = heroConfig.xOffset || 0;
+
         if (this.scene.textures.exists(ASSETS.HERO)) {
-            this.heroSprite = this.scene.add.image(LEFT_X, ENTITY_Y, ASSETS.HERO);
-            this.heroSprite.setDisplaySize(150, 150);
+            this.heroSprite = this.scene.add.image(this.leftX, this.groundY, ASSETS.HERO);
+            this.heroSprite.setOrigin(0.5, 1);
+            this.fitSprite(this.heroSprite, 300, 280, heroScale); // Max Width 300, Max Height 280
+
+            // Apply Offset
+            this.heroSprite.y += heroOffset;
+            this.heroSprite.x += heroXOffset;
+
             this.heroSprite.setDepth(100);
         } else {
-            this.heroSprite = this.scene.add.rectangle(LEFT_X, ENTITY_Y, 100, 100, 0x6666ff).setDepth(100);
+            // Placeholder rect (origin is center by default for rects usually, but easier to just adjust Y)
+            this.heroSprite = this.scene.add.rectangle(this.leftX, this.groundY - 50, 100, 100, 0x6666ff).setDepth(100);
         }
 
         // 2. Player Stats
         // HP Bar
-        this.playerHPBar = this.createHealthBar(LEFT_X, HP_BAR_Y, 150, 20, 0xff4444);
+        this.playerHPBar = this.createHealthBar(this.leftX, HP_BAR_Y, 150, 20, 0xff4444);
 
         // Other Stats (Container for Sprites + Text)
-        this.playerUI = this.scene.add.container(LEFT_X, STATS_Y);
+        this.playerUI = this.scene.add.container(this.leftX, STATS_Y);
         this.playerUI.setDepth(100);
 
         // Right Flank (Enemy) - Centered in right space (846-1252) -> X=1050
-        const RIGHT_X = 1050;
+        this.rightX = 1050;
 
         // 3. Enemy Sprite
-        this.enemySprite = this.scene.add.sprite(RIGHT_X, ENTITY_Y, ASSETS.ENEMY_PLACEHOLDER);
-        this.enemySprite.setDisplaySize(150, 150);
+        this.enemySprite = this.scene.add.sprite(this.rightX, this.groundY, ASSETS.ENEMY_PLACEHOLDER);
+        this.enemySprite.setOrigin(0.5, 1);
+        this.fitSprite(this.enemySprite, 350, 280); // Max Width 350, Max Height 280
         this.enemySprite.setDepth(100);
         this.enemySprite.setFlipX(false);
 
         // 4. Enemy Stats
-        // Name (Above Sprite)
-        // Name (Above Sprite)
-        this.enemyName = this.scene.add.text(RIGHT_X, ENTITY_Y - 90, '', {
+        // Name (Initial, will be updated by sprite height)
+        this.enemyName = this.scene.add.text(this.rightX, this.groundY - 190, '', {
             font: 'bold 13px Verdana',
             fill: '#aaaaaa', // Greyish, less prominent
             align: 'center'
         }).setOrigin(0.5).setResolution(2);
 
         // HP Bar
-        this.enemyHPBar = this.createHealthBar(RIGHT_X, HP_BAR_Y, 150, 20, 0xff4444);
+        this.enemyHPBar = this.createHealthBar(this.rightX, HP_BAR_Y, 150, 20, 0xff4444);
 
-        this.enemyUI = this.scene.add.container(RIGHT_X, STATS_Y);
+        this.enemyUI = this.scene.add.container(this.rightX, STATS_Y);
         this.enemyUI.setDepth(100);
 
         // Center Notification
@@ -148,7 +163,7 @@ export class CombatView {
         this.createCompactSkillButton(1, SKILLS.HEAL, '💚 Heal', 0x00cc44, SKILL_CENTER_X + (SKILL_SPACING / 2), SKILL_Y, () => this.combatManager.tryUseSkill(SKILLS.HEAL));
 
         // End Turn Button (Right Side, below entity)
-        this.endTurnBtn = this.scene.add.text(RIGHT_X, 550, 'END TURN', {
+        this.endTurnBtn = this.scene.add.text(this.rightX, 550, 'END TURN', {
             font: 'bold 18px Verdana',
             fill: '#ffffff',
             backgroundColor: '#cc0000',
@@ -351,14 +366,27 @@ export class CombatView {
         }
 
         // Enemy Visuals
-        // Determine texture - View Logic: Check if asset exists, else placeholder
         if (enemy && enemy.name) {
             const foundId = Object.keys(ENEMIES).find(key => ENEMIES[key].name === enemy.name);
+
             if (foundId) {
-                const texture = ENEMIES[foundId].texture;
-                if (this.scene.textures.exists(texture)) {
+                const data = ENEMIES[foundId];
+                const texture = data ? data.texture : null;
+                const customScale = (data && data.scale) ? data.scale : 1;
+                const yOffset = (data && data.yOffset) ? data.yOffset : 0;
+                const xOffset = (data && data.xOffset) ? data.xOffset : 0;
+
+                if (texture && this.scene.textures.exists(texture)) {
                     this.enemySprite.setTexture(texture);
+                    this.fitSprite(this.enemySprite, 350, 280, customScale);
+
+                    this.enemySprite.y = this.groundY + yOffset;
+                    this.enemySprite.x = this.rightX + xOffset; // Apply X Offset
+
+                    this.enemyName.y = this.enemySprite.y - this.enemySprite.displayHeight - 20;
+                    this.enemyName.x = this.enemySprite.x; // Keep name aligned with sprite (important if moved)
                 }
+                this.enemyName.y = this.enemySprite.y - this.enemySprite.displayHeight - 20;
             }
         }
 
@@ -367,17 +395,14 @@ export class CombatView {
             let intentIconKey = ASSETS.ICON_SWORD; // Default Attack
             let isBlockIntent = false;
 
-            if (enemy.currentIntent && enemy.currentIntent.type === 'DEFEND') { // Or BLOCK? Checked logic earlier, used 'DEFEND' in generated intent but 'BLOCK' constant?
-                // Logic: type: 'DEFEND' or 'ATTACK' string literal from Enemy.js
+            if (enemy.currentIntent && enemy.currentIntent.type === 'DEFEND') {
                 intentIconKey = ASSETS.ICON_SHIELD;
                 isBlockIntent = true;
             } else if (enemy.currentIntent && enemy.currentIntent.type === 'BLOCK') {
-                // For safety if legacy
                 intentIconKey = ASSETS.ICON_SHIELD;
                 isBlockIntent = true;
             }
 
-            // Enemy Name (Updated separately)
             if (this.enemyName) {
                 this.enemyName.setText(enemy.name ? enemy.name.toUpperCase() : 'ENEMY');
             }
@@ -385,33 +410,23 @@ export class CombatView {
             const eBlock = enemy.block || 0;
             const intentText = enemy.currentIntent ? enemy.currentIntent.text : 'Thinking...';
 
-            // Simplified Stats (Shield + Intent)
-            // If intent is block, we show Shield + Value? 
-            // Intent text usually says "Attack (12)" or "Block (5)"
-
             const items = [
                 { icon: ASSETS.ICON_SHIELD, text: `${eBlock}`, separator: true },
             ];
 
-            // Intent Icon
-            // For intent, we might want to just show the icon next to text
             if (enemy.currentIntent) {
-                // Check if intent is Attack/Defend to choose icon
-                // Already determined intentIconKey
                 items.push({ icon: intentIconKey, text: intentText });
             } else {
                 items.push({ text: 'Thinking...' });
             }
 
             this.renderStatGroup(this.enemyUI, items);
-
-            // Update HP Bar
             this.updateHealthBar(this.enemyHPBar, enemy.currentHP, enemy.maxHP);
         }
 
+
         // Update Buttons
         const canAct = turn === ENTITIES.PLAYER;
-
         this.updateSkillButton(SKILLS.HEAL, canAct && player.mana >= 8);
         this.updateSkillButton(SKILLS.FIREBALL, canAct && player.mana >= 5);
         this.updateEndTurnButton(canAct && (!this.scene.gridView || !this.scene.gridView.isAnimating));
@@ -547,5 +562,26 @@ export class CombatView {
                 target.clearTint();
             }
         });
+    }
+
+
+
+    // Helper: Scales sprite to fit within maxW/maxH while preserving Aspect Ratio
+    fitSprite(sprite, maxW, maxH, customScale = 1) {
+        if (!sprite || !sprite.width || !sprite.height) return;
+
+        // Reset scale to 1 first to get true dimensions
+        sprite.setScale(1);
+
+        const scaleX = maxW / sprite.width;
+        const scaleY = maxH / sprite.height;
+
+        // Scale Down Only: If image is smaller than box, keep it 1:1. Only shrink if too big.
+        let finalScale = Math.min(scaleX, scaleY, 1);
+
+        // Apply Manual Override (allows intentionally breaking the safety limits)
+        finalScale *= customScale;
+
+        sprite.setScale(finalScale);
     }
 }

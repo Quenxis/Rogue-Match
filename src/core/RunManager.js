@@ -1,3 +1,5 @@
+import { ACTS } from '../data/acts.js';
+
 export class RunManager {
     constructor() {
         if (RunManager.instance) {
@@ -16,6 +18,7 @@ export class RunManager {
 
         this.map = [];
         this.currentTier = 0;
+        this.currentActIndex = 0; // Start with Act 1
         this.currentNode = null; // Track exact current node { tier, index }
     }
 
@@ -78,10 +81,11 @@ export class RunManager {
     // --- Map Generation (Refactored) ---
     generateMap() {
         this.map = [];
-        const tierSizes = this._calculateTierSizes();
+        const currentAct = ACTS[this.currentActIndex];
+        const tierSizes = this._calculateTierSizes(currentAct);
 
         // 1. Initialize Skeleton (All BATTLE)
-        this._initializeNodes(tierSizes);
+        this._initializeNodes(tierSizes, currentAct);
 
         // 2. Distribute Special Rooms (Bag System)
         this._distributeRoomTypes();
@@ -96,11 +100,14 @@ export class RunManager {
         this._ensureFairness();
     }
 
-    _calculateTierSizes() {
+    _calculateTierSizes(act) {
         const sizes = [];
         sizes.push(Math.floor(Math.random() * 3) + 2); // Tier 0: 2-4 nodes
 
-        for (let i = 1; i < 9; i++) {
+        // Generate up to length - 1 (Boss is last)
+        const totalTiers = act.length;
+
+        for (let i = 1; i < totalTiers - 1; i++) {
             let prev = sizes[i - 1];
             let next = prev;
             const roll = Math.random();
@@ -109,11 +116,11 @@ export class RunManager {
             else if (Math.random() < 0.1) next = Math.floor(Math.random() * 4) + 2;
             sizes.push(next);
         }
-        sizes.push(1); // Tier 9: Boss
+        sizes.push(1); // Final Tier: Boss
         return sizes;
     }
 
-    _initializeNodes(tierSizes) {
+    _initializeNodes(tierSizes, act) {
         for (let i = 0; i < tierSizes.length; i++) {
             const nodes = [];
             const count = tierSizes[i];
@@ -123,17 +130,19 @@ export class RunManager {
                 let status = (i === 0) ? 'AVAILABLE' : 'LOCKED';
                 let enemyId = 'slime';
 
-                if (i === 9) {
+                if (i === tierSizes.length - 1) {
                     type = 'BOSS';
-                    enemyId = 'dragon';
+                    // Pick random boss from Act
+                    const bosses = act.bosses || ['dragon'];
+                    enemyId = bosses[Math.floor(Math.random() * bosses.length)];
+                } else {
+                    // Default Enemy Pool from Act
+                    const enemies = act.enemies || ['slime'];
+                    enemyId = enemies[Math.floor(Math.random() * enemies.length)];
+
+                    // Keep Tier 1 Easy logic for now (can be config'd later)
+                    if (i === 1) enemyId = Math.random() < 0.5 ? 'slime' : 'rat';
                 }
-
-                // Default Enemy Pool
-                const enemies = ['slime', 'rat', 'skeleton', 'orc'];
-                enemyId = enemies[Math.floor(Math.random() * enemies.length)];
-
-                // Tier 1 Easy Enemies
-                if (i === 1) enemyId = Math.random() < 0.5 ? 'slime' : 'rat';
 
                 nodes.push({
                     type,

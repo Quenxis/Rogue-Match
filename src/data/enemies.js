@@ -3,6 +3,7 @@ export const ENEMIES = {
     'slime': {
         name: 'Acid Slime',
         texture: 'tex_slime',
+        scale: 0.7,
         hp: 40,
         maxHP: 40,
         goldReward: 15,
@@ -14,6 +15,7 @@ export const ENEMIES = {
     'rat': {
         name: 'Giant Rat',
         texture: 'tex_rat',
+        scale: 0.9,
         hp: 30,
         maxHP: 30,
         goldReward: 10,
@@ -26,6 +28,8 @@ export const ENEMIES = {
     'orc': {
         name: 'Orc Warrior',
         texture: 'tex_orc',
+        scale: 0.9,
+        xOffset: -30,
         hp: 80,
         maxHP: 80,
         goldReward: 25,
@@ -37,6 +41,8 @@ export const ENEMIES = {
     'skeleton': {
         name: 'Skeleton',
         texture: 'tex_skeleton',
+        scale: 1.2, // Manual override to make him bigger
+        yOffset: -20,
         hp: 60,
         maxHP: 60,
         goldReward: 20,
