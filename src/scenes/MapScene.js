@@ -32,8 +32,16 @@ export class MapScene extends Phaser.Scene {
         const centerY = this.scale.height / 2;
 
         // Background
-        this.add.rectangle(centerX, centerY, mapWidth, mapHeight, 0x222222).setDepth(-10);
-        this.add.grid(centerX, centerY, mapWidth, mapHeight, 50, 50, 0x222222, 1, 0x333333, 0.2).setDepth(-9);
+        // Background
+        const bg = this.add.image(centerX, centerY, 'map_bg').setDepth(-10);
+        // Ensure it covers the screen (scaler)
+        const scaleX = mapWidth / bg.width;
+        const scaleY = mapHeight / bg.height;
+        const scale = Math.max(scaleX, scaleY);
+        bg.setScale(scale);
+
+        // Optional: Keep grid for debugging or structure? 
+        // this.add.grid(centerX, centerY, mapWidth, mapHeight, 50, 50, 0x222222, 1, 0x333333, 0.2).setDepth(-9);
 
         // CHECK IF RUN COMPLETED
         if (runManager.currentTier >= tiers.length) {
@@ -67,7 +75,7 @@ export class MapScene extends Phaser.Scene {
 
         // DRAW LINES
         const graphics = this.add.graphics();
-        graphics.lineStyle(4, 0x555555, 1);
+        graphics.lineStyle(4, 0x3b2d23, 0.8); // Dark Brown Ink, slightly transparent
 
         tiers.forEach((tierNodes, tierIndex) => {
             tierNodes.forEach((node, nodeIndex) => {
@@ -102,18 +110,18 @@ export class MapScene extends Phaser.Scene {
     }
 
     drawNode(x, y, node, tierIndex) {
-        // 1. Determine Type Color
-        let color = 0x888888; // Default
+        // 1. Determine Type Color (Parchment/Ink Palette)
+        let color = 0x5c5c5c; // Battle: Dark Grey/Ink
         let label = '⚔️';
         let radius = 18;
         let fontSize = '20px';
 
-        if (node.type === 'BOSS') { color = 0xff0000; label = '💀'; radius = 22; fontSize = '24px'; }
-        else if (node.type === 'SHOP') { color = 0xffd700; label = '💰'; }
-        else if (node.type === 'TREASURE') { color = 0x00ffff; label = '💎'; }
-        else if (node.type === 'ELITE') { color = 0xff4400; label = '😈'; radius = 20; }
-        else if (node.type === 'EVENT') { color = 0xff00ff; label = '❓'; }
-        else if (node.type === 'BATTLE') { color = 0xaaaaaa; } // Standard Battle Grey/White
+        if (node.type === 'BOSS') { color = 0x8b0000; label = '💀'; radius = 24; fontSize = '24px'; } // Deep Red
+        else if (node.type === 'SHOP') { color = 0xc5a000; label = '💰'; } // Ochre/Gold
+        else if (node.type === 'TREASURE') { color = 0x4682b4; label = '💎'; } // Steel Blue
+        else if (node.type === 'ELITE') { color = 0xa03000; label = '😈'; radius = 20; } // Rust
+        else if (node.type === 'EVENT') { color = 0x6a0dad; label = '❓'; } // Muted Purple
+        else if (node.type === 'BATTLE') { color = 0x5c5c5c; } // Standard Battle
 
         // 2. Status Overrides
         if (node.status === 'COMPLETED') {
@@ -142,7 +150,7 @@ export class MapScene extends Phaser.Scene {
         }
 
         const circle = this.add.circle(0, 0, radius, color);
-        circle.setStrokeStyle(2, 0x000000);
+        circle.setStrokeStyle(3, 0x2a1d10); // Ink Black stroke
 
         const text = this.add.text(0, 0, label, {
             fontSize: fontSize,
