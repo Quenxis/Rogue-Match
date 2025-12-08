@@ -2,6 +2,7 @@ import { runManager } from '../core/RunManager.js';
 import { createVersionWatermark } from '../view/UIHelper.js';
 import { TopBar } from '../view/TopBar.js';
 import { EventBus } from '../core/EventBus.js';
+import { audioManager } from '../core/AudioManager.js';
 
 export class MapScene extends Phaser.Scene {
     constructor() {
@@ -9,6 +10,9 @@ export class MapScene extends Phaser.Scene {
     }
 
     create() {
+        // Play BGM
+        audioManager.playBGM('bgm_main', this);
+
         // If no run matches, start one
         if (!runManager.map.length) {
             runManager.startNewRun();

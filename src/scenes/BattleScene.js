@@ -15,6 +15,7 @@ import { CombatLogView } from '../view/CombatLogView.js';
 import { RelicSystem } from '../combat/RelicSystem.js';
 import { TopBar } from '../view/TopBar.js';
 import { createVersionWatermark } from '../view/UIHelper.js';
+import { audioManager } from '../core/AudioManager.js';
 
 export class BattleScene extends Phaser.Scene {
     constructor() {
@@ -24,14 +25,8 @@ export class BattleScene extends Phaser.Scene {
     }
 
     preload() {
-        // Items
-        this.load.image(ASSETS.SWORD, 'assets/items/sword.png');
-        this.load.image(ASSETS.SHIELD, 'assets/items/shield.png');
-        this.load.image(ASSETS.POTION, 'assets/items/potion.png');
-        this.load.image(ASSETS.COIN, 'assets/items/coin.png');
-        this.load.image(ASSETS.MANA, 'assets/items/mana.png');
-        this.load.image('trash', 'assets/items/trash.png');
-        this.load.image('lock', 'assets/items/lock.png');
+        // Items loaded in BootScene (Global)
+        // Entities loaded in BootScene or handled dynamically
 
         // Entities
         // If we have entity sprites, load them here. 
@@ -47,6 +42,9 @@ export class BattleScene extends Phaser.Scene {
 
     create(data) {
         console.log('Battle Scene Ready', data);
+
+        // Play/Sync BGM
+        audioManager.playBGM('bgm_main', this);
 
         // 0. Background
         // Added before everything else so it's at the back

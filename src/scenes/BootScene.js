@@ -4,6 +4,8 @@
  * @dependencies Phaser
  */
 
+import { audioManager } from '../core/AudioManager.js';
+
 export class BootScene extends Phaser.Scene {
     constructor() {
         super({ key: 'BootScene' });
@@ -25,11 +27,29 @@ export class BootScene extends Phaser.Scene {
         this.load.image('icon_shield', 'assets/icons/shield.png');
         this.load.image('icon_mana', 'assets/icons/mana.png');
 
+        // Items (Global for Guide)
+        this.load.image('SWORD', 'assets/items/sword.png');
+        this.load.image('SHIELD', 'assets/items/shield.png');
+        this.load.image('POTION', 'assets/items/potion.png');
+        this.load.image('COIN', 'assets/items/coin.png');
+        this.load.image('MANA', 'assets/items/mana.png');
+        this.load.image('trash', 'assets/items/trash.png');
+        this.load.image('lock', 'assets/items/lock.png');
+
         // Backgrounds
         this.load.image('map_bg', 'assets/backgrounds/map_bg.png');
+
+        // Audio
+        this.load.audio('bgm_main', 'assets/audio/bgm_main.mp3');
     }
 
     create() {
+        // Init Audio Manager
+        audioManager.init(this);
+
+        // Prevent audio from pausing when window loses focus
+        this.sound.pauseOnBlur = false;
+
         this.scene.start('MapScene');
     }
 }
