@@ -318,11 +318,21 @@ export class CombatManager {
                 break;
             case MOVESET_TYPES.BUFF:
                 if (intent.effect === 'STRENGTH') {
-                    // Apply temporary buff (Duration: 2 turns default as requested)
-                    const duration = 2; // Default
+                    // Apply temporary buff (Duration: 3 turns to cover 2 active attacks)
+                    const duration = 3;
                     this.enemy.addBuff('STRENGTH', intent.value, duration);
                     // this.enemy.strength = (this.enemy.strength || 0) + intent.value;
                     logManager.log(`Enemy gains ${intent.value} Strength for ${duration} turns!`, 'warning');
+
+                    // SCRIPTED AI: Force 2 Attacks after Buff
+                    // Find the primary ATTACK move from moveset
+                    const attackMove = this.enemy.moveset.find(m => m.type === MOVESET_TYPES.ATTACK);
+                    if (attackMove) {
+                        this.enemy.forcedIntents.push(attackMove);
+                        this.enemy.forcedIntents.push(attackMove);
+                        console.log('CombatManager: Scripted 2 Attacks for Enemy.');
+                    }
+
                 } else if (intent.effect === 'HEAL') {
                     this.enemy.heal(intent.value);
                 }
@@ -368,6 +378,23 @@ export class CombatManager {
     }
 
     generateEnemyIntent() {
+        // 1. Check Forced/Scripted Intents
+        if (this.enemy.forcedIntents && this.enemy.forcedIntents.length > 0) {
+            const next = this.enemy.forcedIntents.shift(); // Pop first
+            this.enemy.currentIntent = { ...next };
+
+            // Dynamic Update for Strength
+            if (this.enemy.currentIntent.type === 'ATTACK') {
+                const currentStr = this.enemy.getStrength();
+                if (currentStr > 0) {
+                    const totalDmg = this.enemy.currentIntent.value + currentStr;
+                    this.enemy.currentIntent.text = `Attack (${totalDmg})`;
+                }
+            }
+            console.log(`Enemy Intent (Forced): ${this.enemy.currentIntent.text}`);
+            return;
+        }
+
         const moveset = this.enemy.moveset;
         if (!moveset || moveset.length === 0) {
             // Fallback
@@ -388,8 +415,19 @@ export class CombatManager {
             }
         }
 
-        this.enemy.currentIntent = selectedMove;
-        console.log(`Enemy Intent Generated: ${selectedMove.text}`);
+        // CLONE the intent to avoid mutating global moveset definition
+        this.enemy.currentIntent = { ...selectedMove };
+
+        // Update Text for ATTACK to show Strength
+        if (this.enemy.currentIntent.type === 'ATTACK') {
+            const currentStr = this.enemy.getStrength();
+            if (currentStr > 0) {
+                const totalDmg = this.enemy.currentIntent.value + currentStr;
+                this.enemy.currentIntent.text = `Attack (${totalDmg})`;
+            }
+        }
+
+        console.log(`Enemy Intent Generated: ${this.enemy.currentIntent.text}`);
     }
 
     checkWinCondition() {

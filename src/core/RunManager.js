@@ -1,4 +1,3 @@
-
 export class RunManager {
     constructor() {
         if (RunManager.instance) {
@@ -9,14 +8,15 @@ export class RunManager {
         this.player = {
             currentHP: 100,
             maxHP: 100,
-            gold: 99, // Testing start amount
-            relics: [], // Array of IDs
-            potions: [], // Array of Objects { id, name, effect }
-            deck: ['FIREBALL', 'HEAL'] // Initial Skills
+            gold: 99,
+            relics: [],
+            potions: [],
+            deck: ['FIREBALL', 'HEAL']
         };
 
         this.map = [];
         this.currentTier = 0;
+        this.currentNode = null; // Track exact current node { tier, index }
     }
 
     startNewRun() {
@@ -28,6 +28,7 @@ export class RunManager {
 
         this.generateMap();
         this.currentTier = 0;
+        this.currentNode = null;
     }
 
     // --- Inventory System ---
@@ -74,49 +75,278 @@ export class RunManager {
         return false;
     }
 
-    // --- Map Generation ---
+    // --- Map Generation (Refactored) ---
     generateMap() {
         this.map = [];
-        const tiers = 10;
+        const tierSizes = this._calculateTierSizes();
 
-        for (let i = 0; i < tiers; i++) {
+        // 1. Initialize Skeleton (All BATTLE)
+        this._initializeNodes(tierSizes);
+
+        // 2. Distribute Special Rooms (Bag System)
+        this._distributeRoomTypes();
+
+        // 3. Generate Paths (Monotonic + Filters)
+        this._generatePaths();
+
+        // 4. Post-Process Rules (Pacing, Spacing, Variety)
+        this._applyPostProcessing();
+
+        // 5. Fairness Limits (Reachability)
+        this._ensureFairness();
+    }
+
+    _calculateTierSizes() {
+        const sizes = [];
+        sizes.push(Math.floor(Math.random() * 3) + 2); // Tier 0: 2-4 nodes
+
+        for (let i = 1; i < 9; i++) {
+            let prev = sizes[i - 1];
+            let next = prev;
+            const roll = Math.random();
+            if (roll < 0.3) next = Math.max(2, prev - 1);
+            else if (roll > 0.6) next = Math.min(5, prev + 1);
+            else if (Math.random() < 0.1) next = Math.floor(Math.random() * 4) + 2;
+            sizes.push(next);
+        }
+        sizes.push(1); // Tier 9: Boss
+        return sizes;
+    }
+
+    _initializeNodes(tierSizes) {
+        for (let i = 0; i < tierSizes.length; i++) {
             const nodes = [];
-            // Simple structure: 2-3 nodes per tier
-            // Tier 0: Weak Battle
-            // Tier 4: Shop
-            // Tier 9: Boss
+            const count = tierSizes[i];
 
-            let type = 'BATTLE';
-            let enemyId = 'slime'; // Default
-            let status = (i === 0) ? 'AVAILABLE' : 'LOCKED';
+            for (let j = 0; j < count; j++) {
+                let type = 'BATTLE';
+                let status = (i === 0) ? 'AVAILABLE' : 'LOCKED';
+                let enemyId = 'slime';
 
-            if (i === 0) {
-                nodes.push({ type: 'BATTLE', id: `0-0`, status: 'AVAILABLE', enemyId: 'slime' });
-                nodes.push({ type: 'BATTLE', id: `0-1`, status: 'AVAILABLE', enemyId: 'rat' });
-            } else if (i === 4) {
-                nodes.push({ type: 'SHOP', id: `${i}-0`, status: 'LOCKED' });
-            } else if (i === 9) {
-                nodes.push({ type: 'BOSS', id: `${i}-0`, status: 'LOCKED', enemyId: 'dragon' });
-            } else {
-                // Random mix for intermediate tiers
-                const count = Math.floor(Math.random() * 2) + 2; // 2 or 3 nodes
-                for (let j = 0; j < count; j++) {
-                    const rand = Math.random();
-                    if (rand < 0.2) type = 'TREASURE'; // 20%
-                    else if (rand < 0.4) type = 'EVENT'; // 20%
-                    else if (rand < 0.5 && i > 2) type = 'ELITE'; // 10% (later tiers)
-                    else type = 'BATTLE';
-
-                    // Assign simple enemies for now
-                    const enemies = ['slime', 'rat', 'skeleton', 'orc'];
-                    enemyId = enemies[Math.floor(Math.random() * enemies.length)];
-
-                    nodes.push({ type, id: `${i}-${j}`, status: 'LOCKED', enemyId });
+                if (i === 9) {
+                    type = 'BOSS';
+                    enemyId = 'dragon';
                 }
+
+                // Default Enemy Pool
+                const enemies = ['slime', 'rat', 'skeleton', 'orc'];
+                enemyId = enemies[Math.floor(Math.random() * enemies.length)];
+
+                // Tier 1 Easy Enemies
+                if (i === 1) enemyId = Math.random() < 0.5 ? 'slime' : 'rat';
+
+                nodes.push({
+                    type,
+                    id: `${i}-${j}`,
+                    status,
+                    enemyId,
+                    tier: i,
+                    index: j,
+                    next: []
+                });
             }
             this.map.push(nodes);
         }
-        return this.map;
+    }
+
+    _distributeRoomTypes() {
+        const tiers = this.map.length;
+        let candidates = [];
+        for (let i = 1; i < tiers - 1; i++) {
+            for (let j = 0; j < this.map[i].length; j++) {
+                candidates.push({ t: i, idx: j });
+            }
+        }
+
+        // Shuffle
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        // Caps
+        const limitShop = 3;
+        const limitTreasure = 1; // Start with 1, let Fairness add more if needed
+        const limitElite = 3;
+        const limitEvent = 5;
+
+        let counts = { shop: 0, treasure: 0, elite: 0, event: 0 };
+
+        for (const slot of candidates) {
+            const tier = slot.t;
+            const node = this.map[tier][slot.idx];
+
+            if (counts.shop < limitShop && tier >= 2 && tier <= 7) {
+                node.type = 'SHOP'; counts.shop++; continue;
+            }
+            if (counts.elite < limitElite && tier >= 3) {
+                node.type = 'ELITE'; counts.elite++; continue;
+            }
+            if (counts.treasure < limitTreasure) {
+                node.type = 'TREASURE'; counts.treasure++; continue;
+            }
+            if (counts.event < limitEvent) {
+                node.type = 'EVENT'; counts.event++; continue;
+            }
+        }
+    }
+
+    _generatePaths() {
+        const tiers = this.map.length;
+        for (let i = 0; i < tiers - 1; i++) {
+            const currentNodes = this.map[i];
+            const nextNodes = this.map[i + 1];
+            const incomingCounts = new Array(nextNodes.length).fill(0);
+            let minAllowedTarget = 0;
+
+            // 1. Primary Connections
+            for (let nodeIdx = 0; nodeIdx < currentNodes.length; nodeIdx++) {
+                const node = currentNodes[nodeIdx];
+                const jitter = (Math.random() * 0.2) - 0.1;
+                const ratio = Math.max(0, Math.min(1, (nodeIdx / (currentNodes.length - 1 || 1)) + jitter));
+                const idealTarget = Math.round(ratio * (nextNodes.length - 1));
+
+                let candidates = [idealTarget];
+                if (idealTarget > 0) candidates.push(idealTarget - 1);
+                if (idealTarget < nextNodes.length - 1) candidates.push(idealTarget + 1);
+
+                candidates = candidates.filter(c => c >= minAllowedTarget);
+                candidates.sort((a, b) => {
+                    const distA = Math.abs(a - idealTarget);
+                    const distB = Math.abs(b - idealTarget);
+                    if (distA !== distB) return distA - distB;
+                    return incomingCounts[a] - incomingCounts[b];
+                });
+
+                let validCandidates = candidates.filter(c => incomingCounts[c] < 2);
+
+                if (validCandidates.length === 0) {
+                    const fallbackIndex = nextNodes.findIndex((_, idx) => idx >= minAllowedTarget && incomingCounts[idx] < 2);
+                    validCandidates = (fallbackIndex !== -1) ? [fallbackIndex] : [Math.min(minAllowedTarget, nextNodes.length - 1)];
+                }
+
+                const pick = validCandidates[0];
+                node.next.push(pick);
+                incomingCounts[pick]++;
+                minAllowedTarget = pick;
+            }
+
+            // 2. Backfill Orphans
+            nextNodes.forEach((nextNode, nextIdx) => {
+                if (incomingCounts[nextIdx] === 0) {
+                    let bestParent = null;
+                    let minRatioDist = 999;
+                    currentNodes.forEach((pNode, pIdx) => {
+                        const ratioP = pIdx / (currentNodes.length - 1 || 1);
+                        const ratioN = nextIdx / (nextNodes.length - 1 || 1);
+                        const dist = Math.abs(ratioP - ratioN);
+                        if (dist < minRatioDist) {
+                            minRatioDist = dist;
+                            bestParent = pNode;
+                        }
+                    });
+                    if (bestParent && !bestParent.next.includes(nextIdx)) {
+                        bestParent.next.push(nextIdx);
+                        incomingCounts[nextIdx]++;
+                    }
+                }
+            });
+        }
+    }
+
+    _applyPostProcessing() {
+        const tiers = this.map.length;
+        for (let i = 1; i < tiers - 1; i++) {
+            const currentNodes = this.map[i];
+            const prevNodes = this.map[i - 1];
+
+            currentNodes.forEach(node => {
+                const parents = prevNodes.filter(p => p.next.includes(node.index));
+
+                // Rule 1: No Back-to-Back Elites
+                if (node.type === 'ELITE') {
+                    if (parents.some(p => p.type === 'ELITE')) {
+                        node.type = 'BATTLE';
+                    }
+                }
+
+                // Rule 2: Cap Consecutive Events
+                if (node.type === 'EVENT') {
+                    const parentEvent = parents.find(p => p.type === 'EVENT');
+                    if (parentEvent && i > 1) {
+                        const grandParents = this.map[i - 2].filter(gp => gp.next.includes(parentEvent.index));
+                        if (grandParents.some(gp => gp.type === 'EVENT')) {
+                            node.type = 'BATTLE';
+                        }
+                    }
+                }
+
+                // Rule 3: Shop Spacing (Parent/Grandparent check)
+                if (node.type === 'SHOP') {
+                    if (parents.some(p => p.type === 'SHOP')) {
+                        node.type = 'BATTLE';
+                    } else if (i > 1) {
+                        const grandParents = [];
+                        parents.forEach(p => {
+                            const gps = this.map[i - 2].filter(gp => gp.next.includes(p.index));
+                            grandParents.push(...gps);
+                        });
+                        if (grandParents.some(gp => gp.type === 'SHOP')) {
+                            node.type = 'BATTLE';
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    _ensureFairness() {
+        const startNodes = this.map[0];
+        // Ensure at least one treasure exists contextually, or we will spawn it.
+        // const hasTreasure = this.map.some(tier => tier.some(n => n.type === 'TREASURE'));
+        // Always run logic to ensure per-path availability
+
+        startNodes.forEach(startNode => {
+            let queue = [startNode];
+            let visited = new Set();
+            let foundTreasure = false;
+            let candidatesForSwap = [];
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                if (visited.has(current.id)) continue;
+                visited.add(current.id);
+
+                if (current.type === 'TREASURE') {
+                    foundTreasure = true;
+                    break;
+                }
+
+                // Candidates: BATTLE or EVENT (Tier 2-7)
+                if ((current.type === 'BATTLE' || current.type === 'EVENT') && current.tier >= 2 && current.tier <= 7) {
+                    candidatesForSwap.push(current);
+                }
+
+                const nextTier = this.map[current.tier + 1];
+                if (nextTier) {
+                    current.next.forEach(nextIdx => {
+                        if (nextTier[nextIdx]) queue.push(nextTier[nextIdx]);
+                    });
+                }
+            }
+
+            if (!foundTreasure) {
+                if (candidatesForSwap.length > 0) {
+                    // Bias towards BATTLE nodes
+                    const battles = candidatesForSwap.filter(n => n.type === 'BATTLE');
+                    const pool = battles.length > 0 ? battles : candidatesForSwap;
+
+                    const target = pool[Math.floor(Math.random() * pool.length)];
+                    target.type = 'TREASURE';
+                    // console.log(`Fairness fix: Spawned treasure at ${target.id}`);
+                }
+            }
+        });
     }
 
     getNode(tier, index) {
@@ -126,12 +356,26 @@ export class RunManager {
         return null;
     }
 
+    enterNode(node) {
+        this.currentNode = node;
+    }
+
     completeLevel() {
-        // Mark current nodes as COMPLETED (logic might need refinement if multiple paths)
-        // For now, unlock next tier
+        if (!this.currentNode) {
+            console.warn('Completed level but currentNode is null');
+            this.currentTier++;
+            return;
+        }
+
+        this.currentNode.status = 'COMPLETED';
         this.currentTier++;
+
         if (this.map[this.currentTier]) {
-            this.map[this.currentTier].forEach(node => node.status = 'AVAILABLE');
+            const nextTierNodes = this.map[this.currentTier];
+            const connectedIndices = this.currentNode.next || [];
+            connectedIndices.forEach(index => {
+                if (nextTierNodes[index]) nextTierNodes[index].status = 'AVAILABLE';
+            });
         }
     }
 
@@ -146,7 +390,6 @@ export class RunManager {
 
     applyEffect(effects) {
         let resultLog = [];
-
         if (effects.heal) {
             const oldHP = this.player.currentHP;
             this.player.currentHP = Math.min(this.player.currentHP + effects.heal, this.player.maxHP);
@@ -162,21 +405,8 @@ export class RunManager {
             const sign = effects.gold > 0 ? '+' : '';
             resultLog.push(`${sign}${effects.gold} Gold`);
         }
-        if (effects.get_relic) {
-            // Add specific relic or random?
-            // For now assume logic handles selection, or effect passes ID
-            // Here assume effect.get_relic is boolean (True = random) or String ID
-            // BUT for simplicity let's say caller handles random selection if needed?
-            // Actually Event logic usually is specific.
-            // Let's defer random logic to EventScene.
-        }
-
-        // Simple Gambling Logic for Stranger Event
         if (effects.gamble_relic) {
             if (Math.random() < effects.gamble_relic) {
-                // Win Relic!
-                // Trigger in Scene? OR handle here?
-                // Let's return a flag.
                 resultLog.push("WON RELIC!");
                 return { success: true, log: resultLog, gambleWon: true };
             } else {
@@ -184,7 +414,6 @@ export class RunManager {
                 return { success: true, log: resultLog, gambleWon: false };
             }
         }
-
         return { success: true, log: resultLog };
     }
 }

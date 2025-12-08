@@ -18,8 +18,9 @@ export const ENEMIES = {
         maxHP: 30,
         goldReward: 10,
         moveset: [
-            { type: 'ATTACK', value: 5, weight: 0.5, text: 'Attack (5)' },
-            { type: 'DEBUFF', effect: 'TRASH', value: 1, weight: 0.5, text: 'Kick Dirt (Trash 1)' }
+            { type: 'ATTACK', value: 5, weight: 0.4, text: 'Attack (5)' },
+            { type: 'DEBUFF', effect: 'TRASH', value: 2, weight: 0.4, text: 'Kick Dirt (Trash 2)' },
+            { type: 'DEFEND', value: 6, weight: 0.2, text: 'Defend (Block 6)' }
         ]
     },
     'orc': {
@@ -29,8 +30,8 @@ export const ENEMIES = {
         maxHP: 80,
         goldReward: 25,
         moveset: [
-            { type: 'ATTACK', value: 12, weight: 0.7, text: 'Attack (12)' },
-            { type: 'DEFEND', value: 10, weight: 0.3, text: 'Defend (10)' }
+            { type: 'ATTACK', value: 15, weight: 0.7, text: 'Attack (15)' },
+            { type: 'DEFEND', value: 12, weight: 0.3, text: 'Defend (12)' }
         ]
     },
     'skeleton': {
@@ -41,8 +42,8 @@ export const ENEMIES = {
         goldReward: 20,
         moveset: [
             { type: 'ATTACK', value: 8, weight: 0.5, text: 'Attack (8)' },
-            { type: 'DEFEND', value: 5, weight: 0.3, text: 'Defend (5)' },
-            { type: 'ATTACK', value: 10, weight: 0.2, text: 'Heavy Attack (10)' }
+            { type: 'DEFEND', value: 10, weight: 0.3, text: 'Defend (10)' },
+            { type: 'ATTACK', value: 15, weight: 0.2, text: 'Heavy Attack (15)' }
         ]
     },
     'dragon': {
@@ -53,8 +54,8 @@ export const ENEMIES = {
         goldReward: 100,
         isBoss: true,
         moveset: [
-            { type: 'ATTACK', value: 15, weight: 0.5, text: 'Attack (15)' },
-            { type: 'BUFF', effect: 'STRENGTH', value: 2, weight: 0.2, text: 'Roar (+2 Str)' },
+            { type: 'ATTACK', value: 15, weight: 0.4, text: 'Attack (15)' },
+            { type: 'BUFF', effect: 'STRENGTH', value: 10, weight: 0.3, text: 'Roar (+10 Str)' },
             { type: 'DEBUFF', effect: 'TRASH', value: 3, weight: 0.3, text: 'Tail Sweep (Trash 3)' }
         ]
     },

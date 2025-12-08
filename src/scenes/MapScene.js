@@ -4,9 +4,6 @@ import { TopBar } from '../view/TopBar.js';
 import { EventBus } from '../core/EventBus.js';
 
 export class MapScene extends Phaser.Scene {
-    // ...
-    // ... existing code ...
-
     constructor() {
         super('MapScene');
     }
@@ -17,9 +14,11 @@ export class MapScene extends Phaser.Scene {
             runManager.startNewRun();
         }
 
-        // Setup World Bounds for Scrolling
-        // Height needed: 10 tiers * 150 gap + padding = ~1800px
-        this.cameras.main.setBounds(0, 0, 1100, 2000);
+        // --- SINGLE SCREEN CONFIGURATION ---
+        const mapWidth = this.scale.width;
+        const mapHeight = this.scale.height;
+        // No Bounds needed if fitting perfectly, or match width
+        this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
 
         // UI: TopBar
         this.topBar = new TopBar(this);
@@ -28,120 +27,154 @@ export class MapScene extends Phaser.Scene {
         // Listen for Potion Use (Map context)
         EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));
 
-        // Fixed UI (Title should stick to top?) 
-        // For now, let's make title part of the world (scrolls away) or use a fixed container.
-
-        // Removed old stats text as TopBar handles it
-
         const tiers = runManager.map;
-
-        // Center Calculation
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
 
+        // Background
+        this.add.rectangle(centerX, centerY, mapWidth, mapHeight, 0x222222).setDepth(-10);
+        this.add.grid(centerX, centerY, mapWidth, mapHeight, 50, 50, 0x222222, 1, 0x333333, 0.2).setDepth(-9);
+
         // CHECK IF RUN COMPLETED
         if (runManager.currentTier >= tiers.length) {
-            // Victory Screen logic (keep static/no scroll needed usually, or center it)
-            this.cameras.main.setScroll(0, 0); // Reset scroll
-            this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000).setScrollFactor(0);
-
-            this.add.text(centerX, centerY, 'VICTORY ROYALE!', { font: '48px Arial', fill: '#ffd700' }).setOrigin(0.5).setScrollFactor(0);
-            this.add.text(centerX, centerY + 80, `Final Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5).setScrollFactor(0);
-
-            const restartBtn = this.add.text(centerX, centerY + 150, 'START NEW RUN', {
-                font: '24px Arial',
-                fill: '#000000',
-                backgroundColor: '#ffffff',
-                padding: { x: 10, y: 5 }
-            }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
-
-            restartBtn.on('pointerdown', () => {
-                runManager.startNewRun();
-                this.scene.restart();
-            });
+            this.showVictoryScreen(centerX, centerY);
             return;
         }
 
-        // Draw Map Nodes (Bottom to Top)
-        const startY = 1800; // Bottom of the map
-        const gapY = 150;
+        // --- CALC POSITIONS & DRAW LINES ---
+        const paddingX = 100;
+        const availableWidth = mapWidth - (paddingX * 2);
+        const gapX = availableWidth / (Math.max(tiers.length - 1, 1));
+        const startX = paddingX;
+
+        // Store visual positions for drawing lines
+        const nodePositions = []; // [tier][index] = {x, y}
 
         tiers.forEach((tierNodes, tierIndex) => {
-            const y = startY - (tierIndex * gapY); // Tier 0 at 1800, Tier 9 at 450
+            const x = startX + (tierIndex * gapX);
+            const gapY = 100; // Vertical gap
+            const totalHeight = (tierNodes.length - 1) * gapY;
+            const startY = centerY - (totalHeight / 2);
 
-            // Center nodes horizontally
-            const gapX = 150;
-            const totalWidth = (tierNodes.length - 1) * gapX;
-            const startX = centerX - (totalWidth / 2);
-
-            // Draw line to next tier logic (optional visuals)
+            nodePositions[tierIndex] = [];
 
             tierNodes.forEach((node, nodeIndex) => {
-                const x = startX + (nodeIndex * gapX);
-                this.drawNode(x, y, node, tierIndex);
+                const offsetY = ((nodeIndex + tierIndex) % 2 === 0) ? 15 : -15;
+                const y = startY + (nodeIndex * gapY) + offsetY;
+                nodePositions[tierIndex][nodeIndex] = { x, y };
             });
         });
 
-        // Camera Logic
-        // Focus on current tier
-        const currentY = startY - (runManager.currentTier * gapY);
-        this.cameras.main.centerOn(centerX, currentY);
+        // DRAW LINES
+        const graphics = this.add.graphics();
+        graphics.lineStyle(4, 0x555555, 1);
 
-        // Drag to scroll
-        this.input.on('pointermove', (pointer) => {
-            if (pointer.isDown) {
-                this.cameras.main.scrollY -= (pointer.y - pointer.prevPosition.y);
-            }
+        tiers.forEach((tierNodes, tierIndex) => {
+            tierNodes.forEach((node, nodeIndex) => {
+                if (node.next && node.next.length > 0) {
+                    const startPos = nodePositions[tierIndex][nodeIndex];
+
+                    node.next.forEach(nextIndex => {
+                        if (nodePositions[tierIndex + 1] && nodePositions[tierIndex + 1][nextIndex]) {
+                            const endPos = nodePositions[tierIndex + 1][nextIndex];
+                            graphics.beginPath();
+                            graphics.moveTo(startPos.x, startPos.y);
+                            graphics.lineTo(endPos.x, endPos.y);
+                            graphics.strokePath();
+                        }
+                    });
+                }
+            });
         });
+
+        // DRAW NODES
+        tiers.forEach((tierNodes, tierIndex) => {
+            tierNodes.forEach((node, nodeIndex) => {
+                const pos = nodePositions[tierIndex][nodeIndex];
+                this.drawNode(pos.x, pos.y, node, tierIndex);
+            });
+        });
+
+        // Center Camera
+        this.cameras.main.centerOn(centerX, centerY);
 
         createVersionWatermark(this);
     }
 
     drawNode(x, y, node, tierIndex) {
-        let color = 0x888888; // Locked
-        if (node.status === 'AVAILABLE') color = 0x00ff00; // Available
-        if (node.status === 'COMPLETED') color = 0x444444; // Done
+        // 1. Determine Type Color
+        let color = 0x888888; // Default
+        let label = '⚔️';
+        let radius = 18;
+        let fontSize = '20px';
 
-        let label = '⚔️'; // Battle
-        if (node.type === 'BOSS') { color = 0xff0000; label = '💀'; }
-        if (node.type === 'SHOP') { color = 0xffd700; label = '💰'; }
-        if (node.type === 'TREASURE') { color = 0x00ffff; label = '💎'; }
-        if (node.type === 'ELITE') { color = 0xff4400; label = '😈'; }
-        if (node.type === 'EVENT') { color = 0xff00ff; label = '❓'; }
+        if (node.type === 'BOSS') { color = 0xff0000; label = '💀'; radius = 22; fontSize = '24px'; }
+        else if (node.type === 'SHOP') { color = 0xffd700; label = '💰'; }
+        else if (node.type === 'TREASURE') { color = 0x00ffff; label = '💎'; }
+        else if (node.type === 'ELITE') { color = 0xff4400; label = '😈'; radius = 20; }
+        else if (node.type === 'EVENT') { color = 0xff00ff; label = '❓'; }
+        else if (node.type === 'BATTLE') { color = 0xaaaaaa; } // Standard Battle Grey/White
 
-        const circle = this.add.circle(x, y, 30, color);
+        // 2. Status Overrides
+        if (node.status === 'COMPLETED') {
+            color = 0x333333; // Dark Grey for visited
+            // Optional: Change alpha?
+        } else if (node.status === 'LOCKED') {
+            // Keep Type Color but maybe dimmer? 
+            // Actually, showing the Type Color for future nodes is standard Slay the Spire UI.
+            // We just don't add the glow.
+        }
 
-        // Interaction
-        if (tierIndex === runManager.currentTier && node.status !== 'COMPLETED') {
+        // Container
+        const container = this.add.container(x, y);
+
+        // Glow for Available (Strict: Current Tier Only)
+        if (node.status === 'AVAILABLE' && node.tier === runManager.currentTier) {
+            const glow = this.add.circle(0, 0, radius + 5, 0xffffff, 0.4);
+            this.tweens.add({
+                targets: glow,
+                scale: 1.2,
+                alpha: 0,
+                duration: 1000,
+                repeat: -1
+            });
+            container.add(glow);
+        }
+
+        const circle = this.add.circle(0, 0, radius, color);
+        circle.setStrokeStyle(2, 0x000000);
+
+        const text = this.add.text(0, 0, label, {
+            fontSize: fontSize,
+            fontFamily: 'Arial'
+        }).setOrigin(0.5);
+
+        // Alpha for Locked or "Past Available" to push them back visually
+        if (node.status === 'LOCKED' || (node.status === 'AVAILABLE' && node.tier !== runManager.currentTier)) {
+            circle.setAlpha(0.6);
+            text.setAlpha(0.6);
+        }
+
+        container.add([circle, text]);
+
+        // Interaction: STRICT (Current Tier Only)
+        if (node.status === 'AVAILABLE' && node.tier === runManager.currentTier) {
             circle.setInteractive({ useHandCursor: true });
             circle.on('pointerdown', () => {
                 this.handleNodeClick(node);
             });
-
-            // Pulse effect for available
-            this.tweens.add({
-                targets: circle,
-                scale: 1.1,
-                duration: 800,
-                yoyo: true,
-                repeat: -1
-            });
         }
-
-        // Icon/Label
-        this.add.text(x, y, label, { fontSize: '24px' }).setOrigin(0.5);
     }
 
     handleNodeClick(node) {
         console.log('Entering node', node);
+        runManager.enterNode(node);
 
         if (node.type === 'SHOP') {
             this.scene.start('ShopScene');
         } else if (node.type === 'TREASURE') {
             this.scene.start('TreasureScene');
         } else if (node.type === 'EVENT') {
-            // Pick a random event ID logic could be here, or inside EventScene init.
-            // Let's pass no ID so EventScene picks random.
             this.scene.start('EventScene', { eventId: null });
         } else {
             // Battle / Elite / Boss
@@ -152,26 +185,34 @@ export class MapScene extends Phaser.Scene {
         }
     }
 
-    handlePotionUse(index) {
-        // Ensure we are the active scene (Basic check)
-        if (!this.scene.isActive()) return;
+    showVictoryScreen(centerX, centerY) {
+        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000).setScrollFactor(0);
+        this.add.text(centerX, centerY, 'VICTORY ROYALE!', { font: '48px Arial', fill: '#ffd700' }).setOrigin(0.5).setScrollFactor(0);
+        this.add.text(centerX, centerY + 80, `Final Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5).setScrollFactor(0);
 
-        console.log('MapScene: Handling Potion', index);
+        const restartBtn = this.add.text(centerX, centerY + 150, 'START NEW RUN', {
+            font: '24px Arial',
+            fill: '#000000',
+            backgroundColor: '#ffffff',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
+
+        restartBtn.on('pointerdown', () => {
+            runManager.startNewRun();
+            this.scene.restart();
+        });
+    }
+
+    handlePotionUse(index) {
+        if (!this.scene.isActive()) return;
         const potion = runManager.player.potions[index];
         if (!potion) return;
 
         if (potion.type === 'POTION') {
-            // Logic duplicated from CombatManager somewhat, but simplified for Map
-            // Only Heal works on map usually
             if (potion.id === 'potion_heal') {
                 runManager.removePotion(index);
-                // Heal logic
                 runManager.player.currentHP = Math.min(runManager.player.currentHP + 20, runManager.player.maxHP);
-                console.log('MapScene: Healed 20 HP');
-                EventBus.emit('ui:refresh_topbar'); // Update UI
-            } else {
-                console.log('MapScene: Cannot use this potion here.');
-                // Maybe show floating text?
+                EventBus.emit('ui:refresh_topbar');
             }
         }
     }
