@@ -131,12 +131,7 @@ export class CombatView {
         this.enemySprite.setFlipX(false);
 
         // 4. Enemy Stats
-        // Name (Initial, will be updated by sprite height)
-        this.enemyName = this.scene.add.text(this.rightX, this.groundY - 190, '', {
-            font: 'bold 13px Verdana',
-            fill: '#aaaaaa', // Greyish, less prominent
-            align: 'center'
-        }).setOrigin(0.5).setResolution(2);
+        // Name Removed as per request (Sprites identify them)
 
         // HP Bar
         this.enemyHPBar = this.createHealthBar(this.rightX, HP_BAR_Y, 150, 20, 0xff4444);
@@ -382,11 +377,8 @@ export class CombatView {
 
                     this.enemySprite.y = this.groundY + yOffset;
                     this.enemySprite.x = this.rightX + xOffset; // Apply X Offset
-
-                    this.enemyName.y = this.enemySprite.y - this.enemySprite.displayHeight - 20;
-                    this.enemyName.x = this.enemySprite.x; // Keep name aligned with sprite (important if moved)
                 }
-                this.enemyName.y = this.enemySprite.y - this.enemySprite.displayHeight - 20;
+
             }
         }
 
@@ -403,9 +395,7 @@ export class CombatView {
                 isBlockIntent = true;
             }
 
-            if (this.enemyName) {
-                this.enemyName.setText(enemy.name ? enemy.name.toUpperCase() : 'ENEMY');
-            }
+
 
             const eBlock = enemy.block || 0;
             const intentText = enemy.currentIntent ? enemy.currentIntent.text : 'Thinking...';
