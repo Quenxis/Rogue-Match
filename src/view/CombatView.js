@@ -238,15 +238,15 @@ export class CombatView {
         this.actionBar.add(separator);
 
         // --- SPELL ICONS ---
-        this.createSpellIcon(SKILLS.FIREBALL, 10, 0);
-        this.createSpellIcon(SKILLS.HEAL, 75, 0);
+        this.createSpellIcon(SKILLS.FIREBALL, 15, 0);
+        this.createSpellIcon(SKILLS.HEAL, 95, 0);
     }
 
     createSpellIcon(skillId, x, y) {
         const data = SKILL_DATA[skillId];
         if (!data) return;
 
-        const size = 50;
+        const size = 64;
         const container = this.scene.add.container(x, y);
 
         // Glow (for Focus buff)
@@ -260,8 +260,8 @@ export class CombatView {
         // Icon (Image or Emoji)
         let icon;
         if (this.scene.textures.exists(data.icon)) {
-            // Updated to 48x48 to fill the 50x50 button
-            icon = this.scene.add.image(0, 0, data.icon).setDisplaySize(48, 48);
+            // Updated to 60x60 to act as base large size
+            icon = this.scene.add.image(0, 0, data.icon).setDisplaySize(60, 60);
         } else {
             icon = this.scene.add.text(0, 0, data.icon, { font: '24px Arial' }).setOrigin(0.5);
         }
@@ -298,7 +298,7 @@ export class CombatView {
 
         bg.on('pointerover', () => {
             if (container.getData('enabled')) {
-                this.scene.tweens.add({ targets: container, scale: 1.2, duration: 100 });
+                this.scene.tweens.add({ targets: container, scale: 1.25, duration: 100 });
                 this.showTooltip(this.actionBar.x + x, this.actionBar.y - 50, `${data.name} (${data.cost} Mana)\n${data.desc}`);
             }
         });
