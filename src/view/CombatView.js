@@ -597,8 +597,17 @@ export class CombatView {
             const canAct = turn === ENTITIES.PLAYER;
             const focus = player.statusManager ? player.statusManager.getStack(STATUS_TYPES.FOCUS) : 0;
 
-            const fireballEnabled = canAct && player.mana >= SKILL_DATA.FIREBALL.cost;
-            const healEnabled = canAct && player.mana >= SKILL_DATA.HEAL.cost;
+            const getRealCost = (baseCost) => {
+                if (focus >= 2) return 0;
+                if (focus === 1) return Math.floor(baseCost * 0.5);
+                return baseCost;
+            };
+
+            const fireballCost = getRealCost(SKILL_DATA.FIREBALL.cost);
+            const healCost = getRealCost(SKILL_DATA.HEAL.cost);
+
+            const fireballEnabled = canAct && player.mana >= fireballCost;
+            const healEnabled = canAct && player.mana >= healCost;
 
             this.updateSkillButton(SKILLS.FIREBALL, fireballEnabled, focus);
             this.updateSkillButton(SKILLS.HEAL, healEnabled, focus);
