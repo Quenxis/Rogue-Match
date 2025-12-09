@@ -60,4 +60,4 @@ Built with modern web technologies:
 *   Visual polish and animations.
 
 ---
-*Created by [Your Name]*
+*Created by Bíďa*

@@ -2,7 +2,7 @@ import { EventBus } from '../core/EventBus.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { ITEM_TYPES } from '../logic/GridDetails.js';
-import { EVENTS, ENTITIES, ASSETS, SKILLS, GAME_SETTINGS, MOVESET_TYPES } from '../core/Constants.js';
+import { EVENTS, ENTITIES, ASSETS, SKILLS, SKILL_DATA, GAME_SETTINGS, MOVESET_TYPES, STATUS_TYPES } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
@@ -73,6 +73,10 @@ export class CombatManager {
         EventBus.on(EVENTS.POTION_USE_REQUESTED, (index) => this.handlePotionUse(index));
         EventBus.on(EVENTS.UI_ANIMATION_COMPLETE, () => this.emitState());
 
+        // Handle deaths from ANY source (status effects, thorns, etc.)
+        this.onEntityDied = this.handleEntityDied.bind(this);
+        EventBus.on(EVENTS.ENTITY_DIED, this.onEntityDied);
+
         window.combat = this;
     }
 
@@ -81,6 +85,7 @@ export class CombatManager {
         EventBus.off(EVENTS.ITEM_SWAPPED, this.onSwap);
         EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
         EventBus.off(EVENTS.POTION_USE_REQUESTED);
+        EventBus.off(EVENTS.ENTITY_DIED, this.onEntityDied);
 
         if (this.turnTimer) {
             this.turnTimer.remove(false);
@@ -88,6 +93,15 @@ export class CombatManager {
         }
 
         // UI cleanup handled by View
+    }
+
+    /**
+     * Called when ANY entity dies (from status effects, thorns, direct damage, etc.)
+     * This ensures win/lose conditions are always checked.
+     */
+    handleEntityDied(data) {
+        // Delegate all victory/defeat logic to checkWinCondition to ensure proper scene transitions
+        this.checkWinCondition();
     }
 
     handlePotionUse(index) {
@@ -140,23 +154,45 @@ export class CombatManager {
         if (this.turn !== ENTITIES.PLAYER) return;
         const p = this.player;
         const e = this.enemy;
+        const sm = p.statusManager;
+
+        // Calculate Cost with Focus
+        const focus = sm.getStack(STATUS_TYPES.FOCUS);
+        let multiplier = 1.0;
+        if (focus === 1) multiplier = 0.5;
+        if (focus >= 2) multiplier = 0.0;
+
+        const useSkill = (baseCost, action) => {
+            const finalCost = Math.floor(baseCost * multiplier);
+            if (p.mana >= finalCost) {
+                p.mana -= finalCost;
+                action();
+
+                // Consume Focus if used
+                if (focus > 0) {
+                    sm.consumeStacks(STATUS_TYPES.FOCUS);
+                    logManager.log('Focus consumed for skill!', 'info');
+                }
+
+                this.emitState();
+                if (skillName === SKILLS.FIREBALL) this.checkWinCondition();
+                return true;
+            }
+            return false;
+        };
 
         if (skillName === SKILLS.FIREBALL) {
-            if (p.mana >= 5) {
-                p.mana -= 5;
-                // Emit Attack Animation Event (Skill)
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: 15, type: 'SKILL', skill: 'FIREBALL' });
-                e.takeDamage(15);
-                this.emitState();
-                this.checkWinCondition();
-            }
+            const data = SKILL_DATA.FIREBALL;
+            useSkill(data.cost, () => {
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'FIREBALL' });
+                e.takeDamage(data.damage);
+            });
         } else if (skillName === SKILLS.HEAL) {
-            if (p.mana >= 8) {
-                p.mana -= 8;
-                EventBus.emit(EVENTS.PLAYER_HEAL, { value: 20, type: 'SKILL' });
-                p.heal(20);
-                this.emitState();
-            }
+            const data = SKILL_DATA.HEAL;
+            useSkill(data.cost, () => {
+                EventBus.emit(EVENTS.PLAYER_HEAL, { value: data.heal, type: 'SKILL' });
+                p.heal(data.heal);
+            });
         }
     }
 
@@ -179,61 +215,153 @@ export class CombatManager {
     }
 
     handleMatches(data) {
-        if (this.turn === ENTITIES.ENDED) return;
-        if (this.turn === ENTITIES.ENDED) return;
-        if (this.enemy.isDead || this.player.isDead) {
-            console.warn('CombatManager: Dead entity detected, logic somehow missed it. Re-checking win condition.');
+        if (this.turn === ENTITIES.ENDED || this.enemy.isDead || this.player.isDead) {
             this.checkWinCondition();
             return;
         }
 
         const { matches } = data;
-        const matchCounts = {};
 
+        // 1. Group by Type
+        const byType = {};
         matches.forEach(m => {
             let type = m.type;
-            if (!type) {
-                const item = window.grid.grid[m.r][m.c];
-                type = item.type;
+            if (!type && window.grid) {
+                type = window.grid.grid[m.r][m.c].type;
             }
-            matchCounts[type] = (matchCounts[type] || 0) + 1;
+            if (!byType[type]) byType[type] = [];
+            byType[type].push(m);
         });
 
-        Object.entries(matchCounts).forEach(([type, count]) => {
-            this.applyEffect(type, count);
+        // 2. Resolve Groups (Connected Components)
+        Object.entries(byType).forEach(([type, tiles]) => {
+            const groups = this.findConnectedGroups(tiles);
+            groups.forEach(group => {
+                this.resolveMatchGroup(type, group.length);
+            });
         });
 
         this.emitState();
         this.checkWinCondition();
     }
 
+    findConnectedGroups(tiles) {
+        const groups = [];
+        const visited = new Set();
 
+        // Map for fast lookups: "r,c" -> {r,c}
+        const tileMap = new Set(tiles.map(t => `${t.r},${t.c}`));
 
-    applyEffect(type, count) {
+        tiles.forEach(tile => {
+            const key = `${tile.r},${tile.c}`;
+            if (visited.has(key)) return;
+
+            // Start BFS
+            const group = [];
+            const queue = [tile];
+            visited.add(key);
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                group.push(current);
+
+                const neighbors = [
+                    { r: current.r - 1, c: current.c },
+                    { r: current.r + 1, c: current.c },
+                    { r: current.r, c: current.c - 1 },
+                    { r: current.r, c: current.c + 1 }
+                ];
+
+                neighbors.forEach(n => {
+                    const nKey = `${n.r},${n.c}`;
+                    if (tileMap.has(nKey) && !visited.has(nKey)) {
+                        visited.add(nKey);
+                        queue.push(n);
+                    }
+                });
+            }
+            groups.push(group);
+        });
+
+        return groups;
+    }
+
+    resolveMatchGroup(type, size) {
+        const p = this.player;
+        const e = this.enemy;
+        const sm = p.statusManager;
+
+        // Tier Logic
+        // Tier 1: Size 3
+        // Tier 2: Size 4
+        // Tier 3: Size 5+
+
         switch (type) {
             case ITEM_TYPES.SWORD:
-                const dmg = count * (2 + this.player.strength);
-                // Emit Attack Animation Event
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: 'NORMAL' });
-                this.enemy.takeDamage(dmg);
+                // Base Dmg
+                let dmg = size * (2 + p.strength);
+
+                // Critical Check
+                const critStacks = sm.getStack(STATUS_TYPES.CRITICAL);
+                let isCrit = false;
+                if (critStacks === 1) isCrit = Math.random() < 0.5;
+                if (critStacks >= 2) isCrit = true;
+
+                if (isCrit) {
+                    dmg = Math.floor(dmg * 1.5);
+                    logManager.log("CRITICAL HIT!", 'damage');
+                    sm.consumeStacks(STATUS_TYPES.CRITICAL);
+                }
+
+                if (size >= 5) dmg = Math.floor(dmg * 1.5); // Tier 3 Dmg Boost
+
+                // Apply Bleed (Tier 2+)
+                if (size === 4) e.statusManager.applyStack(STATUS_TYPES.BLEED, 2);
+                if (size >= 5) e.statusManager.applyStack(STATUS_TYPES.BLEED, 4);
+
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: isCrit ? 'CRIT' : 'NORMAL' });
+                e.takeDamage(dmg, p);
                 break;
+
             case ITEM_TYPES.SHIELD:
-                const block = count * 2;
+                let block = size * 2;
+                if (size >= 5) block = Math.floor(block * 1.5); // Boosted Block
+
+                // Thorns (Tier 2+)
+                if (size === 4) sm.applyStack(STATUS_TYPES.THORNS, 3);
+                if (size >= 5) sm.applyStack(STATUS_TYPES.THORNS, 6);
+
                 EventBus.emit(EVENTS.PLAYER_DEFEND, { value: block });
-                this.player.addBlock(block);
+                p.addBlock(block);
                 break;
+
             case ITEM_TYPES.POTION:
-                const heal = count * 1;
+                let heal = size * 1;
+                // Regen (Tier 2+)
+                if (size === 4) sm.applyStack(STATUS_TYPES.REGEN, 3);
+
+                // Big Heal + Cleanse (Tier 3)
+                if (size >= 5) {
+                    heal += 5;
+                    sm.cleanse(10);
+                }
+
                 EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal });
-                this.player.heal(heal);
+                p.heal(heal);
                 break;
+
             case ITEM_TYPES.MANA:
-                this.player.addMana(count);
-                logManager.log(`Player gained ${count} Mana.`, 'info');
+                p.addMana(size);
+                // Focus: 4->1, 5+->2
+                if (size === 4) sm.applyStack(STATUS_TYPES.FOCUS, 1);
+                if (size >= 5) sm.applyStack(STATUS_TYPES.FOCUS, 2);
                 break;
+
             case ITEM_TYPES.COIN:
-                this.player.addGold(count);
-                logManager.log(`Found ${count} Gold.`, 'gold');
+                p.addGold(size);
+                // Critical: 4->1, 5+->2
+                if (size === 4) sm.applyStack(STATUS_TYPES.CRITICAL, 1);
+                if (size >= 5) sm.applyStack(STATUS_TYPES.CRITICAL, 2);
                 break;
         }
     }
@@ -250,9 +378,11 @@ export class CombatManager {
         }
 
         this.turn = ENTITIES.ENEMY;
+
+        // Status Effects (Turn Start)
+        this.enemy.statusManager.onTurnStart();
+
         this.emitState();
-        this.turn = ENTITIES.ENEMY;
-        this.emitState(); // Emits UI_UPDATE
         logManager.log("-- ENEMY TURN --", 'turn');
 
         if (this.turnTimer) this.turnTimer.remove(false);
@@ -310,7 +440,7 @@ export class CombatManager {
                 // Re-reading Enemy.js: getStrength returns (this.strength || 0) + buffs.
                 // So we add that to the attack value.
                 const totalDmg = intent.value + this.enemy.getStrength();
-                this.player.takeDamage(totalDmg);
+                this.player.takeDamage(totalDmg, this.enemy);
                 logManager.log(`Enemy attacks for ${totalDmg} (Base ${intent.value} + Str ${this.enemy.getStrength()})`, 'combat');
                 break;
             case MOVESET_TYPES.DEFEND:
@@ -357,6 +487,10 @@ export class CombatManager {
     startPlayerTurn() {
         if (this.turn === ENTITIES.ENDED) return;
         this.turn = ENTITIES.PLAYER;
+
+        // Status Effects (Turn Start)
+        this.player.statusManager.onTurnStart();
+
         if (window.grid) window.grid.setFastForward(false);
 
         // Check for Deadlock (if enemy locked everything)
@@ -437,7 +571,7 @@ export class CombatManager {
 
         if (this.enemy.isDead) {
             this.turn = ENTITIES.ENDED;
-
+            logManager.log('VICTORY! Enemy defeated!', 'turn');
             EventBus.emit(EVENTS.VICTORY, { combat: this });
 
             runManager.updatePlayerState(this.player.currentHP, this.player.gold + this.goldReward);
@@ -452,6 +586,7 @@ export class CombatManager {
         }
         if (this.player.isDead) {
             this.turn = ENTITIES.ENDED;
+            logManager.log('DEFEAT! You have been slain!', 'turn');
             EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'DEFEAT', color: 0xff0000 });
 
             this.scene.time.delayedCall(3000, () => {

@@ -26,6 +26,8 @@ export class BootScene extends Phaser.Scene {
         this.load.image('icon_sword', 'assets/icons/sword.png');
         this.load.image('icon_shield', 'assets/icons/shield.png');
         this.load.image('icon_mana', 'assets/icons/mana.png');
+        this.load.image('icon_lock', 'assets/icons/lock.png');
+        this.load.image('icon_trash', 'assets/icons/trash.png');
 
         // Items (Global for Guide)
         this.load.image('SWORD', 'assets/items/sword.png');

@@ -15,6 +15,7 @@ export const EVENTS = {
     ENEMY_HEAL: 'combat:enemy_heal',
     VICTORY: 'game:victory',
     DEFEAT: 'game:defeat',
+    ENTITY_DIED: 'combat:entity_died',
 
     // Grid / Match-3
     GRID_CREATED: 'grid:created',
@@ -50,7 +51,9 @@ export const ASSETS = {
     // UI Icons
     ICON_SWORD: 'icon_sword',
     ICON_SHIELD: 'icon_shield',
-    ICON_MANA: 'icon_mana'
+    ICON_MANA: 'icon_mana',
+    ICON_LOCK: 'icon_lock',
+    ICON_TRASH: 'icon_trash'
 };
 
 export const ENTITIES = {
@@ -62,6 +65,26 @@ export const ENTITIES = {
 export const SKILLS = {
     FIREBALL: 'FIREBALL',
     HEAL: 'HEAL'
+};
+
+// Single source of truth for skill balance
+export const SKILL_DATA = {
+    FIREBALL: {
+        cost: 6,
+        damage: 8,
+        icon: '🔥',  // Placeholder until asset ready
+        color: 0xff4400,
+        name: 'Fireball',
+        desc: 'Deal 8 damage to enemy'
+    },
+    HEAL: {
+        cost: 6,
+        heal: 10,
+        icon: '💚',  // Placeholder until asset ready
+        color: 0x44ff44,
+        name: 'Heal',
+        desc: 'Restore 10 HP'
+    }
 };
 
 export const MOVESET_TYPES = {
@@ -89,4 +112,12 @@ export const GEM_TYPES = {
     MANA: 'MANA',
     COIN: 'COIN',
     EMPTY: 'EMPTY'
+};
+
+export const STATUS_TYPES = {
+    BLEED: 'BLEED',
+    REGEN: 'REGEN',
+    THORNS: 'THORNS',
+    FOCUS: 'FOCUS',
+    CRITICAL: 'CRITICAL'
 };

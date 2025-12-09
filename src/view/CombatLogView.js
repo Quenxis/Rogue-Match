@@ -33,7 +33,7 @@ export class CombatLogView {
         this.headerText = this.scene.add.text(this.width / 2, 15, 'COMBAT LOG [-]', {
             font: 'bold 12px Arial',
             fill: '#ffffff'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setResolution(2);
 
         this.headerBg.on('pointerdown', this.toggleExpand.bind(this));
 
@@ -158,7 +158,7 @@ export class CombatLogView {
                 font: '12px monospace',
                 fill: line.color,
                 wordWrap: { width: this.width - 10 }
-            });
+            }).setResolution(2);
             this.contentContainer.add(t);
             this.textObjects.push(t);
             currentY += t.height + 4; // Spacing

@@ -9,7 +9,7 @@ export class RunManager {
 
         this.player = {
             currentHP: 100,
-            maxHP: 100,
+            maxHP: 60,
             gold: 99,
             relics: [],
             potions: [],
@@ -24,7 +24,7 @@ export class RunManager {
 
     startNewRun() {
         this.player.currentHP = this.player.maxHP;
-        this.player.gold = 99;
+        this.player.gold = 15;
         this.player.relics = [];
         this.player.potions = [];
         this.player.deck = ['FIREBALL', 'HEAL'];

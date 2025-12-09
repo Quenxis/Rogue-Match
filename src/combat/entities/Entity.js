@@ -1,4 +1,7 @@
 import { logManager } from '../../core/LogManager.js';
+import { StatusEffectManager } from '../StatusEffectManager.js';
+import { EventBus } from '../../core/EventBus.js';
+import { EVENTS } from '../../core/Constants.js';
 
 export class Entity {
     constructor(name, maxHP) {
@@ -7,10 +10,14 @@ export class Entity {
         this.currentHP = maxHP;
         this.block = 0;
         this.isDead = false;
+        this.statusManager = new StatusEffectManager(this);
     }
 
-    takeDamage(amount) {
+    takeDamage(amount, source = null) {
         if (this.isDead) return 0;
+
+        // Status Effects Reaction (Thorns)
+        this.statusManager.onHit(source);
 
         let actualDamage = amount;
 
@@ -63,5 +70,7 @@ export class Entity {
     die() {
         this.isDead = true;
         logManager.log(`${this.name} has died!`, 'turn');
+        // Emit event so CombatManager can check win/lose conditions
+        EventBus.emit(EVENTS.ENTITY_DIED, { entity: this });
     }
 }

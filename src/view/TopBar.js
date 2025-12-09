@@ -224,92 +224,258 @@ export class TopBar {
     createGuideOverlay() {
         // Fullscreen Container
         this.guideContainer = this.scene.add.container(0, 0).setDepth(3000).setScrollFactor(0).setVisible(false);
+        this.guideCurrentPage = 0;
+        this.guidePages = [];
 
-        // Dark Overlay
+        // Dark Overlay (clicking here closes the guide)
         const overlay = this.scene.add.rectangle(626, 300, 1252, 600, 0x000000, 0.85).setInteractive();
+        overlay.on('pointerdown', () => this.toggleGuide());
         this.guideContainer.add(overlay);
 
-        // Window Box
-        const winW = 900;
-        const winH = 500;
-        const windowBg = this.scene.add.rectangle(626, 300, winW, winH, 0x222222).setStrokeStyle(4, 0x3b2d23);
-        this.guideContainer.add(windowBg);
+        // Window Box (make interactive to BLOCK clicks from reaching overlay)
+        const winW = 680;
+        const winH = 480;
+        const windowBg = this.scene.add.rectangle(626, 300, winW, winH, 0x1e1e2a).setStrokeStyle(3, 0x444466);
+        windowBg.setInteractive(); // Block clicks from falling through to overlay
+        const innerBorder = this.scene.add.rectangle(626, 300, winW - 8, winH - 8, 0x1e1e2a, 0).setStrokeStyle(1, 0x333344);
+        this.guideContainer.add([windowBg, innerBorder]);
 
-        // Close Button
-        const closeBtn = this.scene.add.text(626 + winW / 2 - 30, 300 - winH / 2 + 30, 'X', {
-            font: 'bold 24px Verdana', fill: '#ff4444'
+        // Close Button (only way to close besides clicking dark overlay)
+        const closeBtn = this.scene.add.text(626 + winW / 2 - 28, 300 - winH / 2 + 24, '✕', {
+            font: 'bold 20px Arial', fill: '#ff6666'
         }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.toggleGuide());
         this.guideContainer.add(closeBtn);
 
-        // Overlay close on click outside (already handled by overlay blocker, but maybe close on overlay click?)
-        overlay.on('pointerdown', () => this.toggleGuide());
-
-        // --- CONTENT ---
-        const startX = 626 - winW / 2 + 50;
-        const startY = 300 - winH / 2 + 50;
-
-        const title = this.scene.add.text(626, startY, 'ADVENTURER\'S GUIDE', {
-            font: 'bold 28px Verdana', fill: '#ffd700', stroke: '#000000', strokeThickness: 4
+        // Title
+        const centerX = 626;
+        const startY = 300 - winH / 2 + 30;
+        const title = this.scene.add.text(centerX, startY, "ADVENTURER'S GUIDE", {
+            font: 'bold 22px Arial', fill: '#ffd700', stroke: '#000000', strokeThickness: 2
         }).setOrigin(0.5);
         this.guideContainer.add(title);
 
-        // 1. ITEMS (Left Column)
-        const col1X = startX;
-        const rowH = 40;
-        let y = startY + 60;
+        // Page Content Container
+        this.guidePageContainer = this.scene.add.container(0, 0);
+        this.guideContainer.add(this.guidePageContainer);
 
-        this.addGuideHeader(col1X, y, 'TILES & EFFECTS');
-        y += 40;
+        // --- TAB BUTTONS (evenly distributed) ---
+        const tabY = startY + 42;
+        const tabNames = ['Tiles', 'Mechanics', 'Combat'];
+        const tabGap = 12; // Consistent gap between tabs
+        const tabPadX = 20;
+        const tabPadY = 8;
+        this.guideTabs = [];
 
-        this.addGuideItem(col1X, y, 'SWORD', 'Sword', 'Deals Damage (2 + Strength)', 0xff4400); y += rowH;
-        this.addGuideItem(col1X, y, 'SHIELD', 'Shield', 'Gains Block (2)', 0x4444ff); y += rowH;
-        this.addGuideItem(col1X, y, 'POTION', 'Potion', 'Heals 1 HP', 0x44ff44); y += rowH;
-        this.addGuideItem(col1X, y, 'MANA', 'Mana', 'Gains 1 Mana', 0x00ffff); y += rowH;
-        this.addGuideItem(col1X, y, 'COIN', 'Coin', 'Gains 1 Gold', 0xffd700); y += rowH * 1.5;
+        // Calculate total width needed and center
+        const tabWidths = tabNames.map(name => name.length * 10 + tabPadX * 2);
+        const totalTabWidth = tabWidths.reduce((a, b) => a + b, 0) + tabGap * (tabNames.length - 1);
+        let tabX = centerX - totalTabWidth / 2;
 
-        this.addGuideItem(col1X, y, 'lock', 'Lock', 'Cannot move. Match to break.', 0x9900cc); y += rowH;
-        this.addGuideItem(col1X, y, 'trash', 'Trash', 'Useless. Match nearby to destroy.', 0x888888); y += rowH;
+        tabNames.forEach((name, index) => {
+            const thisTabW = tabWidths[index];
+            const tab = this.scene.add.text(tabX + thisTabW / 2, tabY, name, {
+                font: 'bold 14px Arial', fill: '#888888', backgroundColor: '#2a2a3e',
+                padding: { x: tabPadX, y: tabPadY }
+            }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
+            tab.on('pointerdown', () => this.showGuidePage(index));
+            tab.on('pointerover', () => { if (this.guideCurrentPage !== index) tab.setStyle({ fill: '#cccccc' }); });
+            tab.on('pointerout', () => { if (this.guideCurrentPage !== index) tab.setStyle({ fill: '#888888' }); });
 
-        // 2. MECHANICS (Right Column)
-        const col2X = startX + 450;
-        y = startY + 60;
-
-        this.addGuideHeader(col2X, y, 'MECHANICS');
-        y += 40;
-
-        this.addGuideText(col2X, y, '• Match 3: Basic effect.'); y += 30;
-        this.addGuideText(col2X, y, '• Match 4+: No extra turn yet (WIP).'); y += 40; // Honest desc
-
-        this.addGuideHeader(col2X, y, 'STATS & SKILLS');
-        y += 40;
-        this.addGuideText(col2X, y, '• Strength: Adds to Sword damage.'); y += 30;
-        this.addGuideText(col2X, y, '• Mana: Used for Skills (Fireball, Heal).'); y += 30;
-        this.addGuideText(col2X, y, '• Moves: 3 per turn. Swapping costs 1.'); y += 30;
-        this.addGuideText(col2X, y, '• Potions: Use from top bar (Instant).'); y += 30;
-
-    }
-
-    addGuideHeader(x, y, text) {
-        const t = this.scene.add.text(x, y, text, {
-            font: 'bold 20px Verdana', fill: '#ffffff', border: '1px solid white'
+            this.guideContainer.add(tab);
+            this.guideTabs.push(tab);
+            tabX += thisTabW + tabGap;
         });
-        const line = this.scene.add.rectangle(x + 100, y + 25, 200, 2, 0x666666);
-        this.guideContainer.add([t, line]);
+
+        // Create all pages (hidden initially)
+        this.createGuidePage0(); // Tiles
+        this.createGuidePage1(); // Mechanics (Status + Tiers combined)
+        this.createGuidePage2(); // Combat/Stats
+
+        // Show first page
+        this.showGuidePage(0);
     }
 
-    addGuideItem(x, y, iconKey, name, desc, color) {
-        // Use Image instead of Text for Icon
-        const i = this.scene.add.image(x, y, iconKey).setDisplaySize(32, 32).setOrigin(0.5);
-        // Adjust text X position slightly
-        const n = this.scene.add.text(x + 40, y, name, { font: 'bold 16px Verdana', fill: '#' + color.toString(16) }).setOrigin(0, 0.5);
-        const d = this.scene.add.text(x + 140, y, desc, { font: '14px Verdana', fill: '#cccccc' }).setOrigin(0, 0.5);
-        this.guideContainer.add([i, n, d]);
+    createGuidePage0() {
+        // PAGE 0: TILES
+        const page = this.scene.add.container(0, 0);
+        const startX = 626 - 280;
+        const rowH = 42;
+        let y = 155;
+
+        // TILES
+        page.add(this.createGuideHeader(startX, y, 'TILES'));
+        y += 40;
+        page.add(this.createGuideRow(startX, y, 'SWORD', 'Sword', 'Deals Damage (2 + Strength per tile)', 0xff4400)); y += rowH;
+        page.add(this.createGuideRow(startX, y, 'SHIELD', 'Shield', 'Gains Block (2 per tile)', 0x4488ff)); y += rowH;
+        page.add(this.createGuideRow(startX, y, 'POTION', 'Potion', 'Heals 1 HP per tile', 0x44ff44)); y += rowH;
+        page.add(this.createGuideRow(startX, y, 'MANA', 'Mana', 'Gains 1 Mana per tile', 0x44ffff)); y += rowH;
+        page.add(this.createGuideRow(startX, y, 'COIN', 'Coin', 'Gains 1 Gold per tile', 0xffd700)); y += rowH * 1.3;
+
+        // HAZARDS
+        page.add(this.createGuideHeader(startX, y, 'HAZARDS'));
+        y += 40;
+        page.add(this.createGuideRow(startX, y, 'lock', 'Lock', 'Cannot be moved. Match 3 to break.', 0xaa44ff)); y += rowH;
+        page.add(this.createGuideRow(startX, y, 'trash', 'Trash', 'Useless tile. Match nearby to remove.', 0x888888));
+
+        this.guidePages.push(page);
+        this.guidePageContainer.add(page);
     }
 
-    addGuideText(x, y, text) {
-        const t = this.scene.add.text(x, y, text, { font: '14px Verdana', fill: '#dddddd' });
-        this.guideContainer.add(t);
+    createGuidePage1() {
+        // PAGE 1: MECHANICS (Status Effects + Match Tiers combined)
+        const page = this.scene.add.container(0, 0);
+        const startX = 626 - 310;
+        let y = 140;
+
+        // --- STATUS EFFECTS (compact) ---
+        page.add(this.createGuideHeader(startX, y, 'STATUS EFFECTS'));
+        y += 32;
+
+        const effects = [
+            { icon: '🩸', name: 'Bleed', desc: 'Damage at turn start. Decay -1', color: 0xff4444 },
+            { icon: '💚', name: 'Regen', desc: 'Heals at turn start. Decay -1', color: 0x44ff44 },
+            { icon: '🌵', name: 'Thorns', desc: 'Reflects damage to attacker', color: 0x88cc44 },
+            { icon: '🔮', name: 'Focus', desc: '1=50% cost, 2+=free spells', color: 0xaa88ff },
+            { icon: '🎯', name: 'Critical', desc: '1=50% crit, 2+=guaranteed', color: 0xffaa44 }
+        ];
+
+        effects.forEach((eff, idx) => {
+            // Zebra striping
+            if (idx % 2 === 1) {
+                page.add(this.scene.add.rectangle(startX + 250, y, 520, 26, 0x2a2a3a, 0.4));
+            }
+            const iconT = this.scene.add.text(startX, y, eff.icon, { font: '16px Arial' }).setOrigin(0, 0.5);
+            const nameT = this.scene.add.text(startX + 30, y, eff.name, {
+                font: 'bold 14px Arial', fill: '#' + eff.color.toString(16).padStart(6, '0')
+            }).setOrigin(0, 0.5);
+            const descT = this.scene.add.text(startX + 110, y, eff.desc, {
+                font: '13px Arial', fill: '#bbbbbb'
+            }).setOrigin(0, 0.5);
+            page.add([iconT, nameT, descT]);
+            y += 26;
+        });
+
+        y += 16;
+
+        // --- MATCH TIERS ---
+        page.add(this.createGuideHeader(startX, y, 'MATCH TIER BONUSES'));
+        y += 32;
+
+        // Column headers with FIXED positions for better alignment
+        const col1 = startX + 95;   // Match 3 column
+        const col2 = startX + 210;  // Match 4 column
+        const col3 = startX + 360;  // Match 5+ column
+        page.add(this.scene.add.text(col1, y, 'Match 3', { font: 'bold 13px Arial', fill: '#888888' }));
+        page.add(this.scene.add.text(col2, y, 'Match 4', { font: 'bold 13px Arial', fill: '#ffaa44' }));
+        page.add(this.scene.add.text(col3, y, 'Match 5+', { font: 'bold 13px Arial', fill: '#ff6644' }));
+        y += 26;
+
+        // Tier data: [iconKey, name, color, m3, m4, m5]
+        const tiers = [
+            ['SWORD', 'Sword', 0xff4400, 'Damage', '+Bleed (2)', '+Bleed (4), 1.5x'],
+            ['SHIELD', 'Shield', 0x4488ff, 'Block', '+Thorns (3)', '+Thorns (6), 1.5x'],
+            ['POTION', 'Potion', 0x44ff44, 'Heal', '+Regen (3)', '+Cleanse, +5 HP'],
+            ['MANA', 'Mana', 0x44ffff, 'Mana', '+Focus (1)', '+Focus (2)'],
+            ['COIN', 'Coin', 0xffd700, 'Gold', '+Critical (1)', '+Critical (2)']
+        ];
+
+        tiers.forEach(([icon, name, color, m3, m4, m5], idx) => {
+            // Zebra striping
+            if (idx % 2 === 1) {
+                page.add(this.scene.add.rectangle(startX + 250, y, 520, 28, 0x2a2a3a, 0.4));
+            }
+            const i = this.scene.add.image(startX + 14, y, icon).setDisplaySize(22, 22).setOrigin(0.5);
+            const n = this.scene.add.text(startX + 34, y, name, {
+                font: 'bold 13px Arial', fill: '#' + color.toString(16).padStart(6, '0')
+            }).setOrigin(0, 0.5);
+            const t3 = this.scene.add.text(col1, y, m3, { font: '13px Arial', fill: '#aaaaaa' }).setOrigin(0, 0.5);
+            const t4 = this.scene.add.text(col2, y, m4, { font: '13px Arial', fill: '#dddddd' }).setOrigin(0, 0.5);
+            const t5 = this.scene.add.text(col3, y, m5, { font: '13px Arial', fill: '#ffffff' }).setOrigin(0, 0.5);
+            page.add([i, n, t3, t4, t5]);
+            y += 28;
+        });
+
+        this.guidePages.push(page);
+        this.guidePageContainer.add(page);
+    }
+
+    createGuidePage2() {
+        // PAGE 2: COMBAT & STATS
+        const page = this.scene.add.container(0, 0);
+        const startX = 626 - 280;
+        let y = 150;
+
+        page.add(this.createGuideHeader(startX, y, 'STATS'));
+        y += 38;
+        page.add(this.createGuideLine(startX, y, '• Strength: Bonus damage per Sword tile.')); y += 28;
+        page.add(this.createGuideLine(startX, y, '• Block: Absorbs damage. Resets each turn.')); y += 28;
+        page.add(this.createGuideLine(startX, y, '• Mana: Resource for casting Skills.')); y += 45;
+
+        page.add(this.createGuideHeader(startX, y, 'SKILLS'));
+        y += 38;
+        page.add(this.createGuideLine(startX, y, '🔥 Fireball (6 Mana): Deal 8 damage.')); y += 28;
+        page.add(this.createGuideLine(startX, y, '💚 Heal (6 Mana): Restore 10 HP.')); y += 45;
+
+        page.add(this.createGuideHeader(startX, y, 'TURN FLOW'));
+        y += 38;
+        page.add(this.createGuideLine(startX, y, '• You have 3 Moves per turn.')); y += 28;
+        page.add(this.createGuideLine(startX, y, '• Swap gems, use skills, then End Turn.')); y += 28;
+        page.add(this.createGuideLine(startX, y, '• Enemy acts after you end your turn.')); y += 28;
+
+        this.guidePages.push(page);
+        this.guidePageContainer.add(page);
+    }
+
+    showGuidePage(index) {
+        this.guideCurrentPage = index;
+
+        // Hide all pages
+        this.guidePages.forEach((page, i) => page.setVisible(i === index));
+
+        // Update tab styles
+        this.guideTabs.forEach((tab, i) => {
+            if (i === index) {
+                tab.setStyle({ fill: '#ffffff', backgroundColor: '#4a4a6a' });
+            } else {
+                tab.setStyle({ fill: '#888888', backgroundColor: '#2a2a3e' });
+            }
+        });
+    }
+
+    createGuideHeader(x, y, text) {
+        const t = this.scene.add.text(x, y, text, {
+            font: 'bold 16px Arial', fill: '#ffd700'
+        });
+        const line = this.scene.add.rectangle(x + 75, y + 20, 150, 2, 0x555555);
+        return [t, line];
+    }
+
+    createGuideRow(x, y, iconKey, name, desc, color, zebra = false) {
+        const elements = [];
+
+        // Zebra striping background
+        if (zebra) {
+            const bg = this.scene.add.rectangle(x + 250, y, 520, 32, 0x2a2a3a, 0.5);
+            elements.push(bg);
+        }
+
+        const i = this.scene.add.image(x + 16, y, iconKey).setDisplaySize(26, 26).setOrigin(0.5);
+        const n = this.scene.add.text(x + 42, y, name, {
+            font: 'bold 14px Arial', fill: '#' + color.toString(16).padStart(6, '0')
+        }).setOrigin(0, 0.5);
+        const d = this.scene.add.text(x + 130, y, desc, {
+            font: '13px Arial', fill: '#aaaaaa'
+        }).setOrigin(0, 0.5);
+
+        elements.push(i, n, d);
+        return elements;
+    }
+
+    createGuideLine(x, y, text) {
+        return this.scene.add.text(x, y, text, {
+            font: '14px Arial', fill: '#cccccc'
+        });
     }
 
     toggleGuide() {

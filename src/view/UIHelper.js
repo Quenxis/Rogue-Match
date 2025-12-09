@@ -7,7 +7,7 @@ export function createVersionWatermark(scene) {
         font: '14px Arial',
         fill: '#ffffff',
         alpha: 0.3
-    }).setOrigin(1, 1).setDepth(1000).setScrollFactor(0); // ScrollFactor 0 to stick to screen in MapScene
+    }).setOrigin(1, 1).setDepth(1000).setScrollFactor(0).setResolution(2);
 
     return text;
 }
