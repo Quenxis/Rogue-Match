@@ -1,7 +1,7 @@
 import { logManager } from '../../core/LogManager.js';
 import { StatusEffectManager } from '../StatusEffectManager.js';
 import { EventBus } from '../../core/EventBus.js';
-import { EVENTS } from '../../core/Constants.js';
+import { EVENTS, STATUS_TYPES, GAME_SETTINGS } from '../../core/Constants.js';
 
 export class Entity {
     constructor(name, maxHP) {
@@ -13,7 +13,7 @@ export class Entity {
         this.statusManager = new StatusEffectManager(this);
     }
 
-    takeDamage(amount, source = null) {
+    takeDamage(amount, source = null, options = {}) {
         if (this.isDead) return 0;
 
         // Status Effects Reaction (Thorns)
@@ -21,8 +21,13 @@ export class Entity {
 
         let actualDamage = amount;
 
-        // Block mitigation
-        if (this.block > 0) {
+        // 1. Vulnerable Check
+        if (this.statusManager.getStack(STATUS_TYPES.VULNERABLE) > 0) {
+            actualDamage = Math.ceil(actualDamage * GAME_SETTINGS.VULNERABLE_MULTIPLIER);
+        }
+
+        // 2. Block mitigation (Skipped if Piercing)
+        if (this.block > 0 && !options.isPiercing) {
             if (this.block >= actualDamage) {
                 this.block -= actualDamage;
                 actualDamage = 0;

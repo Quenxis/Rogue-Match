@@ -53,7 +53,9 @@ export const ASSETS = {
     ICON_SHIELD: 'icon_shield',
     ICON_MANA: 'icon_mana',
     ICON_LOCK: 'icon_lock',
-    ICON_TRASH: 'icon_trash'
+    ICON_TRASH: 'icon_trash',
+    ICON_BOW: 'icon_bow', // New
+    BOW: 'BOW' // New Gem Texture
 };
 
 export const ENTITIES = {
@@ -102,7 +104,9 @@ export const GRID_STATUS = {
 export const GAME_SETTINGS = {
     MAX_MOVES: 3,
     GRID_ROWS: 8,
-    GRID_COLS: 8
+    GRID_COLS: 8,
+    REFILL_MATCH_CHANCE: 0.5, // Chance (0.0 - 1.0) to allow a new gem to create an immediate match during refill
+    VULNERABLE_MULTIPLIER: 1.25 // 25% extra damage taken
 };
 
 export const GEM_TYPES = {
@@ -111,6 +115,7 @@ export const GEM_TYPES = {
     POTION: 'POTION',
     MANA: 'MANA',
     COIN: 'COIN',
+    BOW: 'BOW', // New Type
     EMPTY: 'EMPTY'
 };
 
@@ -119,5 +124,6 @@ export const STATUS_TYPES = {
     REGEN: 'REGEN',
     THORNS: 'THORNS',
     FOCUS: 'FOCUS',
-    CRITICAL: 'CRITICAL'
+    CRITICAL: 'CRITICAL',
+    VULNERABLE: 'VULNERABLE' // New Debuff
 };

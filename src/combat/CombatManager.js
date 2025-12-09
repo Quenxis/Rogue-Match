@@ -340,9 +340,10 @@ export class CombatManager {
                 // Regen (Tier 2+)
                 if (size === 4) sm.applyStack(STATUS_TYPES.REGEN, 3);
 
-                // Big Heal + Cleanse (Tier 3)
+                // Big Heal + 4 Regen + Cleanse (Tier 3)
                 if (size >= 5) {
                     heal += 5;
+                    sm.applyStack(STATUS_TYPES.REGEN, 4);
                     sm.cleanse(10);
                 }
 
@@ -362,6 +363,25 @@ export class CombatManager {
                 // Critical: 4->1, 5+->2
                 if (size === 4) sm.applyStack(STATUS_TYPES.CRITICAL, 1);
                 if (size >= 5) sm.applyStack(STATUS_TYPES.CRITICAL, 2);
+                break;
+
+            case ITEM_TYPES.BOW:
+                // Piercing Damage (Ignores Shield)
+                let pierceDmg = 2; // Tier 1
+
+                if (size === 4) {
+                    pierceDmg = 3;
+                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 1);
+                }
+                if (size >= 5) {
+                    pierceDmg = 4;
+                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 2);
+                }
+
+                logManager.log(`Piercing Shot!`, 'damage');
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: pierceDmg, type: 'PIERCE' });
+                // Pass isPiercing option
+                e.takeDamage(pierceDmg, p, { isPiercing: true });
                 break;
         }
     }

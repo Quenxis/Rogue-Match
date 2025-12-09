@@ -211,7 +211,11 @@ export class GridView {
 
         const sprite = this.scene.add.sprite(x, y, item.type);
         this.tokenContainer.add(sprite); // Add to container for masking
-        sprite.setDisplaySize(50, 50);
+
+        // Better Scaling: Preserve aspect ratio
+        const maxDim = 50;
+        const scale = Math.min(maxDim / sprite.width, maxDim / sprite.height);
+        sprite.setScale(scale);
         sprite.setInteractive();
         sprite.setData('row', r);
         sprite.setData('col', c);
@@ -230,7 +234,9 @@ export class GridView {
         // If type is TRASH or flag is set, overwrite texture.
         if (item.isTrash || item.type === 'TRASH') {
             sprite.setTexture('trash');
-            sprite.setDisplaySize(50, 50); // Ensure size matches standard items
+            // Rescale for new texture
+            const scaleT = Math.min(50 / sprite.width, 50 / sprite.height);
+            sprite.setScale(scaleT);
             sprite.clearTint(); // Ensure no tint if recycled
         }
 

@@ -11,7 +11,8 @@ const CONFIG = {
     [STATUS_TYPES.REGEN]: { max: 99, category: 'BUFF' },
     [STATUS_TYPES.THORNS]: { max: 99, category: 'BUFF' },
     [STATUS_TYPES.FOCUS]: { max: 2, category: 'BUFF' },
-    [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' }
+    [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' },
+    [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' }
 };
 
 export class StatusEffectManager {
@@ -91,8 +92,8 @@ export class StatusEffectManager {
         }
 
         // DECAY Logic
-        // Bleed, Regen, Thorns decay by 1.
-        [STATUS_TYPES.BLEED, STATUS_TYPES.REGEN, STATUS_TYPES.THORNS].forEach(type => {
+        // Bleed, Regen, Thorns, Vulnerable decay by 1.
+        [STATUS_TYPES.BLEED, STATUS_TYPES.REGEN, STATUS_TYPES.THORNS, STATUS_TYPES.VULNERABLE].forEach(type => {
             if (this.stacks[type] > 0) {
                 this.removeStack(type, 1);
             }

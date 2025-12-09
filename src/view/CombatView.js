@@ -249,9 +249,9 @@ export class CombatView {
         const size = 64;
         const container = this.scene.add.container(x, y);
 
-        // Glow (for Focus buff)
-        const glow = this.scene.add.rectangle(0, 0, size + 8, size + 8, 0xaa66ff, 0)
-            .setStrokeStyle(3, 0xaa66ff, 0);
+        // Removed Glow (for Focus buff) as per user request
+        // const glow = this.scene.add.rectangle(0, 0, size + 8, size + 8, 0xaa66ff, 0)
+        //     .setStrokeStyle(3, 0xaa66ff, 0);
 
         // Background (Transparent Hit Area)
         const bg = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0.01);
@@ -283,7 +283,8 @@ export class CombatView {
         // Disabled overlay
         const disabledOverlay = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0);
 
-        container.add([glow, bg, icon, badge, badgeText, disabledOverlay]);
+        // Store badge and text for updates
+        container.add([bg, icon, badge, badgeText, disabledOverlay]);
         this.actionBar.add(container);
 
         // Interaction
@@ -308,10 +309,10 @@ export class CombatView {
             this.hideTooltip();
         });
 
-        container.setData('enabled', true);
         container.setData('skillId', skillId);
         container.setData('originalColor', data.color);
-        this.skillButtons[skillId] = { container, bg, glow, disabledOverlay, icon };
+        // Added badge and badgeText to stored object for updates
+        this.skillButtons[skillId] = { container, bg, disabledOverlay, icon, badge, badgeText };
     }
 
     createTurnControls() {
@@ -626,6 +627,20 @@ export class CombatView {
         const btn = this.skillButtons[id];
         if (!btn) return;
 
+        // --- GLOBAL CALCULATION (Run first) ---
+        // Calculate Discounted Cost
+        const baseCost = SKILL_DATA[id].cost;
+        let finalCost = baseCost;
+        let isDiscounted = false;
+
+        if (focusStacks === 1) {
+            finalCost = Math.floor(baseCost * 0.5);
+            isDiscounted = true;
+        } else if (focusStacks >= 2) {
+            finalCost = 0;
+            isDiscounted = true;
+        }
+
         btn.container.setData('enabled', isEnabled);
 
         if (isEnabled) {
@@ -638,21 +653,31 @@ export class CombatView {
             btn.icon.setTint(0xffffff); // Clear tint
             btn.disabledOverlay.setAlpha(0);
 
-            // FOCUS GLOW: Pulsing effect when player has Focus buff
-            if (focusStacks > 0 && !btn.glowTween) {
-                btn.glow.setStrokeStyle(3, 0xaa66ff, 1);
-                btn.glowTween = this.scene.tweens.add({
-                    targets: btn.glow,
-                    alpha: { from: 0.3, to: 1 },
-                    duration: 600,
-                    yoyo: true,
-                    repeat: -1
-                });
-            } else if (focusStacks === 0 && btn.glowTween) {
-                btn.glowTween.stop();
-                btn.glowTween = null;
-                btn.glow.setStrokeStyle(3, 0xaa66ff, 0);
-                btn.glow.setAlpha(1);
+            // FOCUS VISUALS: Pulse specific elements (Badge + Text)
+            if (isDiscounted) {
+                // Green Text for discount
+                btn.badgeText.setColor('#00ff00');
+
+                if (!btn.pulseTween) {
+                    btn.pulseTween = this.scene.tweens.add({
+                        targets: [btn.badge, btn.badgeText],
+                        scale: { from: 1, to: 1.3 },
+                        duration: 600,
+                        yoyo: true,
+                        repeat: -1
+                    });
+                }
+            } else {
+                // Normal Text
+                btn.badgeText.setColor('#ffffff');
+
+                if (btn.pulseTween) {
+                    btn.pulseTween.stop();
+                    btn.pulseTween = null;
+                    btn.badge.setScale(1); // Reset scale using direct reference since display size was set
+                    btn.badge.setDisplaySize(24, 24); // Reset to original display size
+                    btn.badgeText.setScale(1);
+                }
             }
         } else {
             // DISABLED STATE: Grayscale/Darkened, non-interactive
@@ -661,17 +686,26 @@ export class CombatView {
             btn.bg.disableInteractive();
 
             // Dim and Grayscale Effect
-            // Since we can't easily do true grayscale without pipeline in basic Phaser without setup,
-            // we will use a dark gray tint to simulate "loss of color".
             btn.icon.setTint(0x555555);
             btn.disabledOverlay.setAlpha(0); // Overlay not needed if we tint icon directly
 
-            // Stop glow when disabled
-            if (btn.glowTween) {
-                btn.glowTween.stop();
-                btn.glowTween = null;
-                btn.glow.setStrokeStyle(3, 0xaa66ff, 0);
+            // Stop pulse when disabled
+            if (btn.pulseTween) {
+                btn.pulseTween.stop();
+                btn.pulseTween = null;
+                btn.badge.setDisplaySize(24, 24); // Reset to original display size
+                btn.badgeText.setScale(1);
             }
+        }
+
+        // Update Badge Text
+        btn.badgeText.setText(`${finalCost}`);
+
+        // Update Text Color based on discount status (even if disabled, show "price")
+        if (isDiscounted) {
+            btn.badgeText.setColor('#00ff00');
+        } else {
+            btn.badgeText.setColor('#ffffff');
         }
     }
 
@@ -833,6 +867,9 @@ export class CombatView {
 
         const crit = statusManager.getStack(STATUS_TYPES.CRITICAL);
         if (crit > 0) items.push({ icon: '🎯', count: crit, tooltip: 'Critical: Increases critical hit chance' });
+
+        const vuln = statusManager.getStack(STATUS_TYPES.VULNERABLE);
+        if (vuln > 0) items.push({ icon: '☠️', count: vuln, tooltip: 'Vulnerable: Takes 25% extra damage' });
 
         return items;
     }

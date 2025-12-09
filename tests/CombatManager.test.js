@@ -19,7 +19,7 @@ describe('CombatManager - Logic & AI', () => {
         runManager.startNewRun();
         const cm = new CombatManager(mockScene, { enemyId: 'slime' });
 
-        expect(cm.player.currentHP).toBe(100);
+        expect(cm.player.currentHP).toBe(60);
         expect(cm.enemy.name).toBe('Acid Slime');
         expect(cm.turn).toBe('PLAYER');
     });
@@ -60,7 +60,7 @@ describe('CombatManager - Logic & AI', () => {
         const cm = new CombatManager(mockScene, { enemyId: 'slime' });
 
         // Mock Player HP
-        cm.player.currentHP = 100;
+        cm.player.currentHP = 60;
 
         // Mock Intent
         cm.enemy.currentIntent = { type: 'ATTACK', value: 10 };
@@ -70,8 +70,8 @@ describe('CombatManager - Logic & AI', () => {
         // Execute
         cm.executeEnemyIntent();
 
-        // Exp: 100 - (10 + 5) = 85
-        expect(cm.player.currentHP).toBe(85);
+        // Exp: 60 - (10 + 5) = 45
+        expect(cm.player.currentHP).toBe(45);
     });
 
 });

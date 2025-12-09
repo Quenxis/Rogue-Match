@@ -233,13 +233,16 @@ export class TopBar {
         this.guideContainer.add(overlay);
 
         // Window Box (make interactive to BLOCK clicks from reaching overlay)
-        const winW = 680;
-        const winH = 480;
-        const windowBg = this.scene.add.rectangle(626, 300, winW, winH, 0x1e1e2a).setStrokeStyle(3, 0x444466);
+        // Window Box (make interactive to BLOCK clicks from reaching overlay)
+        const winW = 800; // Increased width (was 680)
+        const winH = 550; // Increased height (was 480)
+        // Background color matched to TopBar (0x222222)
+        const windowBg = this.scene.add.rectangle(626, 300, winW, winH, 0x222222).setStrokeStyle(3, 0x444466);
         windowBg.setInteractive(); // Block clicks from falling through to overlay
-        const innerBorder = this.scene.add.rectangle(626, 300, winW - 8, winH - 8, 0x1e1e2a, 0).setStrokeStyle(1, 0x333344);
+        const innerBorder = this.scene.add.rectangle(626, 300, winW - 8, winH - 8, 0x222222, 0).setStrokeStyle(1, 0x333344);
         this.guideContainer.add([windowBg, innerBorder]);
 
+        // Close Button (only way to close besides clicking dark overlay)
         // Close Button (only way to close besides clicking dark overlay)
         const closeBtn = this.scene.add.text(626 + winW / 2 - 28, 300 - winH / 2 + 24, '✕', {
             font: 'bold 20px Arial', fill: '#ff6666'
@@ -310,7 +313,8 @@ export class TopBar {
         page.add(this.createGuideRow(startX, y, 'SHIELD', 'Shield', 'Gains Block (2 per tile)', 0x4488ff)); y += rowH;
         page.add(this.createGuideRow(startX, y, 'POTION', 'Potion', 'Heals 1 HP per tile', 0x44ff44)); y += rowH;
         page.add(this.createGuideRow(startX, y, 'MANA', 'Mana', 'Gains 1 Mana per tile', 0x44ffff)); y += rowH;
-        page.add(this.createGuideRow(startX, y, 'COIN', 'Coin', 'Gains 1 Gold per tile', 0xffd700)); y += rowH * 1.3;
+        page.add(this.createGuideRow(startX, y, 'COIN', 'Coin', 'Gains 1 Gold per tile', 0xffd700)); y += rowH;
+        page.add(this.createGuideRow(startX, y, 'BOW', 'Bow', 'Deals Piercing DMG (Ignore Shield)', 0xcccccc)); y += rowH * 1.3;
 
         // HAZARDS
         page.add(this.createGuideHeader(startX, y, 'HAZARDS'));
@@ -337,7 +341,8 @@ export class TopBar {
             { icon: '💚', name: 'Regen', desc: 'Heals at turn start. Decay -1', color: 0x44ff44 },
             { icon: '🌵', name: 'Thorns', desc: 'Reflects damage to attacker', color: 0x88cc44 },
             { icon: '🔮', name: 'Focus', desc: '1=50% cost, 2+=free spells', color: 0xaa88ff },
-            { icon: '🎯', name: 'Critical', desc: '1=50% crit, 2+=guaranteed', color: 0xffaa44 }
+            { icon: '🎯', name: 'Critical', desc: '1=50% crit, 2+=guaranteed', color: 0xffaa44 },
+            { icon: '☠️', name: 'Vulnerable', desc: 'Takes +25% damage (1.25x)', color: 0xffffff }
         ];
 
         effects.forEach((eff, idx) => {
@@ -373,11 +378,12 @@ export class TopBar {
 
         // Tier data: [iconKey, name, color, m3, m4, m5]
         const tiers = [
-            ['SWORD', 'Sword', 0xff4400, 'Damage', '+Bleed (2)', '+Bleed (4), 1.5x'],
-            ['SHIELD', 'Shield', 0x4488ff, 'Block', '+Thorns (3)', '+Thorns (6), 1.5x'],
-            ['POTION', 'Potion', 0x44ff44, 'Heal', '+Regen (3)', '+Cleanse, +5 HP'],
-            ['MANA', 'Mana', 0x44ffff, 'Mana', '+Focus (1)', '+Focus (2)'],
-            ['COIN', 'Coin', 0xffd700, 'Gold', '+Critical (1)', '+Critical (2)']
+            ['SWORD', 'Sword', 0xff4400, '2 DMG + Str / tile', '+Bleed (2)', '+Bleed (4), 1.5x'],
+            ['SHIELD', 'Shield', 0x4488ff, '2 Block / tile', '+Thorns (3)', '+Thorns (6), 1.5x'],
+            ['POTION', 'Potion', 0x44ff44, '1 Heal / tile', '+Regen (3)', '+Regen (4), Cleanse, +5 HP'],
+            ['MANA', 'Mana', 0x44ffff, '1 Mana / tile', '+Focus (1)', '+Focus (2)'],
+            ['COIN', 'Coin', 0xffd700, '1 Gold / tile', '+Critical (1)', '+Critical (2)'],
+            ['BOW', 'Bow', 0xcccccc, '2 Piercing DMG', '+Vuln (1), Pierce (3)', '+Vuln (2), Pierce (4)']
         ];
 
         tiers.forEach(([icon, name, color, m3, m4, m5], idx) => {
@@ -414,8 +420,25 @@ export class TopBar {
 
         page.add(this.createGuideHeader(startX, y, 'SKILLS'));
         y += 38;
-        page.add(this.createGuideLine(startX, y, '🔥 Fireball (6 Mana): Deal 8 damage.')); y += 28;
-        page.add(this.createGuideLine(startX, y, '💚 Heal (6 Mana): Restore 10 HP.')); y += 45;
+
+        // Custom Layout for Skills with Images
+        const iconSize = 32;
+
+        // Fireball
+        const fbIcon = this.scene.add.image(startX + 16, y, 'ability_1').setDisplaySize(iconSize, iconSize);
+        const fbText = this.scene.add.text(startX + 45, y, 'Fireball (6 Mana): Deal 8 damage.', {
+            font: '14px Arial', fill: '#ffaa88'
+        }).setOrigin(0, 0.5);
+        page.add([fbIcon, fbText]);
+        y += 40;
+
+        // Heal
+        const healIcon = this.scene.add.image(startX + 16, y, 'ability_2').setDisplaySize(iconSize, iconSize);
+        const healText = this.scene.add.text(startX + 45, y, 'Heal (6 Mana): Restore 10 HP.', {
+            font: '14px Arial', fill: '#88ff88'
+        }).setOrigin(0, 0.5);
+        page.add([healIcon, healText]);
+        y += 45;
 
         page.add(this.createGuideHeader(startX, y, 'TURN FLOW'));
         y += 38;

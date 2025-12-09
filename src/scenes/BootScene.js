@@ -37,6 +37,8 @@ export class BootScene extends Phaser.Scene {
         this.load.image('MANA', 'assets/items/mana.png');
         this.load.image('trash', 'assets/items/trash.png');
         this.load.image('lock', 'assets/items/lock.png');
+        this.load.image('BOW', 'assets/items/bow.png'); // New Bow Gem
+        this.load.image('icon_bow', 'assets/items/bow.png'); // Fallback icon using same asset
 
         // Backgrounds
         this.load.image('map_bg', 'assets/backgrounds/map_bg.png');

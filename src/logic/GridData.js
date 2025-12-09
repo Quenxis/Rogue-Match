@@ -5,7 +5,7 @@
  */
 
 import { EventBus } from '../core/EventBus.js';
-import { EVENTS } from '../core/Constants.js';
+import { EVENTS, GAME_SETTINGS } from '../core/Constants.js';
 import { ITEM_TYPES, GridItem } from './GridDetails.js';
 
 export class GridData {
@@ -131,16 +131,68 @@ export class GridData {
      * Check if placing a type at (r, c) would cause a match of 3.
      */
     wouldCauseMatch(r, c, type, currentRow) {
-        // Check horizontal (left)
+        // NOTE: currentRow arg is mainly for initial generation where "grid" is incomplete.
+        // During Refill/Game, currentRow IS this.grid[r], so we can check neighbors safely (if they exist).
+
+        const itemAt = (rr, cc) => {
+            if (this.isValidCoord(rr, cc)) {
+                // If checking current row (rr === r) and this.grid[r] is undefined (Init phase),
+                // use 'currentRow' array.
+                if (rr === r && (!this.grid[rr] || !this.grid[rr][cc])) {
+                    // Check if 'currentRow' has this index (it's being built)
+                    // We only build left-to-right, so cc MUST be < current 'c'
+                    if (currentRow && cc < currentRow.length) {
+                        return currentRow[cc];
+                    }
+                    return null;
+                }
+
+                // Normal access
+                if (this.grid[rr]) {
+                    return this.grid[rr][cc];
+                }
+            }
+            return null;
+        };
+
+        // Horizontal (Left)
         if (c >= 2) {
-            // Check the row currently being built
-            if (currentRow[c - 1].type === type && currentRow[c - 2].type === type) return true;
+            const left1 = itemAt(r, c - 1);
+            const left2 = itemAt(r, c - 2);
+            if (left1 && left2 && left1.type === type && left2.type === type) return true;
         }
-        // Check vertical (up)
+        // Horizontal (Right) - needed for Refill holes
+        if (c < this.cols - 2) {
+            const right1 = itemAt(r, c + 1);
+            const right2 = itemAt(r, c + 2);
+            if (right1 && right2 && right1.type === type && right2.type === type) return true;
+        }
+        // Horizontal (Middle) - Left & Right
+        if (c >= 1 && c < this.cols - 1) {
+            const left = itemAt(r, c - 1);
+            const right = itemAt(r, c + 1);
+            if (left && right && left.type === type && right.type === type) return true;
+        }
+
+        // Vertical (Up)
         if (r >= 2) {
-            // Check the previous rows in the grid
-            if (this.grid[r - 1][c].type === type && this.grid[r - 2][c].type === type) return true;
+            const up1 = itemAt(r - 1, c);
+            const up2 = itemAt(r - 2, c);
+            if (up1 && up2 && up1.type === type && up2.type === type) return true;
         }
+        // Vertical (Down)
+        if (r < this.rows - 2) {
+            const down1 = itemAt(r + 1, c);
+            const down2 = itemAt(r + 2, c);
+            if (down1 && down2 && down1.type === type && down2.type === type) return true;
+        }
+        // Vertical (Middle)
+        if (r >= 1 && r < this.rows - 1) {
+            const up = itemAt(r - 1, c);
+            const down = itemAt(r + 1, c);
+            if (up && down && up.type === type && down.type === type) return true;
+        }
+
         return false;
     }
 
@@ -508,10 +560,32 @@ export class GridData {
         for (let c = 0; c < this.cols; c++) {
             for (let r = 0; r < this.rows; r++) {
                 if (this.grid[r][c].type === ITEM_TYPES.EMPTY) {
-                    // Create new item
-                    const randomType = types[Math.floor(Math.random() * types.length)];
-                    const newItem = new GridItem(randomType, `item_${idCounter++}_${r}_${c}`); // Unique ID
+                    let randomType;
+                    let valid = false;
+                    let attempts = 0;
 
+                    // Try to pick a type that doesn't match
+                    do {
+                        attempts++;
+                        randomType = types[Math.floor(Math.random() * types.length)];
+
+                        // Check if this type would cause a match
+                        const causesMatch = this.wouldCauseMatch(r, c, randomType, this.grid[r]); // Note: wouldCauseMatch logic adjusted below
+
+                        if (!causesMatch) {
+                            valid = true; // No match, safe to place
+                        } else {
+                            // Causes match! 
+                            // 50% chance to ACCEPT it anyway (Risk/Reward) -> Now Configurable
+                            // 50% chance to REJECT and try again
+                            if (Math.random() < GAME_SETTINGS.REFILL_MATCH_CHANCE) {
+                                valid = true; // Accepted the risk
+                            }
+                            // Else valid=false, loop again to find another type
+                        }
+                    } while (!valid && attempts < 10);
+
+                    const newItem = new GridItem(randomType, `item_${idCounter++}_${r}_${c}`);
                     this.grid[r][c] = newItem;
 
                     newItems.push({
