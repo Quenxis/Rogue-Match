@@ -253,20 +253,31 @@ export class CombatView {
         const glow = this.scene.add.rectangle(0, 0, size + 8, size + 8, 0xaa66ff, 0)
             .setStrokeStyle(3, 0xaa66ff, 0);
 
-        // Background
-        const bg = this.scene.add.rectangle(0, 0, size, size, data.color, 0.9)
-            .setStrokeStyle(2, 0xffffff, 0.6);
+        // Background (Transparent Hit Area)
+        const bg = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0.01);
         bg.setInteractive({ useHandCursor: true });
 
-        // Icon (Emoji)
-        const icon = this.scene.add.text(0, 0, data.icon, { font: '24px Arial' }).setOrigin(0.5);
+        // Icon (Image or Emoji)
+        let icon;
+        if (this.scene.textures.exists(data.icon)) {
+            // Updated to 48x48 to fill the 50x50 button
+            icon = this.scene.add.image(0, 0, data.icon).setDisplaySize(48, 48);
+        } else {
+            icon = this.scene.add.text(0, 0, data.icon, { font: '24px Arial' }).setOrigin(0.5);
+        }
 
-        // Mana badge (top-right)
+        // Mana badge (top-right) -> Replaced with generic Mana Icon
         const badgeX = size / 2 - 10;
         const badgeY = -size / 2 + 10;
-        const badge = this.scene.add.circle(badgeX, badgeY, 11, 0x2244aa).setStrokeStyle(2, 0x44aaff);
+
+        // Use ASSETS.MANA (Gem visual) or ASSETS.ICON_MANA (UI Icon)? 
+        // User asked for "image instead of blue circle". 
+        // ASSETS.ICON_MANA is usually correct for UI.
+        const badge = this.scene.add.image(badgeX, badgeY, ASSETS.ICON_MANA)
+            .setDisplaySize(24, 24);
+
         const badgeText = this.scene.add.text(badgeX, badgeY, `${data.cost}`, {
-            font: 'bold 10px Arial', fill: '#ffffff'
+            font: 'bold 12px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5);
 
         // Disabled overlay
@@ -279,7 +290,6 @@ export class CombatView {
         // Interaction
         bg.on('pointerdown', () => {
             // Reset visual state immediately on click
-            bg.setStrokeStyle(2, 0xffffff, 0.6);
             this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
             this.hideTooltip();
 
@@ -288,14 +298,12 @@ export class CombatView {
 
         bg.on('pointerover', () => {
             if (container.getData('enabled')) {
-                bg.setStrokeStyle(2, 0xffff00, 1);
-                this.scene.tweens.add({ targets: container, scale: 1.1, duration: 100 });
+                this.scene.tweens.add({ targets: container, scale: 1.2, duration: 100 });
                 this.showTooltip(this.actionBar.x + x, this.actionBar.y - 50, `${data.name} (${data.cost} Mana)\n${data.desc}`);
             }
         });
 
         bg.on('pointerout', () => {
-            bg.setStrokeStyle(2, 0xffffff, 0.6);
             this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
             this.hideTooltip();
         });
@@ -623,10 +631,11 @@ export class CombatView {
         if (isEnabled) {
             // ACTIVE STATE: Full color, interactive
             btn.container.setAlpha(1);
+            btn.container.setScale(1);
             btn.bg.setInteractive({ useHandCursor: true });
-            // Restore original color
-            const origColor = btn.container.getData('originalColor') || 0xff4400;
-            btn.bg.setFillStyle(origColor, 0.9);
+
+            // Restore Original Look
+            btn.icon.setTint(0xffffff); // Clear tint
             btn.disabledOverlay.setAlpha(0);
 
             // FOCUS GLOW: Pulsing effect when player has Focus buff
@@ -646,12 +655,16 @@ export class CombatView {
                 btn.glow.setAlpha(1);
             }
         } else {
-            // DISABLED STATE: Dim, grayscale, non-interactive
-            btn.container.setAlpha(0.5);
-            btn.container.setScale(1); // Force reset scale if stuck
+            // DISABLED STATE: Grayscale/Darkened, non-interactive
+            btn.container.setAlpha(1); // Keep container visible, just dim content
+            btn.container.setScale(1);
             btn.bg.disableInteractive();
-            btn.bg.setFillStyle(0x555555, 0.9);
-            btn.disabledOverlay.setAlpha(0.3);
+
+            // Dim and Grayscale Effect
+            // Since we can't easily do true grayscale without pipeline in basic Phaser without setup,
+            // we will use a dark gray tint to simulate "loss of color".
+            btn.icon.setTint(0x555555);
+            btn.disabledOverlay.setAlpha(0); // Overlay not needed if we tint icon directly
 
             // Stop glow when disabled
             if (btn.glowTween) {

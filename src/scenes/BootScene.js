@@ -43,6 +43,10 @@ export class BootScene extends Phaser.Scene {
 
         // Audio
         this.load.audio('bgm_main', 'assets/audio/bgm_main.mp3');
+
+        // Abilities
+        this.load.image('ability_1', 'assets/abilities/fireball.png');
+        this.load.image('ability_2', 'assets/abilities/heal.png');
     }
 
     create() {

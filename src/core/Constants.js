@@ -72,7 +72,7 @@ export const SKILL_DATA = {
     FIREBALL: {
         cost: 6,
         damage: 8,
-        icon: '🔥',  // Placeholder until asset ready
+        icon: 'ability_1',
         color: 0xff4400,
         name: 'Fireball',
         desc: 'Deal 8 damage to enemy'
@@ -80,7 +80,7 @@ export const SKILL_DATA = {
     HEAL: {
         cost: 6,
         heal: 10,
-        icon: '💚',  // Placeholder until asset ready
+        icon: 'ability_2',
         color: 0x44ff44,
         name: 'Heal',
         desc: 'Restore 10 HP'
