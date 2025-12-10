@@ -61,9 +61,9 @@ export const ENEMIES = {
         goldReward: 100,
         isBoss: true,
         moveset: [
-            { type: 'ATTACK', value: 15, weight: 0.4, text: 'Attack (15)' },
-            { type: 'BUFF', effect: 'STRENGTH', value: 3, weight: 0.3, text: 'Roar (+3 Str)' },
-            { type: 'DEBUFF', effect: 'TRASH', value: 4, weight: 0.3, text: 'Tail Sweep (Trash 4)' }
+            { type: 'ATTACK', value: 15, weight: 0.5, text: 'Attack (15)' },
+            { type: 'BUFF', effect: 'STRENGTH', value: 10, weight: 0.3, text: 'Roar (+10 Str)' },
+            { type: 'DEBUFF', effect: 'TRASH', value: 4, weight: 0.2, text: 'Tail Sweep (Trash 4)' }
         ]
     },
 };
