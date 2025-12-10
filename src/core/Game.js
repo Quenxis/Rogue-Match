@@ -14,12 +14,12 @@ import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.3.24';
+export const APP_VERSION = '0.3.25';
 
 const config = {
     type: Phaser.AUTO,
-    width: 1252, // Widened for Combat Log
-    height: 600,
+    width: 1920, // Full HD
+    height: 1080,
     parent: 'game-container',
     backgroundColor: '#000000',
     scene: [BootScene, MapScene, BattleScene, RewardScene, ShopScene, EventScene, TreasureScene], // BootScene first usually

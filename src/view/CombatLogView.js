@@ -31,7 +31,7 @@ export class CombatLogView {
         // Positioned at the TOP of the container (0, 0)
         this.headerBg = this.scene.add.rectangle(0, 0, this.width, 30, 0x333333).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         this.headerText = this.scene.add.text(this.width / 2, 15, 'COMBAT LOG [-]', {
-            font: 'bold 12px Arial',
+            font: 'bold 16px Arial', // Increased from 12px
             fill: '#ffffff'
         }).setOrigin(0.5).setResolution(2);
 
@@ -155,13 +155,13 @@ export class CombatLogView {
         let currentY = 0;
         this.lines.forEach(line => {
             const t = this.scene.add.text(5, currentY, line.text, {
-                font: '12px monospace',
+                font: '16px monospace', // Increased from 12px
                 fill: line.color,
                 wordWrap: { width: this.width - 10 }
             }).setResolution(2);
             this.contentContainer.add(t);
             this.textObjects.push(t);
-            currentY += t.height + 4; // Spacing
+            currentY += t.height + 4; // Spacing (was +4, keeping it or slightly increasing if needed)
         });
 
         this.totalTextHeight = currentY;

@@ -106,7 +106,10 @@ export const GAME_SETTINGS = {
     GRID_ROWS: 8,
     GRID_COLS: 8,
     REFILL_MATCH_CHANCE: 0.5, // Chance (0.0 - 1.0) to allow a new gem to create an immediate match during refill
-    VULNERABLE_MULTIPLIER: 1.25 // 25% extra damage taken
+    REFILL_MATCH_CHANCE: 0.5, // Chance (0.0 - 1.0) to allow a new gem to create an immediate match during refill
+    VULNERABLE_MULTIPLIER: 1.25, // 25% extra damage taken
+    GRID_SCALE: 1.65, // Scale for Grid and Tokens
+    MAP_SCALE: 1.2    // Scale for Map nodes (separate from Grid)
 };
 
 export const GEM_TYPES = {

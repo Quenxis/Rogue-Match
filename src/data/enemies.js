@@ -3,7 +3,7 @@ export const ENEMIES = {
     'slime': {
         name: 'Acid Slime',
         texture: 'tex_slime',
-        scale: 0.7,
+        scale: 1.1,
         hp: 40,
         maxHP: 40,
         goldReward: 15,
@@ -15,7 +15,7 @@ export const ENEMIES = {
     'rat': {
         name: 'Giant Rat',
         texture: 'tex_rat',
-        scale: 0.9,
+        scale: 1.2,
         hp: 30,
         maxHP: 30,
         goldReward: 10,
@@ -28,7 +28,7 @@ export const ENEMIES = {
     'orc': {
         name: 'Orc Warrior',
         texture: 'tex_orc',
-        scale: 0.9,
+        scale: 1.2,
         xOffset: -30,
         hp: 80,
         maxHP: 80,

@@ -3,6 +3,7 @@ import { createVersionWatermark } from '../view/UIHelper.js';
 import { TopBar } from '../view/TopBar.js';
 import { EventBus } from '../core/EventBus.js';
 import { audioManager } from '../core/AudioManager.js';
+import { GAME_SETTINGS } from '../core/Constants.js';
 
 export class MapScene extends Phaser.Scene {
     constructor() {
@@ -54,7 +55,7 @@ export class MapScene extends Phaser.Scene {
         }
 
         // --- CALC POSITIONS & DRAW LINES ---
-        const paddingX = 100;
+        const paddingX = 100 * GAME_SETTINGS.MAP_SCALE;
         const availableWidth = mapWidth - (paddingX * 2);
         const gapX = availableWidth / (Math.max(tiers.length - 1, 1));
         const startX = paddingX;
@@ -64,7 +65,7 @@ export class MapScene extends Phaser.Scene {
 
         tiers.forEach((tierNodes, tierIndex) => {
             const x = startX + (tierIndex * gapX);
-            const gapY = 100; // Vertical gap
+            const gapY = 100 * GAME_SETTINGS.MAP_SCALE; // Vertical gap
             const totalHeight = (tierNodes.length - 1) * gapY;
             const startY = centerY - (totalHeight / 2);
 
@@ -117,13 +118,13 @@ export class MapScene extends Phaser.Scene {
         // 1. Determine Type Color (Parchment/Ink Palette)
         let color = 0x5c5c5c; // Battle: Dark Grey/Ink
         let label = '⚔️';
-        let radius = 18;
-        let fontSize = '20px';
+        let radius = 18 * GAME_SETTINGS.MAP_SCALE;
+        let fontSize = `${Math.floor(20 * GAME_SETTINGS.MAP_SCALE)}px`;
 
-        if (node.type === 'BOSS') { color = 0x8b0000; label = '💀'; radius = 24; fontSize = '24px'; } // Deep Red
+        if (node.type === 'BOSS') { color = 0x8b0000; label = '💀'; radius = 24 * GAME_SETTINGS.MAP_SCALE; fontSize = `${Math.floor(24 * GAME_SETTINGS.MAP_SCALE)}px`; } // Deep Red
         else if (node.type === 'SHOP') { color = 0xc5a000; label = '💰'; } // Ochre/Gold
         else if (node.type === 'TREASURE') { color = 0x4682b4; label = '💎'; } // Steel Blue
-        else if (node.type === 'ELITE') { color = 0xa03000; label = '😈'; radius = 20; } // Rust
+        else if (node.type === 'ELITE') { color = 0xa03000; label = '😈'; radius = 20 * GAME_SETTINGS.MAP_SCALE; } // Rust
         else if (node.type === 'EVENT') { color = 0x6a0dad; label = '❓'; } // Muted Purple
         else if (node.type === 'BATTLE') { color = 0x5c5c5c; } // Standard Battle
 

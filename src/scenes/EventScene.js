@@ -37,7 +37,7 @@ export class EventScene extends Phaser.Scene {
         }
 
         // Title
-        this.add.text(centerX, 150, this.event.title, {
+        this.add.text(centerX, this.scale.height * 0.15, this.event.title, {
             font: 'bold 42px serif',
             fill: '#ffd700',
             stroke: '#000000',
@@ -45,11 +45,12 @@ export class EventScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Image Placeholder
-        this.add.rectangle(centerX, 300, 400, 200, 0x333333).setStrokeStyle(2, 0x666666);
-        this.add.text(centerX, 300, '[ IMAGE ]', { font: '20px Arial', fill: '#888888' }).setOrigin(0.5);
+        const imageY = this.scale.height * 0.35;
+        this.add.rectangle(centerX, imageY, 400, 200, 0x333333).setStrokeStyle(2, 0x666666);
+        this.add.text(centerX, imageY, '[ IMAGE ]', { font: '20px Arial', fill: '#888888' }).setOrigin(0.5);
 
         // Description
-        this.add.text(centerX, 450, this.event.description, {
+        this.add.text(centerX, this.scale.height * 0.55, this.event.description, {
             font: '24px Arial',
             fill: '#cccccc',
             wordWrap: { width: 800 },
@@ -57,7 +58,7 @@ export class EventScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Options container
-        this.renderOptions(centerX, 550);
+        this.renderOptions(centerX, this.scale.height * 0.65);
     }
 
     renderOptions(x, startY) {
@@ -127,7 +128,7 @@ export class EventScene extends Phaser.Scene {
         const centerX = this.scale.width / 2;
 
         // Show Result
-        this.add.text(centerX, 600, finalText, {
+        this.add.text(centerX, this.scale.height * 0.6, finalText, {
             font: '24px Arial',
             fill: '#ffffff',
             wordWrap: { width: 800 },
@@ -136,7 +137,7 @@ export class EventScene extends Phaser.Scene {
 
         // Continue Button
         this.time.delayedCall(1000, () => {
-            this.createButton(centerX, 500, "Continue", () => { // Fixed Y position
+            this.createButton(centerX, this.scale.height * 0.8, "Continue", () => { // Fixed Y position
                 runManager.completeLevel();
                 this.scene.start('MapScene');
             });

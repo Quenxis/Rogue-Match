@@ -27,7 +27,7 @@ export class ShopScene extends Phaser.Scene {
         this.goldText = this.add.text(centerX, 90, `Gold: ${runManager.player.gold}`, { font: '24px Arial', fill: '#ffffff' }).setOrigin(0.5);
 
         // Exit Button
-        const exitBtn = this.add.text(centerX, 520, 'Leave Shop', {
+        const exitBtn = this.add.text(centerX, this.scale.height - 100, 'Leave Shop', {
             font: '24px Arial',
             fill: '#ffffff',
             backgroundColor: '#444444',
@@ -55,12 +55,13 @@ export class ShopScene extends Phaser.Scene {
 
         // Display 3 Items
         const centerX = this.scale.width / 2;
-        const gap = 200;
+        // Widen gap for 1080p
+        const gap = 300;
         const startX = centerX - gap; // Center item is at index 1 -> startX + gap = centerX
 
         items.forEach((item, index) => {
             const x = startX + (index * gap);
-            this.createShopCard(x, 250, item);
+            this.createShopCard(x, this.scale.height * 0.45, item);
         });
     }
 

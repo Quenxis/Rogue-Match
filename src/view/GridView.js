@@ -18,10 +18,8 @@ export class GridView {
     constructor(scene, x, y) {
         this.scene = scene;
         this.gridCenterX = x;
-        this.gridCenterX = x;
         this.gridCenterY = y;
-        this.gridCenterY = y;
-        this.tileSize = 55; // Slay-the-Spire Size
+        this.tileSize = 55 * GAME_SETTINGS.GRID_SCALE; // Scaled Size
         this.sprites = {}; // Map: id -> Phaser.GameObjects.Sprite
         this.overlays = {}; // Map: id -> Phaser.GameObjects.Text/Sprite (Overlays like Locks)
 
@@ -173,8 +171,8 @@ export class GridView {
                         // displaySize 50 / textureSize = targetScale.
                         // Let's use displayWidth/height tween? Or just scale.
                         // Easier: setDisplaySize(0,0) -> tween to 50,50.
-                        displayWidth: 50,
-                        displayHeight: 50,
+                        displayWidth: 50 * GAME_SETTINGS.GRID_SCALE,
+                        displayHeight: 50 * GAME_SETTINGS.GRID_SCALE,
                         duration: 300,
                         ease: 'Back.out',
                         delay: Math.random() * 100 // Stagger
@@ -213,7 +211,7 @@ export class GridView {
         this.tokenContainer.add(sprite); // Add to container for masking
 
         // Better Scaling: Preserve aspect ratio
-        const maxDim = 50;
+        const maxDim = 50 * GAME_SETTINGS.GRID_SCALE;
         const scale = Math.min(maxDim / sprite.width, maxDim / sprite.height);
         sprite.setScale(scale);
         sprite.setInteractive();
@@ -235,7 +233,7 @@ export class GridView {
         if (item.isTrash || item.type === 'TRASH') {
             sprite.setTexture('trash');
             // Rescale for new texture
-            const scaleT = Math.min(50 / sprite.width, 50 / sprite.height);
+            const scaleT = Math.min((50 * GAME_SETTINGS.GRID_SCALE) / sprite.width, (50 * GAME_SETTINGS.GRID_SCALE) / sprite.height);
             sprite.setScale(scaleT);
             sprite.clearTint(); // Ensure no tint if recycled
         }
@@ -598,7 +596,7 @@ export class GridView {
 
                 const sprite = this.scene.add.sprite(x, targetY, item.type);
                 this.tokenContainer.add(sprite);
-                sprite.setDisplaySize(50, 50);
+                sprite.setDisplaySize(50 * GAME_SETTINGS.GRID_SCALE, 50 * GAME_SETTINGS.GRID_SCALE);
                 sprite.setInteractive();
                 sprite.setData('row', row);
                 sprite.setData('col', col);
@@ -623,7 +621,7 @@ export class GridView {
 
             const sprite = this.scene.add.sprite(x, startY, item.type);
             this.tokenContainer.add(sprite);
-            sprite.setDisplaySize(50, 50);
+            sprite.setDisplaySize(50 * GAME_SETTINGS.GRID_SCALE, 50 * GAME_SETTINGS.GRID_SCALE);
             sprite.setInteractive();
             sprite.setData('row', row);
             sprite.setData('col', col);
@@ -705,7 +703,7 @@ export class GridView {
 
                     const sprite = this.sprites[item.id];
                     sprite.setAlpha(1); // Ensure visible
-                    sprite.setDisplaySize(50, 50); // Reset size correctly (Do NOT use setScale(1) if texture is large)
+                    sprite.setDisplaySize(50 * GAME_SETTINGS.GRID_SCALE, 50 * GAME_SETTINGS.GRID_SCALE); // Reset size correctly
 
                     // Fix Data (Logic is truth)
                     sprite.setData('row', r);
@@ -780,7 +778,7 @@ export class GridView {
         let overlay;
         if (content === 'lock') {
             overlay = this.scene.add.image(x, y, 'lock').setDepth(2);
-            overlay.setDisplaySize(40, 40); // Slightly smaller than tile
+            overlay.setDisplaySize(40 * GAME_SETTINGS.GRID_SCALE, 40 * GAME_SETTINGS.GRID_SCALE); // Slightly smaller than tile
         } else {
             overlay = this.scene.add.text(x, y, content, { fontSize: '24px' }).setOrigin(0.5).setDepth(2);
         }

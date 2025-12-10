@@ -18,10 +18,11 @@ export class TreasureScene extends Phaser.Scene {
         this.topBar.setTitle('TREASURE');
 
         // Chest Visual
-        this.chest = this.add.text(centerX, 300, '📦', { fontSize: '120px' }).setOrigin(0.5);
+        const chestY = this.scale.height * 0.45;
+        this.chest = this.add.text(centerX, chestY, '📦', { fontSize: '120px' }).setOrigin(0.5);
         this.chest.setInteractive({ useHandCursor: true });
 
-        this.instruction = this.add.text(centerX, 450, 'Click to Open', {
+        this.instruction = this.add.text(centerX, chestY + 150, 'Click to Open', {
             font: '24px Arial', color: '#aaaaaa'
         }).setOrigin(0.5);
 
@@ -61,9 +62,10 @@ export class TreasureScene extends Phaser.Scene {
 
     showReward(name, desc, icon, color) {
         const centerX = this.scale.width / 2;
+        const chestY = this.scale.height * 0.45;
 
         // Shine Effect
-        const glow = this.add.circle(centerX, 300, 10, color).setAlpha(0.5);
+        const glow = this.add.circle(centerX, chestY, 10, color).setAlpha(0.5);
         this.tweens.add({
             targets: glow,
             scale: 20,
@@ -72,24 +74,26 @@ export class TreasureScene extends Phaser.Scene {
         });
 
         // Icon Pop
-        this.add.text(centerX, 300, icon, { fontSize: '100px' }).setOrigin(0.5)
+        // Remove old chest text or overlay?
+        this.add.text(centerX, chestY, icon, { fontSize: '100px' }).setOrigin(0.5)
             .setScale(0).setDepth(10);
 
         this.tweens.add({
-            targets: this.add.text(centerX, 300, icon, { fontSize: '100px' }).setOrigin(0.5).setDepth(10),
+            targets: this.add.text(centerX, chestY, icon, { fontSize: '100px' }).setOrigin(0.5).setDepth(10),
             scale: 1,
             duration: 500,
             ease: 'Back.out'
         });
 
         // Text
-        this.add.text(centerX, 400, name, {
+        const textY = chestY + 100;
+        this.add.text(centerX, textY, name, {
             font: 'bold 36px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5).setAlpha(0).setY(430);
+        }).setOrigin(0.5).setAlpha(0).setY(textY + 30);
 
-        this.add.text(centerX, 450, desc, {
+        this.add.text(centerX, textY + 50, desc, {
             font: '20px Arial', fill: '#cccccc'
-        }).setOrigin(0.5).setAlpha(0).setY(480);
+        }).setOrigin(0.5).setAlpha(0).setY(textY + 80);
 
         // Animate Text In
         this.tweens.add({

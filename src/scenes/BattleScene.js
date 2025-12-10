@@ -63,15 +63,15 @@ export class BattleScene extends Phaser.Scene {
 
         // 3. Initialize View
         // Initialize View (Visuals)
-        // Canvas is 1252 wide.
-        // Grid Center: 626 (Center X), 300 (Center Y, slightly higher for balance)
-        this.gridView = new GridView(this, 626, 300);
+        const centerX = this.scale.width * 0.5;
+        const centerY = this.scale.height * 0.45; // Slightly higher than center to leave room for UI
+        this.gridView = new GridView(this, centerX, centerY);
 
         // 3b. Initialize Combat Log View (Top Right Side)
-        // x=1030 (Right side of grid)
-        // topY=50 (Below Top Bar)
-        // Width 220
-        this.logView = new CombatLogView(this, 1030, 50, 220, 200);
+        const logWidth = 350; // Wider log
+        const logX = this.scale.width - logWidth - 20;
+        const logY = 50; // TopBar Height (glued to bottom)
+        this.logView = new CombatLogView(this, logX, logY, logWidth, 400);
 
         // 3c. Initialize Top Bar
         this.topBar = new TopBar(this);

@@ -36,71 +36,83 @@ export class CombatView {
         this.updateUIBind = this.updateUI.bind(this);
         this.showNotificationBind = (data) => this.showNotification(data.text, data.color);
 
+        // Store references for cleanup
+        this.onPlayerAttack = () => this.animateAttack(this.heroSprite, this.enemySprite, 50);
+        this.onEnemyAttack = (data) => {
+            const damage = data ? (data.damage || 0) : 0;
+            const tint = damage > 0 ? 0xff0000 : 0x888888;
+            this.animateAttack(this.enemySprite, this.heroSprite, -50, tint);
+        };
+        this.onPlayerDefend = () => this.animateDefend(this.heroSprite);
+        this.onPlayerHeal = () => this.animateHeal(this.heroSprite);
+        this.onEnemyDefend = () => this.animateDefend(this.enemySprite);
+        this.onEnemyHeal = () => this.animateHeal(this.enemySprite);
+
         EventBus.on(EVENTS.UI_UPDATE, this.updateUIBind);
         EventBus.on(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
-
-        // Animation Events
-        EventBus.on(EVENTS.PLAYER_ATTACK, () => {
-            this.animateAttack(this.heroSprite, this.enemySprite, 50);
-        });
-        EventBus.on(EVENTS.ENEMY_ATTACK, (data) => {
-            const damage = data ? (data.damage || 0) : 0;
-            const tint = damage > 0 ? 0xff0000 : 0x888888; // Red for Damage, Gray for Debuff
-            this.animateAttack(this.enemySprite, this.heroSprite, -50, tint);
-        });
-
-        // Defensive Events
-        EventBus.on(EVENTS.PLAYER_DEFEND, () => this.animateDefend(this.heroSprite));
-        EventBus.on(EVENTS.PLAYER_HEAL, () => this.animateHeal(this.heroSprite));
-        EventBus.on(EVENTS.ENEMY_DEFEND, () => this.animateDefend(this.enemySprite));
-        EventBus.on(EVENTS.ENEMY_HEAL, () => this.animateHeal(this.enemySprite));
+        EventBus.on(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
+        EventBus.on(EVENTS.ENEMY_ATTACK, this.onEnemyAttack);
+        EventBus.on(EVENTS.PLAYER_DEFEND, this.onPlayerDefend);
+        EventBus.on(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
+        EventBus.on(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
+        EventBus.on(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
     }
 
     destroy() {
+        // 1. Unbind Events
         EventBus.off(EVENTS.UI_UPDATE, this.updateUIBind);
         EventBus.off(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
-        EventBus.off(EVENTS.PLAYER_ATTACK);
-        EventBus.off(EVENTS.ENEMY_ATTACK);
-        EventBus.off(EVENTS.PLAYER_DEFEND);
-        EventBus.off(EVENTS.PLAYER_HEAL);
-        EventBus.off(EVENTS.ENEMY_DEFEND);
-        EventBus.off(EVENTS.ENEMY_HEAL);
+        EventBus.off(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
+        EventBus.off(EVENTS.ENEMY_ATTACK, this.onEnemyAttack);
+        EventBus.off(EVENTS.PLAYER_DEFEND, this.onPlayerDefend);
+        EventBus.off(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
+        EventBus.off(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
+        EventBus.off(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
 
+        // 2. Destroy UI Elements
         if (this.centerText) this.centerText.destroy();
         if (this.endTurnBtn) this.endTurnBtn.destroy();
         if (this.heroSprite) this.heroSprite.destroy();
         if (this.enemySprite) this.enemySprite.destroy();
-        if (this.playerHPBar && this.playerHPBar.container) this.playerHPBar.container.destroy();
-        if (this.enemyHPBar && this.enemyHPBar.container) this.enemyHPBar.container.destroy();
         if (this.actionBar) this.actionBar.destroy();
         if (this.tooltipContainer) this.tooltipContainer.destroy();
         if (this.intentContainer) this.intentContainer.destroy();
         if (this.movesText) this.movesText.destroy();
 
-        Object.values(this.skillButtons).forEach(btn => {
-            if (btn.container) btn.container.destroy();
-        });
+        // HP Bars (Complex objects)
+        if (this.playerHPBar) this.playerHPBar.container.destroy();
+        if (this.enemyHPBar) this.enemyHPBar.container.destroy();
+
+        this.skillButtons = {};
     }
 
     createUI() {
-        // Layout Constants
-        this.groundY = 440;
-        this.leftX = 200;
-        this.rightX = 1050;
+        // Layout Constants (Dynamic 1080p)
+        const w = this.scene.scale.width;
+        const h = this.scene.scale.height;
+        const centerX = w * 0.5;
+        const centerY = h * 0.5;
+
+        // Ground/Entity Level (Approx 70% down)
+        this.groundY = h * 0.72;
+
+        // Entity Positions
+        this.leftX = w * 0.19;  // Player
+        this.rightX = w * 0.8; // Enemy
 
         // 1. Entities & HUD (HP, Shield, Status)
         this.createEntityDisplay(true);  // Player
         this.createEntityDisplay(false); // Enemy
 
-        // 2. Action Bar (Mana + Skills)
-        this.createActionBar();
+        // 2. Action Bar (Mana + Skills) - Bottom Center
+        this.createActionBar(centerX, h * 0.85);
 
-        // 3. Turn Controls (Moves + End Turn)
-        this.createTurnControls();
+        // 3. Turn Controls (Moves + End Turn) - Bottom Right
+        this.createTurnControls(w * 0.9, h * 0.85);
 
         // Center Notification
-        this.centerText = this.scene.add.text(626, 300, '', {
-            font: 'bold 40px Arial',
+        this.centerText = this.scene.add.text(centerX, centerY, '', {
+            font: 'bold 60px Arial', // Larger font for 1080p
             fill: '#ffd700',
             stroke: '#000000',
             strokeThickness: 6,
@@ -134,16 +146,22 @@ export class CombatView {
     showTooltip(x, y, text) {
         if (!this.tooltipContainer) return;
 
+        this.tooltipText.setStyle({
+            font: '22px Arial', // Slightly larger font (was 24px)
+            fill: '#ffffff',
+            wordWrap: { width: 450 } // Slightly wider wrap
+        });
         this.tooltipText.setText(text);
 
         // Resize background to fit text
-        const padding = 10;
-        const w = Math.max(100, this.tooltipText.width + padding * 2);
-        const h = this.tooltipText.height + padding;
+        const padding = 9; // Slightly increased padding (was 20/Custom)
+        const w = Math.max(180, this.tooltipText.width + padding * 2);
+        const h = this.tooltipText.height + padding * 2;
         this.tooltipBg.setSize(w, h);
 
+
         // Position (offset up-left from cursor)
-        this.tooltipContainer.setPosition(x, y - 25);
+        this.tooltipContainer.setPosition(x, y - 50); // Slightly more offset
         this.tooltipContainer.setVisible(true);
     }
 
@@ -157,13 +175,15 @@ export class CombatView {
         const x = isPlayer ? this.leftX : this.rightX;
         const config = isPlayer ? (HEROES['warrior'] || {}) : (ENEMIES['slime'] || {}); // Placeholder config
 
-        // Sprite
+        // 1. Sprite
         let sprite;
+        const maxDim = 410; // Increased sprite size (was 300/350)
+
         if (isPlayer) {
             if (this.scene.textures.exists(ASSETS.HERO)) {
                 sprite = this.scene.add.image(x, this.groundY, ASSETS.HERO);
                 sprite.setOrigin(0.5, 1);
-                this.fitSprite(sprite, 300, 280, config.scale || 1);
+                this.fitSprite(sprite, maxDim, maxDim, config.scale || 1);
                 sprite.y += (config.yOffset || 0);
                 sprite.x += (config.xOffset || 0);
             } else {
@@ -173,16 +193,19 @@ export class CombatView {
         } else {
             sprite = this.scene.add.sprite(x, this.groundY, ASSETS.ENEMY_PLACEHOLDER);
             sprite.setOrigin(0.5, 1);
-            this.fitSprite(sprite, 350, 280);
+            this.fitSprite(sprite, maxDim, maxDim);
             this.enemySprite = sprite;
 
             // --- INTENT DISPLAY (Above Enemy Head) ---
-            const intentY = this.groundY - 260; // Closer to sprite
+            // Calculate top of sprite approx
+            const spriteTop = this.groundY - (sprite.displayHeight || 200);
+            const intentY = spriteTop - 10; // Moved UP above the head (was +90 overlapping)
+
             this.intentContainer = this.scene.add.container(x, intentY);
             this.intentContainer.setDepth(150);
 
-            // Icon (no background)
-            this.intentIcon = this.scene.add.image(0, 0, ASSETS.ICON_SWORD).setDisplaySize(32, 32).setOrigin(0.5);
+            // Icon (Larger)
+            this.intentIcon = this.scene.add.image(0, 0, ASSETS.ICON_SWORD).setDisplaySize(48, 48).setOrigin(0.5);
             this.intentIcon.setInteractive({ useHandCursor: true });
 
             // Tooltip on hover
@@ -199,137 +222,75 @@ export class CombatView {
             });
 
             // Value Text (next to icon)
-            this.intentText = this.scene.add.text(12, 0, '', {
-                font: 'bold 16px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
+            this.intentText = this.scene.add.text(28, 0, '', {
+                font: 'bold 24px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
             }).setOrigin(0, 0.5).setResolution(2);
 
             this.intentContainer.add([this.intentIcon, this.intentText]);
         }
         sprite.setDepth(100);
 
-        // HP Bar & Overlay
-        const barY = 455;
-        const barObj = this.createHealthBar(x, barY, 150, 20, 0xff4444, isPlayer);
+        // 2. HP Bar & Overlay (Moved BELOW sprite)
+        // groundY is where feet are. Move down by ~20px padding.
+        const barY = this.groundY + 30;
+        const barObj = this.createHealthBar(x, barY, 250, 30, 0xff4444, isPlayer); // Even larger bars
 
         if (isPlayer) this.playerHPBar = barObj;
         else this.enemyHPBar = barObj;
     }
 
-    createActionBar() {
-        // === MODERN ACTION BAR ===
-        const centerX = 550;
-        const y = 560;
+    createActionBar(x, y) {
+        // Position: Align Left with Grid
+        // Grid is approx 600px wide centered at screen width/2 (960). 
+        // Left edge ~= 960 - 300 = 660.
+        // We want the Mana Crystal (which is at -40 relative) to start roughly there.
+        // So Container X = 660 + 50 = 710.
 
-        this.actionBar = this.scene.add.container(centerX, y);
+        const gridLeftX = this.scene.scale.width / 2 - 320; // Approx left edge of grid frame
+        const bottomY = this.scene.scale.height - 140; // Lowered (was -150)
+
+        this.actionBar = this.scene.add.container(gridLeftX, bottomY);
         this.actionBar.setDepth(100);
 
-        // --- MANA DISPLAY (no background box) ---
-        const manaContainer = this.scene.add.container(-100, 0);
-        this.manaIcon = this.scene.add.image(0, -5, ASSETS.ICON_MANA)
-            .setDisplaySize(36, 36).setOrigin(0.5);
-        this.manaText = this.scene.add.text(0, 20, '0', {
-            font: 'bold 18px Arial', fill: '#44ffff', stroke: '#000000', strokeThickness: 3
-        }).setOrigin(0.5);
-        manaContainer.add([this.manaIcon, this.manaText]);
-        this.actionBar.add(manaContainer);
-
-        // --- SEPARATOR ---
-        const separator = this.scene.add.rectangle(-50, 0, 2, 45, 0x555555);
-        this.actionBar.add(separator);
-
-        // --- SPELL ICONS ---
-        this.createSpellIcon(SKILLS.FIREBALL, 15, 0);
-        this.createSpellIcon(SKILLS.HEAL, 95, 0);
-    }
-
-    createSpellIcon(skillId, x, y) {
-        const data = SKILL_DATA[skillId];
-        if (!data) return;
-
-        const size = 64;
-        const container = this.scene.add.container(x, y);
-
-        // Removed Glow (for Focus buff) as per user request
-        // const glow = this.scene.add.rectangle(0, 0, size + 8, size + 8, 0xaa66ff, 0)
-        //     .setStrokeStyle(3, 0xaa66ff, 0);
-
-        // Background (Transparent Hit Area)
-        const bg = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0.01);
-        bg.setInteractive({ useHandCursor: true });
-
-        // Icon (Image or Emoji)
-        let icon;
-        if (this.scene.textures.exists(data.icon)) {
-            // Updated to 60x60 to act as base large size
-            icon = this.scene.add.image(0, 0, data.icon).setDisplaySize(60, 60);
+        // Mana
+        // Mana (Text centered ON the crystal)
+        if (this.scene.textures.exists(ASSETS.ICON_MANA)) {
+            this.manaIcon = this.scene.add.image(-40, 0, ASSETS.ICON_MANA).setDisplaySize(80, 80).setOrigin(0.5);
         } else {
-            icon = this.scene.add.text(0, 0, data.icon, { font: '24px Arial' }).setOrigin(0.5);
+            this.manaIcon = this.scene.add.text(-40, 0, '💎', { fontSize: '64px' }).setOrigin(0.5);
         }
 
-        // Mana badge (top-right) -> Replaced with generic Mana Icon
-        const badgeX = size / 2 - 10;
-        const badgeY = -size / 2 + 10;
-
-        // Use ASSETS.MANA (Gem visual) or ASSETS.ICON_MANA (UI Icon)? 
-        // User asked for "image instead of blue circle". 
-        // ASSETS.ICON_MANA is usually correct for UI.
-        const badge = this.scene.add.image(badgeX, badgeY, ASSETS.ICON_MANA)
-            .setDisplaySize(24, 24);
-
-        const badgeText = this.scene.add.text(badgeX, badgeY, `${data.cost}`, {
-            font: 'bold 12px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
+        this.manaText = this.scene.add.text(-40, 0, '0', {
+            font: 'bold 32px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
         }).setOrigin(0.5);
+        this.actionBar.add([this.manaIcon, this.manaText]);
 
-        // Disabled overlay
-        const disabledOverlay = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0);
-
-        // Store badge and text for updates
-        container.add([bg, icon, badge, badgeText, disabledOverlay]);
-        this.actionBar.add(container);
-
-        // Interaction
-        // Interaction
-        bg.on('pointerdown', () => {
-            // Reset visual state immediately on click
-            this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
-            this.hideTooltip();
-
-            this.combatManager.tryUseSkill(skillId);
-        });
-
-        bg.on('pointerover', () => {
-            if (container.getData('enabled')) {
-                this.scene.tweens.add({ targets: container, scale: 1.25, duration: 100 });
-                this.showTooltip(this.actionBar.x + x, this.actionBar.y - 50, `${data.name} (${data.cost} Mana)\n${data.desc}`);
-            }
-        });
-
-        bg.on('pointerout', () => {
-            this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
-            this.hideTooltip();
-        });
-
-        container.setData('skillId', skillId);
-        container.setData('originalColor', data.color);
-        // Added badge and badgeText to stored object for updates
-        this.skillButtons[skillId] = { container, bg, disabledOverlay, icon, badge, badgeText };
+        // --- SPELL ICONS ---
+        // Increased spacing and size
+        this.createSpellIcon(SKILLS.FIREBALL, 80, 0); // Shifted right
+        this.createSpellIcon(SKILLS.HEAL, 250, 0); // Spaced out more for 130px size
     }
 
-    createTurnControls() {
-        const x = this.rightX;
-        const y = 550;
+
+
+
+
+
+
+    createTurnControls(x, y) {
+
 
         // Moves Counter
-        this.movesText = this.scene.add.text(x - 100, y, 'Moves: 3/3', {
-            font: '18px Arial', fill: '#ffffff'
+        this.movesText = this.scene.add.text(x - 140, y, 'Moves: 3/3', {
+            font: '24px Arial', fill: '#ffffff' // Larger Font
         }).setOrigin(1, 0.5).setDepth(100).setResolution(2);
 
         // End Turn Button
         this.endTurnBtn = this.scene.add.text(x, y, 'END TURN', {
-            font: 'bold 18px Arial',
+            font: 'bold 24px Arial', // Larger Font
             fill: '#ffffff',
             backgroundColor: '#cc0000',
-            padding: { x: 20, y: 12 }
+            padding: { x: 30, y: 16 } // Larger Padding
         })
             .setOrigin(0.5)
             .setResolution(2)
@@ -359,12 +320,12 @@ export class CombatView {
         shieldRect.setVisible(false);
 
         // Position shield icon: RIGHT for player, LEFT for enemy
-        const shieldX = isPlayer ? (width / 2 + 20) : (-width / 2 - 20);
-        const shieldIcon = this.scene.add.image(shieldX, 0, ASSETS.ICON_SHIELD).setDisplaySize(38, 38).setOrigin(0.5);
+        const shieldX = isPlayer ? (width / 2 + 25) : (-width / 2 - 25);
+        const shieldIcon = this.scene.add.image(shieldX, 0, ASSETS.ICON_SHIELD).setDisplaySize(48, 48).setOrigin(0.5);
         shieldIcon.setVisible(false);
 
         const shieldText = this.scene.add.text(shieldX, 0, '0', {
-            font: 'bold 12px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
+            font: 'bold 20px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
         }).setOrigin(0.5).setResolution(2).setVisible(false);
 
         // --- STATUS LINE ---
@@ -372,9 +333,11 @@ export class CombatView {
         const statusContainer = this.scene.add.container(0, height + 10);
 
         // Text
+        // Text
         const text = this.scene.add.text(0, 0, '', {
-            font: 'bold 13px Arial',
-            fill: '#ffffff'
+            font: 'bold 20px Arial', // Larger Font for HP
+            fill: '#ffffff',
+            stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5).setResolution(2);
 
         container.add([bg, fill, text, shieldRect, shieldIcon, shieldText, statusContainer]);
@@ -427,13 +390,13 @@ export class CombatView {
 
             const items = this.getStatusItemsData(statusManager);
 
-            let xPos = -75; // Left align relative to center (width 150 -> -75)
-            const yPos = 0;
-            const spacing = 35;
+            let xPos = -130; // Left align relative to center (width increased)
+            const yPos = 5;
+            const spacing = 50; // Increased Status Spacing
 
             items.forEach(item => {
                 // Icon (Emoji or Sprite)
-                const icon = this.scene.add.text(xPos, yPos, item.icon, { font: '20px Verdana' }).setOrigin(0, 0.5);
+                const icon = this.scene.add.text(xPos, yPos, item.icon, { font: '28px Verdana' }).setOrigin(0, 0.5);
                 icon.setInteractive({ useHandCursor: true });
 
                 // Tooltip on hover
@@ -449,7 +412,7 @@ export class CombatView {
 
                 // Counter
                 const counter = this.scene.add.text(xPos + 18, yPos + 8, `${item.count}`, {
-                    font: 'bold 12px Verdana', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
+                    font: 'bold 16px Verdana', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
                 }).setOrigin(0.5);
 
                 bar.statusContainer.add([icon, counter]);
@@ -856,6 +819,72 @@ export class CombatView {
         finalScale *= customScale;
 
         sprite.setScale(finalScale);
+    }
+
+    createSpellIcon(skillId, x, y) {
+        const data = SKILL_DATA[skillId];
+        if (!data) return;
+
+        const size = 130; // Increased size (Requested "trochu zvětšit")
+        const container = this.scene.add.container(x, y);
+
+        // Background (Transparent - NO BORDER)
+        const bg = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0.01);
+        bg.setInteractive({ useHandCursor: true });
+
+        // Icon
+        let icon;
+        if (this.scene.textures.exists(data.icon)) {
+            icon = this.scene.add.image(0, 0, data.icon).setDisplaySize(120, 120); // Larger icon
+        } else {
+            icon = this.scene.add.text(0, 0, data.icon || '?', { fontSize: '72px' }).setOrigin(0.5);
+        }
+
+        const disabledOverlay = this.scene.add.rectangle(0, 0, size, size, 0x000000, 0.6);
+        disabledOverlay.setAlpha(0);
+
+        // --- MANA COST (Top-Right Crystal) ---
+        const badgeX = size / 2 - 15;
+        const badgeY = -size / 2 + 15;
+
+        // Crystal Icon
+        const badge = this.scene.add.image(badgeX, badgeY, ASSETS.ICON_MANA)
+            .setDisplaySize(40, 40).setOrigin(0.5); // Larger badge
+
+        // Cost Number
+        const badgeText = this.scene.add.text(badgeX, badgeY, `${data.cost}`, {
+            font: 'bold 22px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
+        }).setOrigin(0.5);
+
+        container.add([bg, icon, disabledOverlay, badge, badgeText]);
+
+        if (this.actionBar) {
+            this.actionBar.add(container);
+        }
+
+        // Tooltip
+        bg.on('pointerover', () => {
+            this.scene.tweens.add({ targets: container, scale: 1.1, duration: 100 });
+            const worldMatrix = container.getWorldTransformMatrix();
+            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, `${data.name} (${data.cost} Mana)\n${data.desc}`);
+        });
+
+        // FIX: Hover Out Animation
+        bg.on('pointerout', () => {
+            this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
+            this.hideTooltip();
+        });
+
+        // Click
+        bg.on('pointerdown', () => {
+            this.scene.tweens.add({ targets: container, scale: 0.9, duration: 50, yoyo: true });
+            this.combatManager.tryUseSkill(skillId);
+            this.hideTooltip();
+        });
+
+        container.setData('skillId', skillId);
+        container.setData('originalColor', data.color);
+        this.skillButtons[skillId] = { container, bg, disabledOverlay, icon, badge, badgeText };
     }
 
     getStatusItemsData(statusManager) {
