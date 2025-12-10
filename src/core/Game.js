@@ -14,7 +14,7 @@ import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.3.25';
+export const APP_VERSION = '0.3.26';
 
 const config = {
     type: Phaser.AUTO,
@@ -40,5 +40,6 @@ export function startGame() {
     logManager.init('log-content');
     logManager.log('<strong>Game Started</strong>', 'turn');
     initDebugTools();
-    game = new Phaser.Game(config);
+    const game = new Phaser.Game(config); // Keep local const
+    window.game = game; // Expose global
 }

@@ -12,7 +12,8 @@ const CONFIG = {
     [STATUS_TYPES.THORNS]: { max: 99, category: 'BUFF' },
     [STATUS_TYPES.FOCUS]: { max: 2, category: 'BUFF' },
     [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' },
-    [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' }
+    [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' },
+    [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' }
 };
 
 export class StatusEffectManager {
@@ -80,7 +81,7 @@ export class StatusEffectManager {
         // BLEED: Dot Damage
         const bleed = this.getStack(STATUS_TYPES.BLEED);
         if (bleed > 0) {
-            this.entity.takeDamage(bleed); // Recursive danger? No, takeDamage calls onHit but that's fine.
+            this.entity.takeDamage(bleed);
             logManager.log(`${this.entity.name} took ${bleed} bleed damage.`, 'damage');
         }
 
@@ -88,9 +89,10 @@ export class StatusEffectManager {
         const regen = this.getStack(STATUS_TYPES.REGEN);
         if (regen > 0) {
             this.entity.heal(regen);
-            // Log handled by heal() usually
         }
+    }
 
+    onTurnEnd() {
         // DECAY Logic
         // Bleed, Regen, Thorns, Vulnerable decay by 1.
         [STATUS_TYPES.BLEED, STATUS_TYPES.REGEN, STATUS_TYPES.THORNS, STATUS_TYPES.VULNERABLE].forEach(type => {

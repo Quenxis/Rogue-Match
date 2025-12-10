@@ -2,7 +2,7 @@ import { EventBus } from '../core/EventBus.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { ITEM_TYPES } from '../logic/GridDetails.js';
-import { EVENTS, ENTITIES, ASSETS, SKILLS, SKILL_DATA, GAME_SETTINGS, MOVESET_TYPES, STATUS_TYPES } from '../core/Constants.js';
+import { EVENTS, ENTITIES, ASSETS, SKILLS, SKILL_DATA, GAME_SETTINGS, MOVESET_TYPES, STATUS_TYPES, POTION_DATA } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
@@ -57,6 +57,9 @@ export class CombatManager {
         this.onMatchesFound = this.handleMatches.bind(this);
         this.onSwap = this.handleSwap.bind(this);
         this.onSwapRevert = this.handleSwapRevert.bind(this);
+        this.onPotionUse = this.handlePotionUse.bind(this);
+        this.onUIAnimComplete = this.emitState.bind(this);
+        this.onEntityDied = this.handleEntityDied.bind(this);
 
         this.bindEvents();
     }
@@ -70,11 +73,8 @@ export class CombatManager {
         EventBus.on(EVENTS.MATCHES_FOUND, this.onMatchesFound);
         EventBus.on(EVENTS.ITEM_SWAPPED, this.onSwap);
         EventBus.on(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
-        EventBus.on(EVENTS.POTION_USE_REQUESTED, (index) => this.handlePotionUse(index));
-        EventBus.on(EVENTS.UI_ANIMATION_COMPLETE, () => this.emitState());
-
-        // Handle deaths from ANY source (status effects, thorns, etc.)
-        this.onEntityDied = this.handleEntityDied.bind(this);
+        EventBus.on(EVENTS.POTION_USE_REQUESTED, this.onPotionUse);
+        EventBus.on(EVENTS.UI_ANIMATION_COMPLETE, this.onUIAnimComplete);
         EventBus.on(EVENTS.ENTITY_DIED, this.onEntityDied);
 
         window.combat = this;
@@ -84,7 +84,8 @@ export class CombatManager {
         EventBus.off(EVENTS.MATCHES_FOUND, this.onMatchesFound);
         EventBus.off(EVENTS.ITEM_SWAPPED, this.onSwap);
         EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
-        EventBus.off(EVENTS.POTION_USE_REQUESTED);
+        EventBus.off(EVENTS.POTION_USE_REQUESTED, this.onPotionUse);
+        EventBus.off(EVENTS.UI_ANIMATION_COMPLETE, this.onUIAnimComplete);
         EventBus.off(EVENTS.ENTITY_DIED, this.onEntityDied);
 
         if (this.turnTimer) {
@@ -114,13 +115,17 @@ export class CombatManager {
 
         let used = false;
         if (potion.id === 'potion_heal') {
-            this.player.heal(20);
-            used = true;
+            if (this.player.currentHP < this.player.maxHP) {
+                this.player.heal(POTION_DATA.HEAL.value);
+                used = true;
+            } else {
+                logManager.log("Health is already full!", 'warning');
+            }
         } else if (potion.id === 'potion_mana') {
-            this.player.addMana(10);
+            this.player.addMana(POTION_DATA.MANA.value);
             used = true;
         } else if (potion.id === 'potion_strength') {
-            this.player.addStrength(2);
+            this.player.statusManager.applyStack(STATUS_TYPES.STRENGTH, POTION_DATA.STRENGTH.value);
             used = true;
         }
 
@@ -299,7 +304,10 @@ export class CombatManager {
         switch (type) {
             case ITEM_TYPES.SWORD:
                 // Base Dmg
-                let dmg = size * (2 + p.strength);
+                let dmg = size * (2 + p.strength + sm.getStack(STATUS_TYPES.STRENGTH));
+
+                // Consume Strength (One-Use)
+                sm.consumeStacks(STATUS_TYPES.STRENGTH);
 
                 // Critical Check
                 const critStacks = sm.getStack(STATUS_TYPES.CRITICAL);
@@ -399,7 +407,10 @@ export class CombatManager {
 
         this.turn = ENTITIES.ENEMY;
 
-        // Status Effects (Turn Start)
+        // Player Turn End - Decay Statuses
+        this.player.statusManager.onTurnEnd();
+
+        // Status Effects (Turn Start for Enemy: Bleed/Regen)
         this.enemy.statusManager.onTurnStart();
 
         this.emitState();
@@ -440,6 +451,9 @@ export class CombatManager {
                 this.checkWinCondition();
                 return;
             }
+
+            // Decay Enemy Statuses
+            this.enemy.statusManager.onTurnEnd();
             this.startPlayerTurn();
         });
     }
@@ -462,17 +476,33 @@ export class CombatManager {
                 const totalDmg = intent.value + this.enemy.getStrength();
                 this.player.takeDamage(totalDmg, this.enemy);
                 logManager.log(`Enemy attacks for ${totalDmg} (Base ${intent.value} + Str ${this.enemy.getStrength()})`, 'combat');
+
+                // Consume Strength (One-Use)
+                if (this.enemy.statusManager) {
+                    this.enemy.statusManager.consumeStacks(STATUS_TYPES.STRENGTH);
+                }
                 break;
             case MOVESET_TYPES.DEFEND:
                 this.enemy.addBlock(intent.value);
                 break;
             case MOVESET_TYPES.BUFF:
                 if (intent.effect === 'STRENGTH') {
-                    // Apply temporary buff (Duration: 3 turns to cover 2 active attacks)
-                    const duration = 3;
-                    this.enemy.addBuff('STRENGTH', intent.value, duration);
-                    // this.enemy.strength = (this.enemy.strength || 0) + intent.value;
-                    logManager.log(`Enemy gains ${intent.value} Strength for ${duration} turns!`, 'warning');
+                    // Apply temporary buff
+                    // Note: Status System doesn't handle "Duration" in turns easily yet for stacking buffs
+                    // unless we just rely on the -1 decay per turn.
+                    // Roar gives +10 Strength. With -1 decay, it lasts 10 turns effectively but gets weaker?
+                    // Original logic: "Duration 3 turns", value was constant.
+                    // Current Status Logic: Decay 1 per turn.
+                    // If we want it to stay +10 for 3 turns, we need a "BuffManager" or different status logic.
+                    // User asked to "fix it using status system".
+                    // For now, I will just apply the stacks.
+                    // If the user wants "Constant +10 for 3 turns", that requires a new Status Type (e.g. TIMED_BUFF).
+                    // Given the constraint, "applyStack" is the direct translation, 
+                    // BUT 10 Strength decaying by 1 is: 10, 9, 8... 
+                    // This is slightly different behavior but fits the new system.
+
+                    this.enemy.statusManager.applyStack(STATUS_TYPES.STRENGTH, intent.value);
+                    logManager.log(`Enemy gains ${intent.value} Strength!`, 'warning');
 
                     // SCRIPTED AI: Force 2 Attacks after Buff
                     // Find the primary ATTACK move from moveset
@@ -520,8 +550,8 @@ export class CombatManager {
 
         this.currentMoves = this.maxMoves;
         this.player.resetBlock();
-        // Tick Buffs (Duration Based)
-        this.enemy.tickBuffs();
+        // Tick Buffs (Duration Based) - REMOVED (Handled by StatusManager.onTurnStart)
+        // this.enemy.tickBuffs();
 
         // Generate Next Intent
         // Ideally this logic lives in Enemy class, but for "data-driven" centralization:

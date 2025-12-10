@@ -56,12 +56,13 @@ export const ENEMIES = {
         name: 'Young Dragon',
         texture: 'tex_dragon',
         hp: 150,
+        scale: 1.4,
         maxHP: 150,
         goldReward: 100,
         isBoss: true,
         moveset: [
             { type: 'ATTACK', value: 15, weight: 0.4, text: 'Attack (15)' },
-            { type: 'BUFF', effect: 'STRENGTH', value: 10, weight: 0.3, text: 'Roar (+10 Str)' },
+            { type: 'BUFF', effect: 'STRENGTH', value: 3, weight: 0.3, text: 'Roar (+3 Str)' },
             { type: 'DEBUFF', effect: 'TRASH', value: 4, weight: 0.3, text: 'Tail Sweep (Trash 4)' }
         ]
     },

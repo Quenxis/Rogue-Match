@@ -488,49 +488,74 @@ export class CombatView {
                 let tintColor = 0xff4444; // Red for attack
                 let tooltipText = 'Attack';
 
+                // Ensure Intent Emoji exists
+                if (!this.intentEmoji) {
+                    this.intentEmoji = this.scene.add.text(0, -5, '', { fontSize: '48px' }).setOrigin(0.5);
+                    this.intentContainer.add(this.intentEmoji);
+                    this.intentEmoji.setInteractive({ useHandCursor: true });
+                    this.intentEmoji.on('pointerover', () => {
+                        if (this.currentIntentTooltip) {
+                            this.showTooltip(this.intentContainer.x, this.intentContainer.y - 60, this.currentIntentTooltip);
+                        }
+                    });
+                    this.intentEmoji.on('pointerout', () => this.hideTooltip());
+                }
+
                 if (intent.type === 'DEFEND' || intent.type === 'BLOCK') {
                     iconKey = ASSETS.ICON_SHIELD;
                     tintColor = 0x44aaff; // Blue
                     tooltipText = 'Defend';
+                    this._showIntentIcon(iconKey, tintColor);
                 } else if (intent.type === 'BUFF') {
-                    iconKey = ASSETS.ICON_SWORD;
-                    tintColor = 0xffaa44; // Orange
-                    tooltipText = intent.effect || 'Buff';
+                    if (intent.effect === 'STRENGTH') {
+                        this.intentIcon.setVisible(false);
+                        this.intentEmoji.setVisible(true).setText('💪');
+                        tooltipText = `Roar: Increases strength by ${intent.value}`;
+                    } else {
+                        iconKey = ASSETS.ICON_SWORD;
+                        tintColor = 0xffaa44; // Orange
+                        tooltipText = intent.effect || 'Buff';
+                        this._showIntentIcon(iconKey, tintColor);
+                    }
                 } else if (intent.type === 'DEBUFF') {
+                    this._showIntentIcon(iconKey, tintColor); // Reset defaults
                     // Specific icons for Lock and Trash - no tint, use icon as-is
                     if (intent.effect === 'LOCK') {
                         iconKey = ASSETS.ICON_LOCK;
                         tintColor = null; // No tint - use original icon colors
                         tooltipText = 'Lock: Locks random gems';
+                        this._showIntentIcon(iconKey, tintColor);
                     } else if (intent.effect === 'TRASH') {
                         iconKey = ASSETS.ICON_TRASH;
                         tintColor = null; // No tint - use original icon colors
                         tooltipText = 'Trash: Turns gems into junk';
+                        this._showIntentIcon(iconKey, tintColor);
                     } else {
                         iconKey = ASSETS.ICON_MANA;
                         tintColor = 0xaa44ff;
                         tooltipText = intent.effect || 'Debuff';
+                        this._showIntentIcon(iconKey, tintColor);
                     }
-                } else if (intent.type === 'ATTACK') {
-                    tooltipText = `Attack: ${intent.value} damage`;
-                }
-
-                this.intentIcon.setTexture(iconKey);
-                if (tintColor !== null) {
-                    this.intentIcon.setTint(tintColor);
                 } else {
-                    this.intentIcon.clearTint();
+                    // Attack
+                    this._showIntentIcon(ASSETS.ICON_SWORD, 0xff4444);
                 }
 
-                // Store tooltip text for hover
-                this.currentIntentTooltip = tooltipText;
+                // ... text update logic ...
 
-                // Show value if applicable
-                if (intent.value !== undefined && intent.value > 0) {
+                // Apply Text (with Strength calculation for Attack)
+                if (intent.type === 'ATTACK') {
+                    const str = enemy.getStrength ? enemy.getStrength() : 0;
+                    const val = intent.value + str;
+                    tooltipText = `Attack: ${val} damage`;
+                    this.intentText.setText(`${val}`);
+                } else if (intent.value !== undefined && intent.value > 0) {
                     this.intentText.setText(`${intent.value}`);
                 } else {
                     this.intentText.setText('');
                 }
+
+                this.currentIntentTooltip = tooltipText;
             } else {
                 this.intentContainer.setVisible(false);
             }
@@ -909,6 +934,16 @@ export class CombatView {
         const vuln = statusManager.getStack(STATUS_TYPES.VULNERABLE);
         if (vuln > 0) items.push({ icon: '☠️', count: vuln, tooltip: 'Vulnerable: Takes 25% extra damage' });
 
+        const str = statusManager.getStack(STATUS_TYPES.STRENGTH);
+        if (str > 0) items.push({ icon: '💪', count: str, tooltip: 'Strength: Increases damage by stack amount' });
+
         return items;
+    }
+
+    _showIntentIcon(key, tint) {
+        if (this.intentEmoji) this.intentEmoji.setVisible(false);
+        this.intentIcon.setVisible(true).setTexture(key);
+        if (tint !== null) this.intentIcon.setTint(tint);
+        else this.intentIcon.clearTint();
     }
 }

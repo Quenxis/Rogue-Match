@@ -128,5 +128,12 @@ export const STATUS_TYPES = {
     THORNS: 'THORNS',
     FOCUS: 'FOCUS',
     CRITICAL: 'CRITICAL',
-    VULNERABLE: 'VULNERABLE' // New Debuff
+    VULNERABLE: 'VULNERABLE', // New Debuff
+    STRENGTH: 'STRENGTH'
+};
+
+export const POTION_DATA = {
+    HEAL: { value: 20 },
+    MANA: { value: 10 },
+    STRENGTH: { value: 2 }
 };
