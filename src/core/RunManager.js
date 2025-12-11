@@ -20,8 +20,8 @@ export class RunManager {
         this.player = new Proxy(initialState, {
             set: (target, prop, value) => {
                 if (prop === 'gold') {
-                    console.log(`[GOLD TRAP] Gold change: ${target[prop]} -> ${value}`);
-                    console.trace(); // Enabled for debugging
+                    // console.log(`[GOLD TRAP] Gold change: ${target[prop]} -> ${value}`);
+                    // console.trace(); // Enabled for debugging
                 }
                 target[prop] = value;
                 return true;
@@ -35,7 +35,7 @@ export class RunManager {
     }
 
     startNewRun() {
-        console.log('[RunManager] Starting New Run (Resetting State)!');
+        // console.log('[RunManager] Starting New Run (Resetting State)!');
         this.player.currentHP = this.player.maxHP;
         this.player.gold = 15;
         this.player.relics = [];
@@ -402,7 +402,7 @@ export class RunManager {
     }
 
     updatePlayerState(hp, gold) {
-        console.log(`[RunManager] Update State Request - HP: ${hp}, Gold: ${gold}`);
+        // console.log(`[RunManager] Update State Request - HP: ${hp}, Gold: ${gold}`);
         this.player.currentHP = hp;
         this.player.gold = gold;
     }

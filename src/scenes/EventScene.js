@@ -21,7 +21,7 @@ export class EventScene extends Phaser.Scene {
     }
 
     create() {
-        console.log(`[EventScene] Create. RunManager Gold: ${runManager.player.gold}`);
+        // console.log(`[EventScene] Create. RunManager Gold: ${runManager.player.gold}`);
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
 

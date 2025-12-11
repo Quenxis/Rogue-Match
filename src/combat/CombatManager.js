@@ -27,7 +27,7 @@ export class CombatManager {
 
         // Load Player State from Global RunManager
         const savedPlayer = runManager.player;
-        console.log(`[CombatManager] Init: Loading Player from RunManager. Global Gold: ${savedPlayer.gold}`);
+        // console.log(`[CombatManager] Init: Loading Player from RunManager. Global Gold: ${savedPlayer.gold}`);
         this.player = new Player(savedPlayer.maxHP);
         this.player.currentHP = savedPlayer.currentHP;
         this.player.gold = savedPlayer.gold;
@@ -626,18 +626,18 @@ export class CombatManager {
             EventBus.emit(EVENTS.VICTORY, { combat: this });
 
             const finalGold = this.player.gold + this.goldReward;
-            console.log(`[Victory] Local Gold: ${this.player.gold}, Reward: ${this.goldReward}, Final: ${finalGold}`);
+            // console.log(`[Victory] Local Gold: ${this.player.gold}, Reward: ${this.goldReward}, Final: ${finalGold}`);
 
             // SYNCHRONIZE LOCAL STATE
             // Critical Fix: Update local player gold so future saves/syncs use correct value
             this.player.gold = finalGold;
 
-            console.log(`[Victory] RunManager Before: ${runManager.player.gold}`);
+            // console.log(`[Victory] RunManager Before: ${runManager.player.gold}`);
 
             runManager.updatePlayerState(this.player.currentHP, finalGold);
             runManager.completeLevel();
 
-            console.log(`[Victory] RunManager After: ${runManager.player.gold}`);
+            // console.log(`[Victory] RunManager After: ${runManager.player.gold}`);
 
             this.scene.time.delayedCall(1500, () => {
                 this.scene.scene.start('RewardScene', {
