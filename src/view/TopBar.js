@@ -414,7 +414,7 @@ export class TopBar {
             ['POTION', 'Potion', 0x44ff44, '1 Heal / tile', '+Regen (3)', '+Regen (4), Cleanse, +5 HP'],
             ['MANA', 'Mana', 0x44ffff, '1 Mana / tile', '+Focus (1)', '+Focus (2)'],
             ['COIN', 'Coin', 0xffd700, '1 Gold / tile', '+Critical (1)', '+Critical (2)'],
-            ['BOW', 'Bow', 0xcccccc, '2 Piercing DMG', '+Vuln (1), Pierce (3)', '+Vuln (2), Pierce (4)']
+            ['BOW', 'Bow', 0xcccccc, '3 Piercing DMG', '+Vuln (1), Pierce (4)', '+Vuln (2), Pierce (5)']
         ];
 
         tiers.forEach(([icon, name, color, m3, m4, m5], idx) => {
