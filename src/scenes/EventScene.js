@@ -66,25 +66,44 @@ export class EventScene extends Phaser.Scene {
         this.event.options.forEach((opt, index) => {
             const btnY = startY + (index * 80);
 
-            // Check Requirements (future proof)
+            // Check Requirements
+            let isEnabled = true;
+            let reqText = '';
 
-            const btn = this.createButton(x, btnY, opt.text, () => {
+            if (opt.effects && opt.effects.gold < 0) {
+                const cost = Math.abs(opt.effects.gold);
+                if (runManager.player.gold < cost) {
+                    isEnabled = false;
+                    reqText = ` (Need ${cost} Gold)`;
+                }
+            }
+
+            const btnText = opt.text + (isEnabled ? '' : reqText);
+            const btn = this.createButton(x, btnY, btnText, isEnabled ? () => {
                 this.selectOption(opt);
-            });
+            } : null, isEnabled); // Pass isEnabled flag to createButton if needed, or handle null callback
+
             this.optionButtons.push(btn);
         });
     }
 
-    createButton(x, y, text, callback) {
+    createButton(x, y, text, callback, isEnabled = true) {
         const container = this.add.container(x, y);
 
-        const bg = this.add.rectangle(0, 0, 800, 60, 0x222222).setStrokeStyle(1, 0xaaaaaa)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => bg.setFillStyle(0x444444))
-            .on('pointerout', () => bg.setFillStyle(0x222222))
-            .on('pointerdown', callback);
+        const fillColor = isEnabled ? 0x222222 : 0x550000; // Red tint if disabled, or just gray
+        const alpha = isEnabled ? 1 : 0.5;
 
-        const txt = this.add.text(0, 0, text, { font: '20px Arial', fill: '#ffffff' }).setOrigin(0.5);
+        const bg = this.add.rectangle(0, 0, 800, 60, fillColor).setStrokeStyle(1, 0xaaaaaa)
+            .setAlpha(alpha);
+
+        if (isEnabled) {
+            bg.setInteractive({ useHandCursor: true })
+                .on('pointerover', () => bg.setFillStyle(0x444444))
+                .on('pointerout', () => bg.setFillStyle(0x222222))
+                .on('pointerdown', callback);
+        }
+
+        const txt = this.add.text(0, 0, text, { font: '20px Arial', fill: '#ffffff' }).setOrigin(0.5).setAlpha(alpha);
 
         container.add([bg, txt]);
         return container;
