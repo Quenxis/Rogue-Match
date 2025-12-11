@@ -21,7 +21,7 @@ export class RunManager {
             set: (target, prop, value) => {
                 if (prop === 'gold') {
                     console.log(`[GOLD TRAP] Gold change: ${target[prop]} -> ${value}`);
-                    // console.trace(); // Optional: Uncomment for full stack trace if needed
+                    console.trace(); // Enabled for debugging
                 }
                 target[prop] = value;
                 return true;
