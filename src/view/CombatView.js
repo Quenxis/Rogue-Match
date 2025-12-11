@@ -28,8 +28,37 @@ export class CombatView {
         // Visual State
         this.currentTurn = ENTITIES.PLAYER;
 
+        // Animation Queue Logic
+        this.animationQueue = [];
+        this.isAnimating = false;
+
         this.createUI();
         this.bindEvents();
+    }
+
+    /**
+     * Queues an animation function to be played sequentially.
+     * @param {Function} animationTask - Function that accepts a 'done' callback.
+     */
+    queueAnimation(animationTask) {
+        this.animationQueue.push(animationTask);
+        this.processQueue();
+    }
+
+    processQueue() {
+        if (this.isAnimating) return;
+        if (this.animationQueue.length === 0) return;
+
+        this.isAnimating = true;
+        const nextTask = this.animationQueue.shift();
+
+        // Execute task, passing a callback to signal completion
+        nextTask(() => {
+            this.isAnimating = false;
+            // Small delay between animations for clarity?
+            // this.scene.time.delayedCall(50, () => this.processQueue());
+            this.processQueue();
+        });
     }
 
     bindEvents() {
@@ -37,25 +66,47 @@ export class CombatView {
         this.showNotificationBind = (data) => this.showNotification(data.text, data.color);
 
         // Store references for cleanup
-        this.onPlayerAttack = () => this.animateAttack(this.heroSprite, this.enemySprite, 50);
+        // Store references for cleanup
+        this.onPlayerAttack = () => {
+            this.queueAnimation(done => this.animateAttack(this.heroSprite, this.enemySprite, 50, 0xff0000, done));
+        };
         this.onEnemyAttack = (data) => {
             const damage = data ? (data.damage || 0) : 0;
-            const tint = damage > 0 ? 0xff0000 : 0x888888;
-            this.animateAttack(this.enemySprite, this.heroSprite, -50, tint);
+            const tint = damage > 0 ? 0xff0000 : 0x888888; // Red if dmg, Gray if blocked
+            this.queueAnimation(done => this.animateAttack(this.enemySprite, this.heroSprite, -50, tint, done));
         };
-        this.onPlayerDefend = () => this.animateDefend(this.heroSprite);
-        this.onPlayerHeal = () => this.animateHeal(this.heroSprite);
-        this.onEnemyDefend = () => this.animateDefend(this.enemySprite);
-        this.onEnemyHeal = () => this.animateHeal(this.enemySprite);
+        this.onPlayerDefend = () => {
+            this.queueAnimation(done => this.animateDefend(this.heroSprite, done));
+        };
+        this.onPlayerHeal = () => {
+            this.queueAnimation(done => this.animateHeal(this.heroSprite, done));
+        };
+        this.onEnemyDefend = () => {
+            this.queueAnimation(done => this.animateDefend(this.enemySprite, done));
+        };
+        this.onEnemyHeal = () => {
+            this.queueAnimation(done => this.animateHeal(this.enemySprite, done));
+        };
 
         EventBus.on(EVENTS.UI_UPDATE, this.updateUIBind);
         EventBus.on(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
+        this.onEnemyLock = (data) => {
+            // data contains { value, targets }
+            this.queueAnimation(done => this.animateGridLock(done, data.targets));
+        };
+        this.onEnemyTrash = () => {
+            this.queueAnimation(done => this.animateGridShake(done));
+        };
+
+
         EventBus.on(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
         EventBus.on(EVENTS.ENEMY_ATTACK, this.onEnemyAttack);
         EventBus.on(EVENTS.PLAYER_DEFEND, this.onPlayerDefend);
         EventBus.on(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
         EventBus.on(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
         EventBus.on(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
+        EventBus.on(EVENTS.ENEMY_LOCK, this.onEnemyLock);
+        EventBus.on(EVENTS.ENEMY_TRASH, this.onEnemyTrash);
     }
 
     destroy() {
@@ -68,6 +119,8 @@ export class CombatView {
         EventBus.off(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
         EventBus.off(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
         EventBus.off(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
+        EventBus.off(EVENTS.ENEMY_LOCK, this.onEnemyLock);
+        EventBus.off(EVENTS.ENEMY_TRASH, this.onEnemyTrash);
 
         // 2. Destroy UI Elements
         if (this.centerText) this.centerText.destroy();
@@ -97,8 +150,8 @@ export class CombatView {
         this.groundY = h * 0.72;
 
         // Entity Positions
-        this.leftX = w * 0.19;  // Player
-        this.rightX = w * 0.8; // Enemy
+        this.leftX = w * 0.18;  // Player
+        this.rightX = w * 0.82; // Enemy (Symmetrical to 0.19)
 
         // 1. Entities & HUD (HP, Shield, Status)
         this.createEntityDisplay(true);  // Player
@@ -742,24 +795,38 @@ export class CombatView {
         });
     }
 
-    animateAttack(attacker, target, offset, tint = 0xff0000) {
-        if (!attacker || !target || !this.scene) return;
+    animateAttack(attacker, target, offset, tint = 0xff0000, onComplete = null) {
+        if (!attacker || !this.scene) {
+            if (onComplete) onComplete();
+            return;
+        }
 
         const startX = attacker.x;
 
-        // Lunge Tween
+        // Windup
         this.scene.tweens.add({
             targets: attacker,
-            x: startX + offset,
-            duration: 150,
+            x: startX - (offset * 0.5),
+            duration: 100,
             yoyo: true,
             ease: 'Power1',
-            onYoyo: () => {
-                // Impact point - trigger Hit on target
-                this.animateHit(target, tint);
-            },
             onComplete: () => {
-                attacker.x = startX; // Reset safety
+                // Lunge
+                this.scene.tweens.add({
+                    targets: attacker,
+                    x: startX + offset,
+                    duration: 150,
+                    yoyo: true, // Go back to start
+                    ease: 'Power1',
+                    onYoyo: () => {
+                        // Impact point - trigger Hit on target
+                        this.animateHit(target, tint);
+                    },
+                    onComplete: () => {
+                        attacker.x = startX; // Reset safety
+                        if (onComplete) onComplete();
+                    }
+                });
             }
         });
     }
@@ -783,48 +850,344 @@ export class CombatView {
         });
     }
 
-    animateDefend(target) {
-        if (!target || !this.scene) return;
+    animateDefend(target, onComplete = null) {
+        if (!target || !this.scene) {
+            if (onComplete) onComplete();
+            return;
+        }
 
-        // Blue Bounce
-        const startScaleX = target.scaleX;
-        const startScaleY = target.scaleY;
+        // 1. CREATE SHIELD CIRCLE (FORCEFIELD)
+        const shieldCircle = this.scene.add.graphics();
+        shieldCircle.blendMode = Phaser.BlendModes.ADD;
+        shieldCircle.setDepth(target.depth + 1);
 
-        if (target.setTint) target.setTint(0x4444ff);
+        shieldCircle.lineStyle(7, 0x00ffff, 1);
+        shieldCircle.strokeCircle(0, 0, 70);
+
+        shieldCircle.x = target.x;
+        shieldCircle.y = target.getCenter().y;
+        shieldCircle.setScale(0.5);
+
+        // 2. EXPANSION ANIMATION (Shockwave)
+        this.scene.tweens.add({
+            targets: shieldCircle,
+            scaleX: 1.5,
+            scaleY: 1.5,
+            alpha: 0,
+            duration: 400,
+            ease: 'Quad.Out',
+            onComplete: () => {
+                shieldCircle.destroy();
+            }
+        });
+
+        // 3. CHARACTER "POWER UP" ANIMATION
+        if (target.setTint) target.setTint(0x88ccff);
+
         this.scene.tweens.add({
             targets: target,
-            scaleY: startScaleY * 0.9,
-            scaleX: startScaleX * 1.1,
-            duration: 100,
+            scaleX: target.scaleX * 1.15,
+            scaleY: target.scaleY * 1.15,
+            duration: 150,
             yoyo: true,
+            ease: 'Sine.InOut',
             onComplete: () => {
-                target.setScale(startScaleX, startScaleY); // Reset to ORIGINAL
-                target.clearTint();
+                if (target.clearTint) target.clearTint();
+                if (onComplete) onComplete(); // Signal DONE
             }
         });
     }
 
-    animateHeal(target) {
-        if (!target || !this.scene) return;
+    animateHeal(target, onComplete = null) {
+        if (!target || !this.scene) {
+            if (onComplete) onComplete();
+            return;
+        }
 
-        // Green Pulse
+        // 1. VISUAL EFFECT: RISING BUBBLES
+        const particles = this.scene.add.graphics();
+        particles.setDepth(target.depth + 1);
+        particles.blendMode = Phaser.BlendModes.ADD; // Make them glow!
+        particles.fillStyle(0x44ff44, 1);
+
+        // Use display dimensions for accurate positioning regardless of scaling
+        const w = target.displayWidth || target.width;
+        // const h = target.displayHeight || target.height; 
+
+        // Draw 5-8 random bubbles
+        for (let i = 0; i < 8; i++) {
+            // Spread horizontally around center
+            const offsetX = (Math.random() - 0.5) * w * 0.6;
+            // Spread vertically slightly (start/stagger)
+            const offsetY = (Math.random() * -30);
+
+            const radius = 2 + Math.random() * 5;
+
+            particles.fillCircle(offsetX, offsetY, radius);
+        }
+
+        // Set initial position at target's feet (assuming Origin is 0.5, 1)
+        // If Origin is Center, we would need target.y + h/2.
+        // But for CombatView entities usually OriginY=1 (Feet).
+        particles.x = target.x;
+        particles.y = target.y - 10; // Start slightly above effective "ground"
+
+        // Animate Floating Up
+        this.scene.tweens.add({
+            targets: particles,
+            y: particles.y - 100, // Float up higher
+            alpha: 0,
+            scaleX: 0.5, // Shrink
+            scaleY: 0.5,
+            duration: 1000,
+            ease: 'Sine.Out',
+            onComplete: () => {
+                particles.destroy();
+            }
+        });
+
+        // 2. CHARACTER PULSE
         const startScaleX = target.scaleX;
         const startScaleY = target.scaleY;
 
         if (target.setTint) target.setTint(0x44ff44);
+
         this.scene.tweens.add({
             targets: target,
-            scaleX: startScaleX * 1.2,
-            scaleY: startScaleY * 1.2,
-            duration: 200,
+            scaleX: startScaleX * 1.05,
+            scaleY: startScaleY * 1.05,
+            duration: 300,
             yoyo: true,
+            ease: 'Sine.InOut',
             onComplete: () => {
                 target.setScale(startScaleX, startScaleY);
-                target.clearTint();
+                if (target.clearTint) target.clearTint();
+                if (onComplete) onComplete();
             }
         });
     }
 
+    animateGridShake(onComplete = null) {
+        if (!this.scene) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        // 0. Enemy Lunge Animation (Visual Feedback that Enemy is doing it)
+        const enemy = this.enemySprite;
+        const startX = enemy.x;
+
+        // Move forward slightly
+        this.scene.tweens.add({
+            targets: enemy,
+            x: startX - 50, // Move left (towards grid center usually)
+            duration: 200,
+            yoyo: true,
+            ease: 'Power1',
+            onYoyo: () => {
+                // TRIGGER EFFECT AT IMPACT POINT
+
+                // 1. Grid Shake (Target the Grid Container directly)
+                // Assuming GridView is exposed on scene
+                if (window.grid && this.scene.gridView && this.scene.gridView.container) {
+                    const gridCont = this.scene.gridView.container;
+                    const originalX = gridCont.x;
+
+                    this.scene.tweens.add({
+                        targets: gridCont,
+                        x: '+=10',
+                        duration: 50,
+                        yoyo: true,
+                        repeat: 5,
+                        onComplete: () => {
+                            gridCont.x = originalX; // Reset safety
+                        }
+                    });
+                } else {
+                    // Fallback if container not found: Shake Camera slightly
+                    this.scene.cameras.main.shake(200, 0.005);
+                }
+
+                // 2. Dust/Smoke Effect
+                const cx = this.scene.scale.width / 2;
+                const cy = this.scene.scale.height / 2;
+
+                const dust = this.scene.add.graphics();
+                dust.setDepth(200);
+                dust.fillStyle(0x8855aa, 0.6);
+
+                for (let i = 0; i < 10; i++) {
+                    const r = 5 + Math.random() * 10;
+                    const ox = (Math.random() - 0.5) * 300;
+                    const oy = (Math.random() - 0.5) * 300;
+                    dust.fillCircle(ox, oy, r);
+                }
+                dust.x = cx;
+                dust.y = cy;
+                dust.setScale(0);
+
+                this.scene.tweens.add({
+                    targets: dust,
+                    scaleX: 1.5,
+                    scaleY: 1.5,
+                    alpha: 0,
+                    duration: 500,
+                    onComplete: () => {
+                        dust.destroy();
+                    }
+                });
+            },
+            onComplete: () => {
+                enemy.x = startX; // Reset Position
+                if (onComplete) onComplete();
+            }
+        });
+    }
+
+    animateGridLock(onComplete = null, targets = []) {
+        if (!this.scene) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        // 1. Hide Grid Overlays IMMEDIATELY (so they don't appear before projectile lands)
+        // We track which overlays we hid to reveal them later on impact.
+        const targetOverlays = {};
+        if (this.scene.gridView && this.scene.gridView.overlays && targets) {
+            targets.forEach(t => {
+                if (t.id && this.scene.gridView.overlays[t.id]) {
+                    const sprite = this.scene.gridView.overlays[t.id];
+                    sprite.setAlpha(0);
+                    targetOverlays[t.id] = sprite;
+                }
+            });
+        }
+
+        // 2. Enemy Lunge Animation
+        const enemy = this.enemySprite;
+        const startX = enemy.x;
+        const startY = enemy.y - (enemy.height * 0.5); // Chest height
+
+        this.scene.tweens.add({
+            targets: enemy,
+            x: startX - 50,
+            duration: 200,
+            yoyo: true,
+            ease: 'Power1',
+            onYoyo: () => {
+                // SPAWN PROJECTILES (LOCKS)
+                // Use actual targets or fallback to random count if missing (safeguard)
+                const lockCount = (targets && targets.length > 0) ? targets.length : 3;
+
+                // Grid Metrics for targeting
+                let getTargetPos;
+                if (this.scene.gridView && window.grid) {
+                    const gv = this.scene.gridView;
+                    // Center of tile logic from GridView
+                    getTargetPos = (r, c) => {
+                        return {
+                            x: gv.offsetX + c * gv.tileSize,
+                            y: gv.offsetY + r * gv.tileSize
+                        };
+                    };
+                } else {
+                    // Fallback (Random)
+                    const gridCenterX = this.scene.scale.width * 0.5;
+                    const gridCenterY = this.scene.scale.height * 0.6;
+                    getTargetPos = () => ({
+                        x: gridCenterX + (Math.random() - 0.5) * 300,
+                        y: gridCenterY + (Math.random() - 0.5) * 300
+                    });
+                }
+
+                for (let i = 0; i < lockCount; i++) {
+                    // 1. Create Lock Sprite/Image
+                    // Use ASSETS.ICON_LOCK if available, else text or shape
+                    let lock;
+                    if (this.scene.textures.exists(ASSETS.ICON_LOCK)) {
+                        lock = this.scene.add.image(enemy.x - 20, startY, ASSETS.ICON_LOCK);
+                        lock.setDisplaySize(40, 40); // Reasonable icon size
+                    } else {
+                        // Text Fallback (🔒)
+                        lock = this.scene.add.text(enemy.x - 20, startY, '🔒', { fontSize: '32px' }).setOrigin(0.5);
+                    }
+                    lock.setDepth(500); // Very high
+                    lock.scale = 0;
+
+                    // 2. Determine Target
+                    let tx, ty;
+                    let currentTargetId = null;
+
+                    if (targets && targets[i]) {
+                        const t = targets[i];
+                        const pos = getTargetPos(t.r, t.c);
+                        tx = pos.x;
+                        ty = pos.y;
+                        currentTargetId = t.id;
+                    } else {
+                        const pos = getTargetPos();
+                        tx = pos.x;
+                        ty = pos.y;
+                    }
+
+                    // Timeline replacement: Nested Tweens
+                    // 1. Pop In
+                    this.scene.tweens.add({
+                        targets: lock,
+                        scale: 1,
+                        duration: 100,
+                        delay: i * 50, // Stagger
+                        onComplete: () => {
+                            // 2. Fly to Target
+                            this.scene.tweens.add({
+                                targets: lock,
+                                x: tx,
+                                y: ty,
+                                rotation: Math.PI * 2,
+                                duration: 400, // Fast
+                                ease: 'Quad.Out',
+                                onComplete: () => {
+                                    // IMPACT VISUAL
+                                    // REVEAL GRID OVERLAY
+                                    if (currentTargetId && targetOverlays[currentTargetId]) {
+                                        const overlay = targetOverlays[currentTargetId];
+                                        overlay.setAlpha(1);
+                                        // Optional: Shake/Pop the overlay itself
+                                        this.scene.tweens.add({
+                                            targets: overlay,
+                                            scaleX: 1.2,
+                                            scaleY: 1.2,
+                                            yoyo: true,
+                                            duration: 100
+                                        });
+                                    }
+
+                                    // Small Shake of the lock itself before disappearing
+                                    this.scene.tweens.add({
+                                        targets: lock,
+                                        scale: 1.5,
+                                        alpha: 0,
+                                        duration: 300,
+                                        onComplete: () => {
+                                            lock.destroy();
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+
+                // Wait for longest flight
+                this.scene.time.delayedCall(1000, () => {
+                    if (onComplete) onComplete();
+                });
+            },
+            onComplete: () => {
+                enemy.x = startX;
+            }
+        });
+    }
 
 
     // Helper: Scales sprite to fit within maxW/maxH while preserving Aspect Ratio

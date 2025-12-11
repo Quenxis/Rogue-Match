@@ -27,25 +27,27 @@ export class GridData {
 
     // --- MANIPULATION API FOR ENEMIES ---
 
-    lockRandomGems(count) {
+    lockRandomGems(count, silent = false) {
         let available = [];
         this.grid.forEach((row, r) => {
             row.forEach((item, c) => {
                 if (!item.isLocked && item.type !== ITEM_TYPES.EMPTY) {
-                    available.push(item);
+                    available.push({ item, r, c });
                 }
             });
         });
 
-        let lockedCount = 0;
+        let lockedItems = [];
         for (let i = 0; i < count && available.length > 0; i++) {
             const index = Math.floor(Math.random() * available.length);
-            const item = available.splice(index, 1)[0];
-            item.isLocked = true;
-            lockedCount++;
-            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item });
+            const entry = available.splice(index, 1)[0]; // {item, r, c}
+
+            entry.item.isLocked = true;
+            lockedItems.push({ r: entry.r, c: entry.c, id: entry.item.id }); // Store coord & ID
+
+            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item: entry.item, silent: silent });
         }
-        return lockedCount;
+        return lockedItems;
     }
 
     trashRandomGems(count) {

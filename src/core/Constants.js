@@ -13,6 +13,8 @@ export const EVENTS = {
     ENEMY_ATTACK: 'combat:enemy_attack',
     ENEMY_DEFEND: 'combat:enemy_defend',
     ENEMY_HEAL: 'combat:enemy_heal',
+    ENEMY_LOCK: 'enemy:lock', // New
+    ENEMY_TRASH: 'enemy:trash', // New
     VICTORY: 'game:victory',
     DEFEAT: 'game:defeat',
     ENTITY_DIED: 'combat:entity_died',

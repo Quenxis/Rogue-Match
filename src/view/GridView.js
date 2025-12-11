@@ -203,7 +203,7 @@ export class GridView {
         this.gridBackground.setStrokeStyle(2, 0xffffff, 0.3); // Subtle border
     }
 
-    createToken(r, c, item) {
+    createToken(r, c, item, silent = false) {
         const x = this.getX(c);
         const y = this.getY(r);
 
@@ -246,7 +246,10 @@ export class GridView {
         // 2. LOCKED: Add Overlay
         if (item.isLocked) {
             // Updated to use 'lock' texture via addOverlay helper
-            this.addOverlay(item.id, x, y, 'lock');
+            const overlay = this.addOverlay(item.id, x, y, 'lock');
+            if (silent && overlay) {
+                overlay.setAlpha(0);
+            }
         } else {
             this.removeOverlay(item.id);
         }
@@ -759,16 +762,15 @@ export class GridView {
             }
         });
     }
-    handleItemUpdate({ item }) {
+    handleItemUpdate({ item, silent = false }) {
         if (!item) return;
         // Re-create token to reflect new state (Lock/Trash)
-        const r = -1; // We don't have Row/Col easily in event? 
         // Wait, item has ID. We have sprites[id].
         const sprite = this.sprites[item.id];
         if (sprite) {
             const r = sprite.getData('row');
             const c = sprite.getData('col');
-            this.createToken(r, c, item);
+            this.createToken(r, c, item, silent);
         }
     }
 

@@ -28,7 +28,7 @@ export const ENEMIES = {
     'orc': {
         name: 'Orc Warrior',
         texture: 'tex_orc',
-        scale: 1.2,
+        scale: 1.3,
         xOffset: -30,
         hp: 80,
         maxHP: 80,

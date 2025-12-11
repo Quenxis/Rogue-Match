@@ -439,11 +439,15 @@ export class CombatManager {
                 EventBus.emit(EVENTS.ENEMY_HEAL, { value: intent.value });
 
             } else if (intent && intent.type === 'DEBUFF') {
-                // Placeholder Animation: Use ATTACK animation for Debuffs (e.g. Lock, Trash)
-                EventBus.emit(EVENTS.ENEMY_ATTACK, {
-                    damage: 0, // No damage, just animation
-                    intent: intent
-                });
+                if (intent.effect === 'LOCK' || intent.effect === 'TRASH') {
+                    // Handled in executeEnemyIntent to include target data
+                } else {
+                    // Fallback for unknown debuffs
+                    EventBus.emit(EVENTS.ENEMY_ATTACK, {
+                        damage: 0,
+                        intent: intent
+                    });
+                }
             }
 
             this.executeEnemyIntent();
@@ -521,15 +525,17 @@ export class CombatManager {
             case MOVESET_TYPES.DEBUFF:
                 if (intent.effect === 'LOCK') {
                     if (window.grid) {
-                        const count = window.grid.lockRandomGems(intent.value);
-                        logManager.log(`Enemy Locked ${count} Gems!`, 'warning');
-                        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'LOCKED!', color: 0x9900cc });
+                        // Pass silent=true so visuals don't update immediately (waiting for animation)
+                        const targets = window.grid.lockRandomGems(intent.value, true);
+                        logManager.log(`Enemy Locked ${targets.length} Gems!`, 'warning');
+                        EventBus.emit(EVENTS.ENEMY_LOCK, { value: intent.value, targets: targets });
+                        // EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'LOCKED!', color: 0x9900cc });
                     }
                 } else if (intent.effect === 'TRASH') {
                     if (window.grid) {
                         const count = window.grid.trashRandomGems(intent.value);
                         logManager.log(`Enemy Trashed ${count} Gems!`, 'warning');
-                        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'TRASHED!', color: 0x333333 });
+                        // EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'TRASHED!', color: 0x333333 });
                     }
                 }
         }
