@@ -369,6 +369,7 @@ export class CombatManager {
 
             case ITEM_TYPES.COIN:
                 p.addGold(size);
+                logManager.log(`Collected ${size} Gold!`, 'gold');
                 // Critical: 4->1, 5+->2
                 if (size === 4) sm.applyStack(STATUS_TYPES.CRITICAL, 1);
                 if (size >= 5) sm.applyStack(STATUS_TYPES.CRITICAL, 2);
