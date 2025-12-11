@@ -377,14 +377,14 @@ export class CombatManager {
 
             case ITEM_TYPES.BOW:
                 // Piercing Damage (Ignores Shield)
-                let pierceDmg = 2; // Tier 1
+                let pierceDmg = 3; // Tier 1
 
                 if (size === 4) {
-                    pierceDmg = 3;
+                    pierceDmg = 4;
                     e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 1);
                 }
                 if (size >= 5) {
-                    pierceDmg = 4;
+                    pierceDmg = 5;
                     e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 2);
                 }
 
