@@ -50,36 +50,33 @@ export class GridData {
         return lockedItems;
     }
 
-    trashRandomGems(count) {
+    trashRandomGems(count, silent = false) {
         let available = [];
         this.grid.forEach((row, r) => {
             row.forEach((item, c) => {
                 if (!item.isTrash && !item.isLocked && item.type !== ITEM_TYPES.EMPTY) {
-                    available.push(item);
+                    available.push({ item, r, c });
                 }
             });
         });
 
-        let trashedCount = 0;
+        let trashedItems = [];
         for (let i = 0; i < count && available.length > 0; i++) {
             const index = Math.floor(Math.random() * available.length);
-            const item = available.splice(index, 1)[0];
+            const entry = available.splice(index, 1)[0];
+            const item = entry.item;
+
             item.isTrash = true;
             item.originalType = item.type; // Optional: if we want to revert? But usually permanent.
             item.type = 'TRASH'; // Or keep type but treat as trash?
             // Spec: "Mění typ drahokamu na bezbarvý/neutrální... Netvoří trojice."
-            // So changing type to 'TRASH' (defined in Constants?) or specific type is safest.
-            // We need ITEM_TYPES.TRASH or similar.
-            // Let's use ITEM_TYPES.TRASH defined in next step or use 'TRASH' string.
-            // Wait, we defined GRID_STATUS.TRASH but not ITEM_TYPES.TRASH.
-            // If we change type, matching logic breaks (good).
-            // But texture mapping needs to handle it.
-            // Let's assume ITEM_TYPES will satisfy or we add it.
 
-            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item });
-            trashedCount++;
+            // Push to result list
+            trashedItems.push({ r: entry.r, c: entry.c, id: item.id });
+
+            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item: item, silent: silent });
         }
-        return trashedCount;
+        return trashedItems;
     }
 
     /**

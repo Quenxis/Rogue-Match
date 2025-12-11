@@ -533,8 +533,9 @@ export class CombatManager {
                     }
                 } else if (intent.effect === 'TRASH') {
                     if (window.grid) {
-                        const count = window.grid.trashRandomGems(intent.value);
-                        logManager.log(`Enemy Trashed ${count} Gems!`, 'warning');
+                        const targets = window.grid.trashRandomGems(intent.value, true);
+                        logManager.log(`Enemy Trashed ${targets.length} Gems!`, 'warning');
+                        EventBus.emit(EVENTS.ENEMY_TRASH, { value: intent.value, targets: targets });
                         // EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'TRASHED!', color: 0x333333 });
                     }
                 }
