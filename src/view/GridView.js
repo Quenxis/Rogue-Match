@@ -207,39 +207,64 @@ export class GridView {
         const x = this.getX(c);
         const y = this.getY(r);
 
-        const sprite = this.scene.add.sprite(x, y, item.type);
-        this.tokenContainer.add(sprite); // Add to container for masking
+        // --- DETERMINE TEXTURE ---
+        // Masquerade Logic: If silent & Trash, show Original Type.
+        let textureKey = item.type;
+        if ((item.isTrash || item.type === 'TRASH') && item.originalType && silent) {
+            textureKey = item.originalType;
+        }
 
-        // Better Scaling: Preserve aspect ratio
+        const sprite = this.scene.add.sprite(x, y, textureKey);
+        this.tokenContainer.add(sprite);
+
+        // DEFAULT SCALING (Applies to Gems and Masquerade)
         const maxDim = 50 * GAME_SETTINGS.GRID_SCALE;
         const scale = Math.min(maxDim / sprite.width, maxDim / sprite.height);
         sprite.setScale(scale);
+
+        // Helper for Trash Scaling (used later)
+        const applyTrashTexture = (s) => {
+            s.setTexture('trash');
+            const maxDimT = 50 * GAME_SETTINGS.GRID_SCALE;
+            const scaleT = Math.min(maxDimT / s.width, maxDimT / s.height);
+            s.setScale(scaleT);
+            s.clearTint();
+        };
+
+        // --- VISUAL MODS (Immediate or Delayed) ---
+        if (item.isTrash || item.type === 'TRASH') {
+            if (!silent) {
+                // Immediate Reveal (Load Game or Re-render)
+                applyTrashTexture(sprite);
+            } else {
+                // Silent Mode: Keep Masquerade (already scaled above), set timer
+                this.scene.time.delayedCall(600, () => {
+                    if (sprite && sprite.scene && (item.isTrash || item.type === 'TRASH')) {
+                        // console.log(`[GridView] Self-Revealing Trash for ${item.id}`);
+                        applyTrashTexture(sprite);
+                        // Optional: Small bounce effect
+                        this.scene.tweens.add({
+                            targets: sprite,
+                            scaleX: sprite.scaleX * 1.2,
+                            scaleY: sprite.scaleY * 1.2,
+                            duration: 100,
+                            yoyo: true
+                        });
+                    }
+                });
+            }
+        }
+
         sprite.setInteractive();
         sprite.setData('row', r);
         sprite.setData('col', c);
         sprite.setData('id', item.id);
 
-        // Input Handling - Pass sprite only, so we read fresh data later
         sprite.on('pointerdown', () => this.handleInput(sprite));
 
         if (this.sprites[item.id]) {
             this.sprites[item.id].destroy();
         }
-
-        // --- VISUAL MODS ---
-
-        // 1. TRASH: Use dedicate icon (Added by User)
-        // If type is TRASH or flag is set, overwrite texture.
-        if (item.isTrash || item.type === 'TRASH') {
-            sprite.setTexture('trash');
-            // Rescale for new texture
-            const scaleT = Math.min((50 * GAME_SETTINGS.GRID_SCALE) / sprite.width, (50 * GAME_SETTINGS.GRID_SCALE) / sprite.height);
-            sprite.setScale(scaleT);
-            sprite.clearTint(); // Ensure no tint if recycled
-        }
-
-        // Removed old tint logic
-        // if (item.isTrash) { sprite.setTint(0x555555); }
 
         this.sprites[item.id] = sprite;
 
