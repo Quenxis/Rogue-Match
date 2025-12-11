@@ -624,8 +624,14 @@ export class CombatManager {
             logManager.log('VICTORY! Enemy defeated!', 'turn');
             EventBus.emit(EVENTS.VICTORY, { combat: this });
 
-            runManager.updatePlayerState(this.player.currentHP, this.player.gold + this.goldReward);
+            const finalGold = this.player.gold + this.goldReward;
+            console.log(`[Victory] Local Gold: ${this.player.gold}, Reward: ${this.goldReward}, Final: ${finalGold}`);
+            console.log(`[Victory] RunManager Before: ${runManager.player.gold}`);
+
+            runManager.updatePlayerState(this.player.currentHP, finalGold);
             runManager.completeLevel();
+
+            console.log(`[Victory] RunManager After: ${runManager.player.gold}`);
 
             this.scene.time.delayedCall(1500, () => {
                 this.scene.scene.start('RewardScene', {
