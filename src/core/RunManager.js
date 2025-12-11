@@ -23,6 +23,7 @@ export class RunManager {
     }
 
     startNewRun() {
+        console.log('[RunManager] Starting New Run (Resetting State)!');
         this.player.currentHP = this.player.maxHP;
         this.player.gold = 15;
         this.player.relics = [];
@@ -389,6 +390,7 @@ export class RunManager {
     }
 
     updatePlayerState(hp, gold) {
+        console.log(`[RunManager] Update State Request - HP: ${hp}, Gold: ${gold}`);
         this.player.currentHP = hp;
         this.player.gold = gold;
     }

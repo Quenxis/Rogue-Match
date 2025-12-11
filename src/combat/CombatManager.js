@@ -27,6 +27,7 @@ export class CombatManager {
 
         // Load Player State from Global RunManager
         const savedPlayer = runManager.player;
+        console.log(`[CombatManager] Init: Loading Player from RunManager. Global Gold: ${savedPlayer.gold}`);
         this.player = new Player(savedPlayer.maxHP);
         this.player.currentHP = savedPlayer.currentHP;
         this.player.gold = savedPlayer.gold;
