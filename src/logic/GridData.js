@@ -7,6 +7,7 @@
 import { EventBus } from '../core/EventBus.js';
 import { EVENTS, GAME_SETTINGS } from '../core/Constants.js';
 import { ITEM_TYPES, GridItem } from './GridDetails.js';
+import { runManager } from '../core/RunManager.js';
 
 export class GridData {
     constructor(rows, cols) {
@@ -259,6 +260,23 @@ export class GridData {
 
             return true;
         } else {
+            console.log('No match found.');
+
+            // PHANTOM GLOVES CHECK
+            if (runManager.hasRelic('phantom_gloves')) {
+                console.log('Phantom Gloves Active: Allowing swap without match.');
+                // Do NOT revert.
+                // Treated as a valid move (consumes move elsewhere).
+                // Need to ensure deadlocks are checked if board state changes?
+                // Yes, after any move, check logic usually handled by turn end?
+                // Actually CombatManager handles turn end.
+                // Add Small Delay to match Swap Animation (300ms) so users don't click mid-animation
+                // or so GridView doesn't unlock too fast.
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                return true;
+            }
+
             console.log('No match, swapping back...');
             // Swap back
             this.grid[r1][c1] = item1;

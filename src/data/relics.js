@@ -47,5 +47,49 @@ export const RELICS = {
                 return false;
             }
         }
+    },
+    'phantom_gloves': {
+        name: 'Phantom Gloves',
+        description: 'Allows you to swap gems without creating a match.',
+        icon: '👻',
+        color: 0xaa00aa,
+        type: 'PASSIVE',
+        hooks: {} // Logic handled in GridData
+    },
+    'crimson_hourglass': {
+        name: 'Crimson Hourglass',
+        description: 'You have 4 Moves per turn. The 4th move applies 6 Bleed to you.',
+        icon: '⏳',
+        color: 0x990000,
+        type: 'PASSIVE',
+        hooks: {
+            onTurnStart: (combat) => {
+                combat.maxMoves = 4;
+                combat.currentMoves = 4;
+                combat.log('Crimson Hourglass: +1 Move. Beware the cost!');
+                return true;
+            },
+            onSwap: (combat) => {
+                // CombatManager handles swap first, so currentMoves is already decremented.
+                // If we went from 1 -> 0, that was the 4th move.
+                if (combat.currentMoves === 0) {
+                    combat.player.statusManager.applyStack('BLEED', 6);
+                    // combat.log('Crimson Hourglass exacted its price: 4 Bleed!', 'relic');
+                    return true;
+                }
+                return false;
+            },
+            onSwapReverted: (combat) => {
+                // If a swap is reverted, it means the move was NOT consumed (moves refunded).
+                // If we applied Bleed (because we were at 0 moves), we must undo it.
+                // Revert means moves went 0 -> 1.
+                if (combat.currentMoves === 1) { // It's 1 because CombatManager refunded it before this event
+                    combat.player.statusManager.removeStack('BLEED', 6);
+                    // combat.log('Crimson Hourglass penalty reverted.', 'relic');
+                    return true;
+                }
+                return false;
+            }
+        }
     }
 };

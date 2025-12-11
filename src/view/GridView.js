@@ -385,6 +385,29 @@ export class GridView {
                         console.log('Swap Rejected by Logic (e.g. Locked). Unlocking Input.');
                         this.setInteractionLock(false);
                         this.selectedTile = null; // Clear selection
+                    } else {
+                        // Success! (Match or Phantom Swap)
+                        // Ensure input is unlocked eventually.
+                        // For Matches, Refill event unlocks it normally.
+                        // For Phantom Swap, no event unlocks it, so we must do it here.
+                        // Safe to call redundantly.
+                        if (window.grid.isPhantomAction) {
+                            // Optimization: Only if we marked it? No, just unlock.
+                            // But we need to wait for animation if logic was instant.
+                            // Logic (GridData) handles delay now?
+                            this.setInteractionLock(false);
+                            this.selectedTile = null;
+                        } else {
+                            // Standard match flow handles unlocking via Refill/Gravity events.
+                            // BUT purely relying on events is risky if events fail/lag.
+                            // Let's rely on Events for standard flow to ensure sync with animations.
+                            // If we unlock here immediately for matches, we might unlock prematurely while cascading?
+                            // swapItems returns AFTER cascade completely finishes.
+                            // So it IS safe to unlock here.
+                            console.log('Swap Sequence Complete (Match/Cascade resolved). Unlocking.');
+                            this.setInteractionLock(false);
+                            this.selectedTile = null;
+                        }
                     }
                 });
             } else {

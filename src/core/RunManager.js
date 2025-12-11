@@ -12,7 +12,7 @@ export class RunManager {
             currentHP: 100,
             maxHP: 60,
             gold: 99,
-            relics: [],
+            relics: ['crimson_hourglass'], // Testing
             potions: [],
             deck: ['FIREBALL', 'HEAL']
         };

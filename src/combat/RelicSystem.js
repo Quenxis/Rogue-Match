@@ -17,6 +17,9 @@ export class RelicSystem {
         this.onMatchesFound = this.onMatchesFound.bind(this);
         this.onVictory = this.onVictory.bind(this);
         this.onDefend = this.onDefend.bind(this);
+        this.onTurnStart = this.onTurnStart.bind(this);
+        this.onSwap = this.onSwap.bind(this);
+        this.onSwapReverted = this.onSwapReverted.bind(this);
 
         this.bindEvents();
     }
@@ -25,23 +28,35 @@ export class RelicSystem {
         EventBus.on(EVENTS.MATCHES_FOUND, this.onMatchesFound, this);
         EventBus.on(EVENTS.VICTORY, this.onVictory, this);
         EventBus.on(EVENTS.ENEMY_ATTACK, this.onDefend, this);
+        EventBus.on(EVENTS.TURN_START, this.onTurnStart, this);
+        EventBus.on(EVENTS.ITEM_SWAPPED, this.onSwap, this);
+        EventBus.on(EVENTS.ITEM_SWAP_REVERTED, this.onSwapReverted, this);
     }
-
     destroy() {
         EventBus.off(EVENTS.MATCHES_FOUND, this.onMatchesFound, this);
         EventBus.off(EVENTS.VICTORY, this.onVictory, this);
         EventBus.off(EVENTS.ENEMY_ATTACK, this.onDefend, this);
+        EventBus.off(EVENTS.TURN_START, this.onTurnStart, this);
+        EventBus.off(EVENTS.ITEM_SWAPPED, this.onSwap, this);
+        EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapReverted, this);
     }
 
     get combatContext() {
         // Create a compatibility layer for existing hooks
         // Hooks expect: { player, enemy, log(), ... }
+
+        // Capture 'this.combatManager' via closure to ensure access inside getters
+        const cm = this.combatManager;
         return {
-            player: this.combatManager.player,
-            enemy: this.combatManager.enemy,
+            player: cm.player,
+            enemy: cm.enemy,
             log: (msg) => logManager.log(msg, 'relic'),
-            // Some hooks might access other combat props, but these are the big ones
-            emitState: () => this.combatManager.emitState()
+            emitState: () => cm.emitState(),
+            get maxMoves() { return cm.maxMoves; },
+            set maxMoves(v) { cm.maxMoves = v; },
+            get currentMoves() { return cm.currentMoves; },
+            set currentMoves(v) { cm.currentMoves = v; },
+            get manager() { return cm; }
         };
     }
 
@@ -72,18 +87,10 @@ export class RelicSystem {
 
     onMatchesFound(data) {
         const { matches } = data;
-        // Logic duplicated from old CombatManager to calculate counts, 
-        // OR we can rely on the hook expecting (combat, count, type).
-        // Wait, the old logic iterated types.
-        // We should replicate that grouping here effectively.
-
         const matchCounts = {};
         matches.forEach(m => {
             let type = m.type;
             if (!type) {
-                // If type missing, try to resolve from grid (risky if already cleared?)
-                // Actually CombatManager handled this.
-                // For safety, let's assume type is passed or we skip.
                 return;
             }
             matchCounts[type] = (matchCounts[type] || 0) + 1;
@@ -100,9 +107,19 @@ export class RelicSystem {
     }
 
     onDefend(data) {
-        // data should contain { damage, intent } etc
-        // Spiked Shield hook: onDefend(combat, damage)
         const damage = data.damage || 0;
         this.triggerHook('onDefend', damage);
+    }
+
+    onTurnStart() {
+        this.triggerHook('onTurnStart');
+    }
+
+    onSwap() {
+        this.triggerHook('onSwap');
+    }
+
+    onSwapReverted() {
+        this.triggerHook('onSwapReverted');
     }
 }

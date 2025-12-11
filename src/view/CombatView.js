@@ -657,6 +657,50 @@ export class CombatView {
         // --- TURN CONTROLS ---
         if (this.movesText) {
             this.movesText.setText(`Moves: ${currentMoves}/${maxMoves}`);
+
+            // RELIC VISUAL: Crimson Hourglass Warning
+            // If moves == 1 and relic active, Pulse Red.
+            if (currentMoves === 1 && runManager.hasRelic('crimson_hourglass')) {
+                // Trigger Warning State (Once)
+                if (!this.movesPulse) {
+                    this.movesText.setColor('#d80909ff'); // White Core
+                    this.movesText.setFont('bold 32px Arial'); // Make it huge and bold
+                    this.movesText.setShadow(0, 0, '#000000', 0, false, false); // NO Shadow
+
+                    this.movesPulse = this.scene.tweens.add({
+                        targets: this.movesText,
+                        scale: { from: 1, to: 1.25 },
+                        alpha: { from: 1, to: 0.8 },
+                        duration: 1200,
+                        yoyo: true,
+                        repeat: -1
+                    });
+                }
+
+                // Active Blood & Mist
+                this.manageBloodEffect(true);
+                this.manageMistEffect(true);
+            } else {
+                // Reset State (Once)
+                this.manageBloodEffect(false);
+                this.manageMistEffect(false); // Stop Mist
+
+                this.movesText.setColor('#ffffff');
+                this.movesText.setShadow(0, 0, '#000000', 0, false, false);
+
+                if (this.movesPulse) {
+                    this.movesPulse.stop();
+                    this.movesPulse = null;
+
+                    this.movesText.setScale(1);
+                    this.movesText.setAlpha(1);
+                    this.movesText.setFont('24px Arial');
+                } else {
+                    if (this.movesText.style.fontSize !== '24px') {
+                        this.movesText.setFont('24px Arial');
+                    }
+                }
+            }
         }
         if (this.endTurnBtn) {
             const canEnd = turn === ENTITIES.PLAYER && (!this.scene.gridView || !this.scene.gridView.isAnimating);
@@ -1308,5 +1352,107 @@ export class CombatView {
         this.intentIcon.setVisible(true).setTexture(key);
         if (tint !== null) this.intentIcon.setTint(tint);
         else this.intentIcon.clearTint();
+    }
+
+    // --- BLOOD EFFECT (Crimson Hourglass) ---
+    manageBloodEffect(active) {
+        if (active) {
+            if (!this.bloodTimer) {
+                // Spawn a drop every 100-300ms
+                this.bloodTimer = this.scene.time.addEvent({
+                    delay: 150,
+                    callback: this.spawnBloodDrop,
+                    callbackScope: this,
+                    loop: true
+                });
+                // Initial burst
+                for (let i = 0; i < 3; i++) this.spawnBloodDrop();
+            }
+        } else {
+            if (this.bloodTimer) {
+                this.bloodTimer.remove();
+                this.bloodTimer = null;
+            }
+        }
+    }
+
+    spawnBloodDrop() {
+        if (!this.movesText || !this.movesText.visible) return;
+
+        // Get bounds of the text
+        const bounds = this.movesText.getBounds();
+
+        // Random layout within text width
+        const x = bounds.x + Math.random() * bounds.width;
+        const y = bounds.y + bounds.height * 0.6; // Start slightly near bottom of text
+
+        const drop = this.scene.add.circle(x, y, 4, 0xaa0000); // Dark Red
+        drop.setDepth(150);
+
+        // Physics-ish animation
+        this.scene.tweens.add({
+            targets: drop,
+            y: y + 40 + Math.random() * 40, // Fall down 40-80px
+            scaleX: { from: 1, to: 0.5 }, // Thin out
+            scaleY: { from: 1, to: 1.5 }, // Stretch
+            alpha: { from: 1, to: 0 },
+            duration: 800 + Math.random() * 400,
+            onComplete: () => drop.destroy()
+        });
+    }
+
+    // --- MIST BACKDROP (Replacing Shadow) ---
+    createMistTexture() {
+        if (this.scene.textures.exists('red_mist_glow')) return;
+
+        const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+        // Draw a soft radial gradient using concentric circles
+        // Center 64,64, Radius 64
+        for (let r = 64; r > 0; r -= 2) {
+            const alpha = 0.05 * (1 - (r / 64)); // Very low alpha stacking up
+            graphics.fillStyle(0xff0000, alpha);
+            graphics.fillCircle(64, 64, r);
+        }
+        graphics.generateTexture('red_mist_glow', 128, 128);
+    }
+
+    manageMistEffect(active) {
+        if (active) {
+            this.createMistTexture(); // Ensure texture exists
+
+            if (!this.mistSprite) {
+                // Create the sprite behind the text
+                // movesText origin is (1, 0.5), so 'x' is the right edge.
+                // Center X = x - width / 2
+                // Center Y = y
+                const x = this.movesText.x - this.movesText.width / 2;
+                const y = this.movesText.y;
+
+                this.mistSprite = this.scene.add.image(x, y, 'red_mist_glow');
+                this.mistSprite.setDepth(this.movesText.depth - 1); // Behind text
+                this.mistSprite.setAlpha(0);
+                this.mistSprite.setBlendMode(Phaser.BlendModes.ADD); // Glowy look
+
+                // Breathe Animation
+                this.scene.tweens.add({
+                    targets: this.mistSprite,
+                    scale: { from: 2.0, to: 2.5 },
+                    alpha: { from: 0.4, to: 0.7 },
+                    duration: 1200,
+                    yoyo: true,
+                    repeat: -1
+                });
+            } else {
+                // Ensure position updates if text moves (unlikely but safe)
+                this.mistSprite.x = this.movesText.x - this.movesText.width / 2;
+                this.mistSprite.y = this.movesText.y;
+                this.mistSprite.setVisible(true);
+            }
+        } else {
+            if (this.mistSprite) {
+                this.mistSprite.destroy();
+                this.mistSprite = null;
+            }
+        }
     }
 }

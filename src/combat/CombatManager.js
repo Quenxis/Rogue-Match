@@ -67,7 +67,9 @@ export class CombatManager {
 
     init() {
         this.generateEnemyIntent();
-        this.emitState();
+        this.emitState(); // Initial State
+        EventBus.emit(EVENTS.TURN_START, { combat: this }); // Trigger Start of Battle Relics
+        this.emitState(); // Re-emit state in case Relics changed unlocked Moves/Mana etc.
     }
 
     bindEvents() {
@@ -567,6 +569,7 @@ export class CombatManager {
         this.generateEnemyIntent();
 
         this.emitState();
+        EventBus.emit(EVENTS.TURN_START, { combat: this });
         logManager.log("-- PLAYER TURN --", 'turn');
     }
 
