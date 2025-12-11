@@ -14,7 +14,7 @@ import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.3.29';
+export const APP_VERSION = '0.3.30';
 
 const config = {
     type: Phaser.AUTO,

@@ -16,8 +16,11 @@ export class MapScene extends Phaser.Scene {
 
         // If no run matches, start one
         if (!runManager.map.length) {
+            console.log('[MapScene] No existing run, starting new.');
             runManager.startNewRun();
         }
+
+        console.log(`[MapScene] Create. RunManager Gold: ${runManager.player.gold}`);
 
         // --- SINGLE SCREEN CONFIGURATION ---
         const mapWidth = this.scale.width;

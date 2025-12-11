@@ -2,12 +2,13 @@ import { ACTS } from '../data/acts.js';
 
 export class RunManager {
     constructor() {
+        console.log('[RunManager] Constructor called (Singleton check)');
         if (RunManager.instance) {
             return RunManager.instance;
         }
         RunManager.instance = this;
 
-        this.player = {
+        const initialState = {
             currentHP: 100,
             maxHP: 60,
             gold: 99,
@@ -15,6 +16,17 @@ export class RunManager {
             potions: [],
             deck: ['FIREBALL', 'HEAL']
         };
+
+        this.player = new Proxy(initialState, {
+            set: (target, prop, value) => {
+                if (prop === 'gold') {
+                    console.log(`[GOLD TRAP] Gold change: ${target[prop]} -> ${value}`);
+                    // console.trace(); // Optional: Uncomment for full stack trace if needed
+                }
+                target[prop] = value;
+                return true;
+            }
+        });
 
         this.map = [];
         this.currentTier = 0;
