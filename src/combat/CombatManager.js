@@ -627,6 +627,11 @@ export class CombatManager {
 
             const finalGold = this.player.gold + this.goldReward;
             console.log(`[Victory] Local Gold: ${this.player.gold}, Reward: ${this.goldReward}, Final: ${finalGold}`);
+
+            // SYNCHRONIZE LOCAL STATE
+            // Critical Fix: Update local player gold so future saves/syncs use correct value
+            this.player.gold = finalGold;
+
             console.log(`[Victory] RunManager Before: ${runManager.player.gold}`);
 
             runManager.updatePlayerState(this.player.currentHP, finalGold);
