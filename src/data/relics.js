@@ -52,7 +52,7 @@ export const RELICS = {
         name: 'Phantom Gloves',
         description: 'Allows you to swap gems without creating a match.',
         icon: '👻',
-        color: 0xaa00aa,
+        color: 0xE4ACE4,
         type: 'PASSIVE',
         hooks: {} // Logic handled in GridData
     },
@@ -86,6 +86,67 @@ export const RELICS = {
                 if (combat.currentMoves === 1) { // It's 1 because CombatManager refunded it before this event
                     combat.player.statusManager.removeStack('BLEED', 6);
                     // combat.log('Crimson Hourglass penalty reverted.', 'relic');
+                    return true;
+                }
+                return false;
+            }
+        }
+    },
+    'greed_pact': {
+        name: 'Greed Pact',
+        description: 'Coins give 3x Gold, but you take 5 DMG if you end turn without collecting Gold.',
+        icon: '💰',
+        color: 0xffd700,
+        type: 'PASSIVE',
+        hooks: {
+            onTurnStart: (combat) => {
+                // Apply visual marker status
+                // We use applyStack to ensure it's visible. 1 Stack is enough.
+                const hasCurse = combat.player.statusManager.getStack('GREED_CURSE') > 0;
+                if (!hasCurse) {
+                    combat.player.statusManager.applyStack('GREED_CURSE', 1);
+                }
+                return true;
+            },
+            onTurnEnd: (combat) => {
+                // Access the underlying manager from the context proxy
+                // The proxy exposes 'manager' property based on my previous edit to RelicSystem
+                const cm = combat.manager;
+                if (cm && cm.turnState && !cm.turnState.goldCollected) {
+                    combat.log('Greed Curse claims its price: 5 DMG!', 'warning');
+                    combat.player.takeDamage(5); // Direct damage, ignores block? Usually curses do true damage or normal. Let's do normal takeDamage.
+                    return true;
+                }
+                return false;
+            }
+        }
+    },
+    'splintered_arrowhead': {
+        name: 'Splintered Arrowhead',
+        description: 'Your Bow attacks deal +1 Piercing Damage.',
+        icon: '🏹',
+        type: 'PASSIVE',
+        hooks: {} // No hooks, handled in CombatManager logic directly
+    },
+    'blood_tipped_edge': {
+        name: 'Blood-Tipped Edge',
+        description: 'Sword attacks apply +1 Bleed. (Match 3 applies 1 Bleed)',
+        icon: '🗡️',
+        color: 0xA13535, // Blood Red
+        type: 'PASSIVE',
+        hooks: {}
+    },
+    'tortoise_shell': {
+        name: 'Tortoise Shell',
+        description: 'If you deal no damage in a turn, gain +5 Block.',
+        icon: '🐢',
+        type: 'PASSIVE',
+        hooks: {
+            onTurnEnd: (combat) => {
+                const cm = combat.manager;
+                if (cm && cm.turnState && !cm.turnState.damageDealt) {
+                    combat.player.addBlock(5);
+                    combat.log('Tortoise Shell grants +5 Block!', 'relic');
                     return true;
                 }
                 return false;

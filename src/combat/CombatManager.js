@@ -66,10 +66,14 @@ export class CombatManager {
     }
 
     init() {
+        // Reset Turn State for first turn
+        this.turnState = {
+            goldCollected: false
+        };
+
         this.generateEnemyIntent();
-        this.emitState(); // Initial State
-        EventBus.emit(EVENTS.TURN_START, { combat: this }); // Trigger Start of Battle Relics
-        this.emitState(); // Re-emit state in case Relics changed unlocked Moves/Mana etc.
+        EventBus.emit(EVENTS.TURN_START, { combat: this }); // Trigger Start of Battle Relics BEFORE View Update
+        this.emitState(); // Initial State (now includes Relic effects)
     }
 
     bindEvents() {
@@ -79,6 +83,7 @@ export class CombatManager {
         EventBus.on(EVENTS.POTION_USE_REQUESTED, this.onPotionUse);
         EventBus.on(EVENTS.UI_ANIMATION_COMPLETE, this.onUIAnimComplete);
         EventBus.on(EVENTS.ENTITY_DIED, this.onEntityDied);
+        EventBus.on(EVENTS.GRID_REFILLED, this.onUIAnimComplete); // Reuse emitState binding
 
         window.combat = this;
     }
@@ -159,7 +164,10 @@ export class CombatManager {
 
 
     tryUseSkill(skillName) {
-        if (this.turn !== ENTITIES.PLAYER) return;
+        if (!this.canInteract()) {
+            logManager.log('Cannot use skill while busy!', 'warning');
+            return;
+        }
         const p = this.player;
         const e = this.enemy;
         const sm = p.statusManager;
@@ -201,7 +209,76 @@ export class CombatManager {
                 EventBus.emit(EVENTS.PLAYER_HEAL, { value: data.heal, type: 'SKILL' });
                 p.heal(data.heal);
             });
+        } else if (skillName === SKILLS.SHIELD_SLAM) {
+            const data = SKILL_DATA.SHIELD_SLAM;
+            const shieldCost = data.shieldCost || 0;
+
+            // Custom check because we need Block AND Mana
+            const finalCost = Math.floor(data.cost * multiplier); // Configurable Mana Cost
+
+            if (p.mana >= finalCost && p.block >= shieldCost) {
+                p.mana -= finalCost;
+
+                // Remove Block
+                p.addBlock(-shieldCost);
+
+                // Effect
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'SHIELD_SLAM' });
+                e.takeDamage(data.damage);
+
+                // Consume Focus if used
+                if (focus > 0) {
+                    sm.consumeStacks(STATUS_TYPES.FOCUS);
+                    logManager.log('Focus consumed for skill!', 'info');
+                }
+
+                this.emitState();
+                logManager.log(`Shield Slam! -${finalCost} Mana, -${shieldCost} Block`, 'info');
+                this.checkWinCondition();
+            }
+        } else if (skillName === SKILLS.AIMED_SHOT) {
+            const data = SKILL_DATA.AIMED_SHOT;
+            const maxSwords = data.maxSwords || 5;
+
+            // Check Sword Count on Grid
+            let swordCount = 0;
+            if (window.grid && window.grid.grid) {
+                window.grid.grid.forEach(row => row.forEach(tile => {
+                    if (tile && tile.type === ITEM_TYPES.SWORD) swordCount++;
+                }));
+            }
+
+            const finalCost = Math.floor(data.cost * multiplier);
+
+            if (p.mana >= finalCost && swordCount <= maxSwords) {
+                p.mana -= finalCost;
+
+                // Effect: Piercing Damage + Vulnerable
+                if (data.vulnerable > 0) {
+                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, data.vulnerable);
+                }
+
+                // Deal Damage (Piercing)
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'AIMED_SHOT' });
+                // Assuming takeDamage supports options object as 3rd arg based on previous context
+                e.takeDamage(data.damage, p, { isPiercing: true });
+
+                // Consume Focus if used
+                if (focus > 0) {
+                    sm.consumeStacks(STATUS_TYPES.FOCUS);
+                    logManager.log('Focus consumed for skill!', 'info');
+                }
+
+                this.emitState();
+                logManager.log(`Aimed Shot! ${data.damage} Piercing DMG.`, 'info');
+                this.checkWinCondition();
+            } else {
+                if (swordCount > maxSwords) {
+                    logManager.log(`Cannot use Aimed Shot! Too many swords (${swordCount}/${maxSwords})`, 'warning');
+                }
+            }
         }
+
     }
 
     handleSwap() {
@@ -219,7 +296,19 @@ export class CombatManager {
     }
 
     canInteract() {
-        return this.turn === ENTITIES.PLAYER && this.currentMoves > 0;
+        // Prevent interaction if Grid is animating (cascading/swapping/matching)
+        let isGridBusy = false;
+
+        // Check Scene GridView first (Visual State)
+        if (this.scene && this.scene.gridView && this.scene.gridView.isAnimating) {
+            isGridBusy = true;
+        }
+        // Fallback to window.grid if scene unavailable (though CombatManager expects scene)
+        else if (window.grid && window.grid.isAnimating) {
+            isGridBusy = true;
+        }
+
+        return this.turn === ENTITIES.PLAYER && this.currentMoves > 0 && !isGridBusy;
     }
 
     handleMatches(data) {
@@ -307,6 +396,8 @@ export class CombatManager {
         switch (type) {
             case ITEM_TYPES.SWORD:
                 // Base Dmg
+                if (this.turnState) this.turnState.damageDealt = true;
+
                 let dmg = size * (2 + p.strength + sm.getStack(STATUS_TYPES.STRENGTH));
 
                 // Consume Strength (One-Use)
@@ -326,9 +417,18 @@ export class CombatManager {
 
                 if (size >= 5) dmg = Math.floor(dmg * 1.5); // Tier 3 Dmg Boost
 
-                // Apply Bleed (Tier 2+)
-                if (size === 4) e.statusManager.applyStack(STATUS_TYPES.BLEED, 2);
-                if (size >= 5) e.statusManager.applyStack(STATUS_TYPES.BLEED, 4);
+                // Apply Bleed (Tier 2+) + Relic Logic
+                let bleedAmount = 0;
+                if (size === 4) bleedAmount = 2;
+                if (size >= 5) bleedAmount = 4;
+
+                if (runManager.hasRelic('blood_tipped_edge')) {
+                    bleedAmount += 1;
+                }
+
+                if (bleedAmount > 0) {
+                    e.statusManager.applyStack(STATUS_TYPES.BLEED, bleedAmount);
+                }
 
                 EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: isCrit ? 'CRIT' : 'NORMAL' });
                 e.takeDamage(dmg, p);
@@ -370,8 +470,20 @@ export class CombatManager {
                 break;
 
             case ITEM_TYPES.COIN:
-                p.addGold(size);
-                logManager.log(`Collected ${size} Gold!`, 'gold');
+                let goldAmount = size;
+
+                // Greed Pact: 3x Gold
+                if (runManager.hasRelic('greed_pact')) {
+                    goldAmount *= 3;
+                    // Visual feedback handled by log or floating text usually
+                }
+
+                p.addGold(goldAmount);
+                logManager.log(`Collected ${goldAmount} Gold!`, 'gold');
+
+                // Track for Turn End Punishment
+                if (this.turnState) this.turnState.goldCollected = true;
+
                 // Critical: 4->1, 5+->2
                 if (size === 4) sm.applyStack(STATUS_TYPES.CRITICAL, 1);
                 if (size >= 5) sm.applyStack(STATUS_TYPES.CRITICAL, 2);
@@ -381,12 +493,19 @@ export class CombatManager {
                 // Piercing Damage (Ignores Shield)
                 let pierceDmg = 3; // Tier 1
 
+                // Splintered Arrowhead Relic
+                if (runManager.hasRelic('splintered_arrowhead')) {
+                    pierceDmg += 1;
+                }
+
                 if (size === 4) {
                     pierceDmg = 4;
+                    if (runManager.hasRelic('splintered_arrowhead')) pierceDmg += 1;
                     e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 1);
                 }
                 if (size >= 5) {
                     pierceDmg = 5;
+                    if (runManager.hasRelic('splintered_arrowhead')) pierceDmg += 1;
                     e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 2);
                 }
 
@@ -401,6 +520,10 @@ export class CombatManager {
     endTurn() {
         if (this.turn !== ENTITIES.PLAYER) return;
         if (this.player.isDead || this.enemy.isDead) return;
+
+        // Trigger Turn End Events (Relics etc)
+        // This allows relics like Greed Pact to trigger punishment before turn swap
+        EventBus.emit(EVENTS.TURN_END, { combat: this });
 
         if (this.scene.gridView) {
             this.scene.gridView.skipAnimations();
@@ -549,6 +672,11 @@ export class CombatManager {
         if (this.turn === ENTITIES.ENDED) return;
         this.turn = ENTITIES.PLAYER;
 
+        // Reset Turn State
+        this.turnState = {
+            goldCollected: false
+        };
+
         // Status Effects (Turn Start)
         this.player.statusManager.onTurnStart();
 
@@ -568,8 +696,9 @@ export class CombatManager {
         // Ideally this logic lives in Enemy class, but for "data-driven" centralization:
         this.generateEnemyIntent();
 
-        this.emitState();
         EventBus.emit(EVENTS.TURN_START, { combat: this });
+        this.emitState();
+
         logManager.log("-- PLAYER TURN --", 'turn');
     }
 

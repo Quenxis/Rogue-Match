@@ -226,15 +226,18 @@ export class CombatView {
 
     createEntityDisplay(isPlayer) {
         const x = isPlayer ? this.leftX : this.rightX;
-        const config = isPlayer ? (HEROES['warrior'] || {}) : (ENEMIES['slime'] || {}); // Placeholder config
+        // fetch selected hero ID or default to warrior
+        const heroId = runManager.selectedHeroId || 'warrior';
+        const config = isPlayer ? (HEROES[heroId] || HEROES['warrior']) : (ENEMIES['slime'] || {}); // Placeholder config
 
         // 1. Sprite
         let sprite;
         const maxDim = 410; // Increased sprite size (was 300/350)
 
         if (isPlayer) {
-            if (this.scene.textures.exists(ASSETS.HERO)) {
-                sprite = this.scene.add.image(x, this.groundY, ASSETS.HERO);
+            const textureKey = config.texture || ASSETS.HERO;
+            if (this.scene.textures.exists(textureKey)) {
+                sprite = this.scene.add.image(x, this.groundY, textureKey);
                 sprite.setOrigin(0.5, 1);
                 this.fitSprite(sprite, maxDim, maxDim, config.scale || 1);
                 sprite.y += (config.yOffset || 0);
@@ -319,9 +322,12 @@ export class CombatView {
         this.actionBar.add([this.manaIcon, this.manaText]);
 
         // --- SPELL ICONS ---
-        // Increased spacing and size
-        this.createSpellIcon(SKILLS.FIREBALL, 80, 0); // Shifted right
-        this.createSpellIcon(SKILLS.HEAL, 250, 0); // Spaced out more for 130px size
+        // Dynamically create icons based on Player Deck
+        const deck = runManager.player.deck || [];
+        deck.forEach((skillId, index) => {
+            const xPos = 80 + (index * 170); // Dynamic Spacing (80, 250, 420...)
+            this.createSpellIcon(skillId, xPos, 0);
+        });
     }
 
 
@@ -442,14 +448,27 @@ export class CombatView {
             // Better: update getStatusItems below to return objects.
 
             const items = this.getStatusItemsData(statusManager);
+            // console.log(`[CombatView] updating status for ${bar === this.playerHPBar ? 'Player' : 'Enemy'}. Items:`, items);
 
             let xPos = -130; // Left align relative to center (width increased)
             const yPos = 5;
             const spacing = 50; // Increased Status Spacing
 
+            if (items.length > 0) {
+                // console.log(`[CombatView] Rendering ${items.length} status icons.`);
+            }
+
             items.forEach(item => {
                 // Icon (Emoji or Sprite)
                 const icon = this.scene.add.text(xPos, yPos, item.icon, { font: '28px Verdana' }).setOrigin(0, 0.5);
+
+                if (item.color) {
+                    // setColor is often ignored for Emojis. setTint forces a color multiplication.
+                    // We parse the hex string to a number for setTint
+                    const colorNum = parseInt(item.color.replace('#', '0x'));
+                    icon.setTint(colorNum);
+                }
+
                 icon.setInteractive({ useHandCursor: true });
 
                 // Tooltip on hover
@@ -463,12 +482,16 @@ export class CombatView {
                     }
                 });
 
-                // Counter
-                const counter = this.scene.add.text(xPos + 18, yPos + 8, `${item.count}`, {
-                    font: 'bold 16px Verdana', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
-                }).setOrigin(0.5);
+                bar.statusContainer.add(icon);
 
-                bar.statusContainer.add([icon, counter]);
+                // Counter -- Only add if count is present
+                if (item.count !== '' && item.count !== undefined && item.count !== null) {
+                    const counter = this.scene.add.text(xPos + 18, yPos + 8, `${item.count}`, {
+                        font: 'bold 16px Verdana', fill: '#ffffff', stroke: '#000000', strokeThickness: 3
+                    }).setOrigin(0.5);
+                    bar.statusContainer.add(counter);
+                }
+
                 xPos += spacing;
             });
         }
@@ -635,7 +658,7 @@ export class CombatView {
             }
 
             // Skill Buttons State
-            const canAct = turn === ENTITIES.PLAYER;
+            const canAct = this.combatManager.canInteract();
             const focus = player.statusManager ? player.statusManager.getStack(STATUS_TYPES.FOCUS) : 0;
 
             const getRealCost = (baseCost) => {
@@ -644,14 +667,32 @@ export class CombatView {
                 return baseCost;
             };
 
-            const fireballCost = getRealCost(SKILL_DATA.FIREBALL.cost);
-            const healCost = getRealCost(SKILL_DATA.HEAL.cost);
+            // Skill Buttons State - Dynamic
+            const deck = runManager.player.deck || [];
 
-            const fireballEnabled = canAct && player.mana >= fireballCost;
-            const healEnabled = canAct && player.mana >= healCost;
+            deck.forEach(skillId => {
+                const data = SKILL_DATA[skillId];
+                if (!data) return;
 
-            this.updateSkillButton(SKILLS.FIREBALL, fireballEnabled, focus);
-            this.updateSkillButton(SKILLS.HEAL, healEnabled, focus);
+                const cost = getRealCost(data.cost);
+                const shieldCost = data.shieldCost || 0;
+
+                // Extra Conditions
+                let extraConditionMet = true;
+                if (data.maxSwords !== undefined) {
+                    let swordCount = 0;
+                    if (window.grid && window.grid.grid) {
+                        window.grid.grid.forEach(row => row.forEach(tile => {
+                            if (tile && tile.type === 'SWORD') swordCount++;
+                        }));
+                    }
+                    if (swordCount > data.maxSwords) extraConditionMet = false;
+                }
+
+                const isEnabled = canAct && player.mana >= cost && player.block >= shieldCost && extraConditionMet;
+                const metadata = { swordConditionMet: extraConditionMet }; // Since extraConditionMet IS the sword condition here
+                this.updateSkillButton(skillId, isEnabled, focus, metadata);
+            });
         }
 
         // --- TURN CONTROLS ---
@@ -716,10 +757,24 @@ export class CombatView {
      * @param {string} id - Skill ID
      * @param {boolean} isEnabled - Whether player can cast this spell
      * @param {number} focusStacks - Current Focus buff stacks (for glow effect)
+     * @param {object} metadata - Extra validation data (e.g. swordConditionMet)
      */
-    updateSkillButton(id, isEnabled, focusStacks = 0) {
+    updateSkillButton(id, isEnabled, focusStacks = 0, metadata = {}) {
         const btn = this.skillButtons[id];
         if (!btn) return;
+
+        // ... existing logic ...
+
+        // NEW: Check Sword Requirement Text Color
+        if (btn.swordReqText) {
+            if (metadata.swordConditionMet === false) {
+                btn.swordReqText.setColor('#ff0000'); // Red if condition failed
+            } else {
+                btn.swordReqText.setColor('#ffffff'); // White if condition met
+            }
+        }
+
+        // --- GLOBAL CALCULATION (Run first) ---
 
         // --- GLOBAL CALCULATION (Run first) ---
         // Calculate Discounted Cost
@@ -769,15 +824,15 @@ export class CombatView {
                     btn.pulseTween.stop();
                     btn.pulseTween = null;
                     btn.badge.setScale(1); // Reset scale using direct reference since display size was set
-                    btn.badge.setDisplaySize(24, 24); // Reset to original display size
+                    btn.badge.setDisplaySize(40, 40); // Reset to original display size (Was 24, fixed to 40)
                     btn.badgeText.setScale(1);
                 }
             }
         } else {
-            // DISABLED STATE: Grayscale/Darkened, non-interactive
-            btn.container.setAlpha(1); // Keep container visible, just dim content
+            // DISABLED STATE: Grayscale/Darkened, BUT INTERACTIVE for Tooltip
+            btn.container.setAlpha(1);
             btn.container.setScale(1);
-            btn.bg.disableInteractive();
+            // btn.bg.disableInteractive(); // REMOVED to allow Tooltip
 
             // Dim and Grayscale Effect
             btn.icon.setTint(0x555555);
@@ -787,7 +842,7 @@ export class CombatView {
             if (btn.pulseTween) {
                 btn.pulseTween.stop();
                 btn.pulseTween = null;
-                btn.badge.setDisplaySize(24, 24); // Reset to original display size
+                btn.badge.setDisplaySize(40, 40); // Reset to original display size (Was 24, fixed to 40)
                 btn.badgeText.setScale(1);
             }
         }
@@ -1279,6 +1334,39 @@ export class CombatView {
         const badgeX = size / 2 - 15;
         const badgeY = -size / 2 + 15;
 
+        // --- SHIELD COST (Left of Mana Crystal) ---
+        let nextBadgeX = badgeX - 45; // Shift left
+
+        if (data.shieldCost > 0) {
+            const shieldX = nextBadgeX;
+            const shieldBadge = this.scene.add.image(shieldX, badgeY, ASSETS.ICON_SHIELD)
+                .setDisplaySize(36, 36).setOrigin(0.5);
+
+            const shieldText = this.scene.add.text(shieldX, badgeY, `${data.shieldCost}`, {
+                font: 'bold 22px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
+            }).setOrigin(0.5);
+
+            container.add([shieldBadge, shieldText]);
+            nextBadgeX -= 45; // Shift further left for next item
+        }
+
+        // --- SWORD LIMIT REQUIREMENT (Bottom Right) ---
+        let swordReqText = null;
+        if (data.maxSwords !== undefined) {
+            const bottomY = size / 2 - 20;
+            const rightX = size / 2 - 20;
+
+            const swordBadge = this.scene.add.image(rightX, bottomY, ASSETS.ICON_SWORD)
+                .setDisplaySize(30, 30).setOrigin(0.5); // Slightly smaller
+
+            // Text: "<X" (Left of Icon)
+            swordReqText = this.scene.add.text(rightX - 25, bottomY, `< ${data.maxSwords}`, {
+                font: 'bold 20px Arial', fill: '#ffffff', stroke: '#000000', strokeThickness: 4
+            }).setOrigin(0.5); // Center origin relative to position
+
+            container.add([swordBadge, swordReqText]);
+        }
+
         // Crystal Icon
         const badge = this.scene.add.image(badgeX, badgeY, ASSETS.ICON_MANA)
             .setDisplaySize(40, 40).setOrigin(0.5); // Larger badge
@@ -1298,7 +1386,8 @@ export class CombatView {
         bg.on('pointerover', () => {
             this.scene.tweens.add({ targets: container, scale: 1.1, duration: 100 });
             const worldMatrix = container.getWorldTransformMatrix();
-            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, `${data.name} (${data.cost} Mana)\n${data.desc}`);
+            const costString = (data.shieldCost > 0 ? `${data.shieldCost} Block, ` : '') + `${data.cost} Mana`;
+            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, `${data.name} (${costString})\n${data.desc}`);
         });
 
         // FIX: Hover Out Animation
@@ -1309,6 +1398,8 @@ export class CombatView {
 
         // Click
         bg.on('pointerdown', () => {
+            if (!container.getData('enabled')) return; // Ignore clicks if disabled
+
             this.scene.tweens.add({ targets: container, scale: 0.9, duration: 50, yoyo: true });
             this.combatManager.tryUseSkill(skillId);
             this.hideTooltip();
@@ -1316,7 +1407,7 @@ export class CombatView {
 
         container.setData('skillId', skillId);
         container.setData('originalColor', data.color);
-        this.skillButtons[skillId] = { container, bg, disabledOverlay, icon, badge, badgeText };
+        this.skillButtons[skillId] = { container, bg, disabledOverlay, icon, badge, badgeText, swordReqText };
     }
 
     getStatusItemsData(statusManager) {
@@ -1337,6 +1428,10 @@ export class CombatView {
 
         const crit = statusManager.getStack(STATUS_TYPES.CRITICAL);
         if (crit > 0) items.push({ icon: '🎯', count: crit, tooltip: 'Critical: Increases critical hit chance' });
+
+        const greed = statusManager.getStack(STATUS_TYPES.GREED_CURSE);
+        // console.log('DEBUG: Checking Greed Curse Stacks:', greed);
+        if (greed > 0) items.push({ icon: '💀', count: '', color: '#ffd700', tooltip: 'Greed Curse: -5 HP if no Gold collected this turn!' });
 
         const vuln = statusManager.getStack(STATUS_TYPES.VULNERABLE);
         if (vuln > 0) items.push({ icon: '☠️', count: vuln, tooltip: 'Vulnerable: Takes 25% extra damage' });

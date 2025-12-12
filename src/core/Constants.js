@@ -5,23 +5,23 @@
 
 export const EVENTS = {
     // Combat
-    TURN_START: 'combat:turn_start',
-    TURN_END: 'combat:turn_end',
+    MATCHES_FOUND: 'combat:matches_found',
     PLAYER_ATTACK: 'combat:player_attack',
-    PLAYER_DEFEND: 'combat:player_defend',
     PLAYER_HEAL: 'combat:player_heal',
+    PLAYER_DEFEND: 'combat:player_defend',
     ENEMY_ATTACK: 'combat:enemy_attack',
     ENEMY_DEFEND: 'combat:enemy_defend',
     ENEMY_HEAL: 'combat:enemy_heal',
-    ENEMY_LOCK: 'enemy:lock', // New
-    ENEMY_TRASH: 'enemy:trash', // New
-    VICTORY: 'game:victory',
+    ENEMY_LOCK: 'combat:enemy_lock',
+    ENEMY_TRASH: 'combat:enemy_trash',
+    TURN_START: 'combat:turn_start',
+    TURN_END: 'combat:turn_end',
+    VICTORY: 'combat:victory',
     DEFEAT: 'game:defeat',
     ENTITY_DIED: 'combat:entity_died',
 
     // Grid / Match-3
     GRID_CREATED: 'grid:created',
-    MATCHES_FOUND: 'matches:found',
     ITEM_SWAPPED: 'item:swapped',
     ITEM_SWAP_REVERTED: 'item:swap_reverted',
     GRID_GRAVITY: 'grid:gravity',
@@ -68,7 +68,9 @@ export const ENTITIES = {
 
 export const SKILLS = {
     FIREBALL: 'FIREBALL',
-    HEAL: 'HEAL'
+    HEAL: 'HEAL',
+    SHIELD_SLAM: 'SHIELD_SLAM',
+    AIMED_SHOT: 'AIMED_SHOT'
 };
 
 // Single source of truth for skill balance
@@ -88,6 +90,25 @@ export const SKILL_DATA = {
         color: 0x44ff44,
         name: 'Heal',
         desc: 'Restore 10 HP'
+    },
+    SHIELD_SLAM: {
+        cost: 8, // Mana Cost
+        shieldCost: 6, // Block/Shield Cost
+        damage: 14,
+        icon: 'ability_3',
+        color: 0x2222aa,
+        name: 'Shield Slam',
+        desc: 'Spend your block and mana to deal 14 DMG'
+    },
+    AIMED_SHOT: {
+        cost: 5,
+        damage: 12,
+        vulnerable: 1,
+        maxSwords: 9,
+        icon: 'ability_4', // User provided icon
+        color: 0x22aa22,
+        name: 'Aimed Shot',
+        desc: 'Deal 12 Piercing DMG + Vulnerable. Requirements: 9 or less Swords on grid.'
     }
 };
 
@@ -131,7 +152,8 @@ export const STATUS_TYPES = {
     FOCUS: 'FOCUS',
     CRITICAL: 'CRITICAL',
     VULNERABLE: 'VULNERABLE', // New Debuff
-    STRENGTH: 'STRENGTH'
+    STRENGTH: 'STRENGTH',
+    GREED_CURSE: 'GREED_CURSE'
 };
 
 export const POTION_DATA = {

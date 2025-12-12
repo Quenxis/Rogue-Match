@@ -29,7 +29,7 @@ export class MapScene extends Phaser.Scene {
 
         // UI: TopBar
         this.topBar = new TopBar(this);
-        this.topBar.setTitle('THE MAP');
+        this.topBar.setTitle('The Cave');
 
         // Listen for Potion Use (Map context)
         EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));

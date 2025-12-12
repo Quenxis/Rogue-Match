@@ -14,7 +14,9 @@ import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
-export const APP_VERSION = '0.3.37';
+import { HeroSelectScene } from '../scenes/HeroSelectScene.js';
+
+export const APP_VERSION = '0.3.4';
 
 const config = {
     type: Phaser.AUTO,
@@ -22,7 +24,7 @@ const config = {
     height: 1080,
     parent: 'game-container',
     backgroundColor: '#000000',
-    scene: [BootScene, MapScene, BattleScene, RewardScene, ShopScene, EventScene, TreasureScene], // BootScene first usually
+    scene: [BootScene, HeroSelectScene, MapScene, BattleScene, RewardScene, ShopScene, EventScene, TreasureScene], // BootScene -> HeroSelectScene
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH

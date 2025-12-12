@@ -1,4 +1,5 @@
 import { ACTS } from '../data/acts.js';
+import { HEROES } from '../data/heroes.js';
 
 export class RunManager {
     constructor() {
@@ -34,13 +35,22 @@ export class RunManager {
         this.currentNode = null; // Track exact current node { tier, index }
     }
 
-    startNewRun() {
+    startNewRun(heroId = 'warrior') {
         // console.log('[RunManager] Starting New Run (Resetting State)!');
         this.player.currentHP = this.player.maxHP;
         this.player.gold = 15;
         this.player.relics = [];
         this.player.potions = [];
-        this.player.deck = ['FIREBALL', 'HEAL'];
+
+        // Store Selected Hero ID
+        this.selectedHeroId = heroId;
+
+        // Load Skills and Relics (Passives) from Hero Definition
+        // If heroId valid, use it, else default
+        const heroData = HEROES[heroId] || HEROES['warrior'];
+
+        this.player.deck = heroData && heroData.skills ? [...heroData.skills] : ['SHIELD_SLAM'];
+        this.player.relics = heroData && heroData.startingRelics ? [...heroData.startingRelics] : [];
 
         this.generateMap();
         this.currentTier = 0;

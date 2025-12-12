@@ -192,6 +192,11 @@ export class TopBar {
 
             const icon = this.scene.add.text(x, y, data.icon, { fontSize: '24px' }).setOrigin(0, 0.5);
 
+            if (data.color) {
+                // If it's a number (0x...), setTint works perfectly.
+                icon.setTint(data.color);
+            }
+
             // Interaction for Tooltip
             const hitArea = this.scene.add.rectangle(x + 12, y, 30, 30, 0x000000, 0).setOrigin(0.5)
                 .setInteractive({ useHandCursor: true })

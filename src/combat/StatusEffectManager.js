@@ -13,7 +13,8 @@ const CONFIG = {
     [STATUS_TYPES.FOCUS]: { max: 2, category: 'BUFF' },
     [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' },
     [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' },
-    [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' }
+    [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' },
+    [STATUS_TYPES.GREED_CURSE]: { max: 1, category: 'DEBUFF' }
 };
 
 export class StatusEffectManager {

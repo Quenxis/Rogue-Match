@@ -21,6 +21,7 @@ export class BootScene extends Phaser.Scene {
         this.load.image('tex_slime', 'assets/entities/slime.png');
         this.load.image('tex_orc', 'assets/entities/orc.png');
         this.load.image('tex_dragon', 'assets/entities/dragon.png');
+        this.load.image('huntress', 'assets/entities/huntress.png');
 
         // Icons (Small versions for UI)
         this.load.image('icon_sword', 'assets/icons/sword.png');
@@ -47,8 +48,9 @@ export class BootScene extends Phaser.Scene {
         this.load.audio('bgm_main', 'assets/audio/bgm_main.mp3');
 
         // Abilities
-        this.load.image('ability_1', 'assets/abilities/fireball.png');
         this.load.image('ability_2', 'assets/abilities/heal.png');
+        this.load.image('ability_3', 'assets/abilities/shield_slam.png');
+        this.load.image('ability_4', 'assets/abilities/aimed_shot.png'); // New Ability
     }
 
     create() {
@@ -58,6 +60,6 @@ export class BootScene extends Phaser.Scene {
         // Prevent audio from pausing when window loses focus
         this.sound.pauseOnBlur = false;
 
-        this.scene.start('MapScene');
+        this.scene.start('HeroSelectScene');
     }
 }

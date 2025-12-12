@@ -20,6 +20,7 @@ export class RelicSystem {
         this.onTurnStart = this.onTurnStart.bind(this);
         this.onSwap = this.onSwap.bind(this);
         this.onSwapReverted = this.onSwapReverted.bind(this);
+        this.onTurnEnd = this.onTurnEnd.bind(this);
 
         this.bindEvents();
     }
@@ -31,6 +32,7 @@ export class RelicSystem {
         EventBus.on(EVENTS.TURN_START, this.onTurnStart, this);
         EventBus.on(EVENTS.ITEM_SWAPPED, this.onSwap, this);
         EventBus.on(EVENTS.ITEM_SWAP_REVERTED, this.onSwapReverted, this);
+        EventBus.on(EVENTS.TURN_END, this.onTurnEnd, this);
     }
     destroy() {
         EventBus.off(EVENTS.MATCHES_FOUND, this.onMatchesFound, this);
@@ -39,6 +41,7 @@ export class RelicSystem {
         EventBus.off(EVENTS.TURN_START, this.onTurnStart, this);
         EventBus.off(EVENTS.ITEM_SWAPPED, this.onSwap, this);
         EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapReverted, this);
+        EventBus.off(EVENTS.TURN_END, this.onTurnEnd, this);
     }
 
     get combatContext() {
@@ -121,5 +124,9 @@ export class RelicSystem {
 
     onSwapReverted() {
         this.triggerHook('onSwapReverted');
+    }
+
+    onTurnEnd() {
+        this.triggerHook('onTurnEnd');
     }
 }
