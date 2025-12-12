@@ -57,7 +57,7 @@ export const RELICS = {
     },
     'crimson_hourglass': {
         name: 'Crimson Hourglass',
-        description: 'You have 4 Moves per turn. The 4th move applies 6 Bleed to you.',
+        description: 'You have 4 Moves per turn. The 4th move applies 6🩸 to you.',
         icon: '⏳',
         color: 0x990000,
         type: 'PASSIVE',
