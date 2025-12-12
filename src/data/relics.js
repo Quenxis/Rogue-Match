@@ -19,29 +19,28 @@ export const RELICS = {
     },
     'golden_idol': {
         name: 'Golden Idol',
-        description: 'Gain 5 extra Gold after winning a battle.',
+        description: 'Gain 5 extra [icon:icon_coin] after winning a battle.',
         icon: '🗿',
         color: 0xffd700,
         type: 'PASSIVE',
         hooks: {
             onVictory: (combat) => {
                 combat.player.addGold(5);
-                combat.log('Golden Idol: +5 Gold');
+                combat.log('Golden Idol: +5 [icon:icon_coin]');
                 return true;
             }
         }
     },
     'spiked_shield': {
         name: 'Spiked Shield',
-        description: 'Reflects 3 damage when attacked while blocking.',
+        description: 'Reflects 3 damage when attacked while has at least 1[icon:icon_shield].',
         icon: '🛡️',
-        color: 0x555555,
         type: 'PASSIVE',
         hooks: {
             onDefend: (combat, damage) => {
                 if (combat.player.block > 0) {
                     combat.enemy.takeDamage(3); // Fixed thorns damage
-                    combat.log('Spiked Shield reflected 3 dmg!');
+                    combat.log('Spiked Shield reflected 3 [icon:icon_sword]!');
                     return true;
                 }
                 return false;
@@ -94,7 +93,7 @@ export const RELICS = {
     },
     'greed_pact': {
         name: 'Greed Pact',
-        description: 'Coins give 3x Gold, but you take 5 DMG if you end turn without collecting Gold.',
+        description: 'Matching [icon:icon_coin] gives 3x gold but you take 5 DMG if you end turn without collecting any [icon:icon_coin]',
         icon: '💰',
         color: 0xffd700,
         type: 'PASSIVE',
@@ -123,14 +122,14 @@ export const RELICS = {
     },
     'splintered_arrowhead': {
         name: 'Splintered Arrowhead',
-        description: 'Your Bow attacks deal +1 Piercing Damage.',
+        description: 'Your Bow attacks deal +1 Piercing Damage',
         icon: '🏹',
         type: 'PASSIVE',
         hooks: {} // No hooks, handled in CombatManager logic directly
     },
     'blood_tipped_edge': {
         name: 'Blood-Tipped Edge',
-        description: 'Sword attacks apply +1 Bleed. (Match 3 applies 1 Bleed)',
+        description: 'Sword attacks apply +1 Bleed.\n(Match 3 [icon:icon_sword] now applies 1 Bleed)', // newline for cleaner layout
         icon: '🗡️',
         color: 0xA13535, // Blood Red
         type: 'PASSIVE',
@@ -138,7 +137,7 @@ export const RELICS = {
     },
     'tortoise_shell': {
         name: 'Tortoise Shell',
-        description: 'If you deal no damage in a turn, gain +5 Block.',
+        description: 'If you deal no damage in a turn, gain +5 [icon:icon_shield]',
         icon: '🐢',
         type: 'PASSIVE',
         hooks: {

@@ -2,8 +2,10 @@ import { runManager } from '../core/RunManager.js';
 import { EventBus } from '../core/EventBus.js';
 import { RELICS } from '../data/relics.js';
 import { audioManager } from '../core/AudioManager.js';
+import { RichTextHelper } from './RichTextHelper.js';
 
 export class TopBar {
+
     constructor(scene) {
         this.scene = scene;
         this.width = this.scene.scale.width;
@@ -62,11 +64,11 @@ export class TopBar {
         this.relicContainer = this.scene.add.container(450, cy); // Adjusted X
         this.container.add(this.relicContainer);
         this.relicIcons = [];
-        this.relicTooltip = this.scene.add.text(0, 0, '', { font: '16px Verdana', fill: '#ffffff', backgroundColor: '#000000', padding: 6 })
-            .setDepth(2001)
-            .setVisible(false)
-            .setResolution(2)
-            .setScrollFactor(0);
+
+        // RICHER TOOLTIP (Container)
+        this.relicTooltip = this.scene.add.container(0, 0).setDepth(2001).setVisible(false).setScrollFactor(0);
+        this.relicTooltipBg = this.scene.add.rectangle(0, 0, 200, 50, 0x000000, 0.9).setOrigin(0, 0); // Origin Top-Left for easier resizing
+        this.relicTooltip.add(this.relicTooltipBg);
         this.container.add(this.relicTooltip);
 
         // --- Potions (Right Side) ---
@@ -156,17 +158,9 @@ export class TopBar {
             this.potionSlots.push({ bg: bg, icon: icon, btn: btn });
         }
 
-        // Tooltip Text
-        this.tooltip = this.scene.add.text(0, 0, '', { font: '13px Verdana', fill: '#ffffff', backgroundColor: '#000000', padding: 4 })
-            .setDepth(2000)
-            .setVisible(false)
-            .setResolution(2)
-            .setScrollFactor(0); // Fix to HUD
-        // Note: Adding to container usually handles scroll factor, BUT if MapScene camera moves, 
-        // global position calculations might be off if we rely on container relative pos?
-        // Actually, container is factor 0. Children inherit. 
-        // But let's be explicit.
-        this.container.add(this.tooltip);
+        // Tooltip Text (Legacy removed - uses unified container)
+        // this.tooltip = ... 
+
     }
 
     render() {
@@ -205,7 +199,10 @@ export class TopBar {
             hitArea.on('pointerover', () => {
                 // Ensure tooltip is top-most
                 this.relicTooltip.setDepth(9999);
-                this.relicTooltip.setText(`${data.name}\n${data.description}`);
+
+                // Use Rich Text
+                this.updateRichTooltip(`${data.name}\n${data.description}`);
+
                 // Position relative to container (which is 0,0 fixed)
                 this.relicTooltip.setPosition(400 + x, 50);
                 this.relicTooltip.setVisible(true);
@@ -243,14 +240,33 @@ export class TopBar {
         EventBus.emit('potion:use_requested', index);
     }
 
+    updateRichTooltip(text) {
+        // 1. Clear previous content (Keep BG)
+        this.relicTooltip.each(child => {
+            if (child !== this.relicTooltipBg) child.destroy();
+        });
+
+        // 2. Delegate to Helper with Defaults
+        const { width, height } = RichTextHelper.renderRichText(
+            this.scene,
+            this.relicTooltip,
+            text
+        );
+
+        // 3. Resize Background
+        this.relicTooltipBg.setSize(width, height);
+    }
+
     showTooltip(x, y, text) {
-        this.tooltip.setPosition(x, y);
-        this.tooltip.setText(text);
-        this.tooltip.setVisible(true);
+        // Unified tooltip using RichTextHelper (Container)
+        this.relicTooltip.setDepth(9999);
+        this.updateRichTooltip(text);
+        this.relicTooltip.setPosition(x, y);
+        this.relicTooltip.setVisible(true);
     }
 
     hideTooltip() {
-        this.tooltip.setVisible(false);
+        this.relicTooltip.setVisible(false);
     }
 
     createGuideOverlay() {

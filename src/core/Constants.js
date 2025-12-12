@@ -108,7 +108,7 @@ export const SKILL_DATA = {
         icon: 'ability_4', // User provided icon
         color: 0x22aa22,
         name: 'Aimed Shot',
-        desc: 'Deal 12 Piercing DMG + Vulnerable. Requirements: 9 or less Swords on grid.'
+        desc: 'Deal 12 Piercing DMG + Vulnerable. Requirements: 9 or less [icon:icon_sword] on grid.'
     }
 };
 

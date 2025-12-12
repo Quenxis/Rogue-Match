@@ -4,12 +4,14 @@
  * @dependencies Phaser
  */
 
+import { settingsManager } from './SettingsManager.js';
+
 export class AudioManager {
     constructor() {
         this.bgm = null;
         this.currentKey = null;
-        this.volume = 0.5;
-        this.muted = false;
+        this.volume = settingsManager.get('volume', 0.5);
+        this.muted = settingsManager.get('muted', false);
         this.scene = null; // Reference to a scene to access sound manager
     }
 
@@ -86,6 +88,7 @@ export class AudioManager {
 
     setVolume(value) {
         this.volume = Phaser.Math.Clamp(value, 0, 1);
+        settingsManager.set('volume', this.volume);
         if (this.bgm) {
             this.bgm.setVolume(this.volume);
         }
@@ -93,6 +96,7 @@ export class AudioManager {
 
     toggleMute() {
         this.muted = !this.muted;
+        settingsManager.set('muted', this.muted);
         if (this.bgm) {
             if (this.muted) this.bgm.pause();
             else this.bgm.resume();

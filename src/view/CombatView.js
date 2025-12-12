@@ -8,6 +8,7 @@ import { EVENTS, ASSETS, SKILLS, SKILL_DATA, ENTITIES, STATUS_TYPES } from '../c
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { HEROES } from '../data/heroes.js';
+import { RichTextHelper } from './RichTextHelper.js';
 
 export class CombatView {
     constructor(scene, combatManager) {
@@ -177,45 +178,32 @@ export class CombatView {
     }
 
     createTooltip() {
-        this.tooltipContainer = this.scene.add.container(0, 0);
-        this.tooltipContainer.setDepth(500);
-        this.tooltipContainer.setVisible(false);
-
-        // Background
-        this.tooltipBg = this.scene.add.rectangle(0, 0, 200, 30, 0x000000, 0.85);
-        this.tooltipBg.setStrokeStyle(1, 0xffffff, 0.5);
-
-        // Text
-        this.tooltipText = this.scene.add.text(0, 0, '', {
-            font: '13px Arial',
-            fill: '#ffffff',
-            align: 'center',
-            wordWrap: { width: 190 }
-        }).setOrigin(0.5).setResolution(2);
-
-        this.tooltipContainer.add([this.tooltipBg, this.tooltipText]);
+        this.tooltipContainer = this.scene.add.container(0, 0).setDepth(2000).setVisible(false);
+        this.tooltipBg = this.scene.add.rectangle(0, 0, 200, 100, 0x000000, 0.9).setOrigin(0, 0);
+        this.tooltipContainer.add(this.tooltipBg);
     }
 
     showTooltip(x, y, text) {
-        if (!this.tooltipContainer) return;
-
-        this.tooltipText.setStyle({
-            font: '22px Arial', // Slightly larger font (was 24px)
-            fill: '#ffffff',
-            wordWrap: { width: 450 } // Slightly wider wrap
+        // Clear previous content (except BG)
+        this.tooltipContainer.each(child => {
+            if (child !== this.tooltipBg) child.destroy();
         });
-        this.tooltipText.setText(text);
 
-        // Resize background to fit text
-        const padding = 9; // Slightly increased padding (was 20/Custom)
-        const w = Math.max(180, this.tooltipText.width + padding * 2);
-        const h = this.tooltipText.height + padding * 2;
-        this.tooltipBg.setSize(w, h);
+        // Use Helper with Defaults
+        const { width, height } = RichTextHelper.renderRichText(
+            this.scene,
+            this.tooltipContainer,
+            text
+        );
 
-
-        // Position (offset up-left from cursor)
-        this.tooltipContainer.setPosition(x, y - 50); // Slightly more offset
+        this.tooltipBg.setSize(width, height);
+        this.tooltipContainer.setPosition(x, y);
         this.tooltipContainer.setVisible(true);
+
+        // Adjust alignment if off screen? (Optional polish)
+        if (x + width > this.scene.scale.width) {
+            this.tooltipContainer.setX(this.scene.scale.width - width - 10);
+        }
     }
 
     hideTooltip() {
@@ -1386,8 +1374,8 @@ export class CombatView {
         bg.on('pointerover', () => {
             this.scene.tweens.add({ targets: container, scale: 1.1, duration: 100 });
             const worldMatrix = container.getWorldTransformMatrix();
-            const costString = (data.shieldCost > 0 ? `${data.shieldCost} Block, ` : '') + `${data.cost} Mana`;
-            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, `${data.name} (${costString})\n${data.desc}`);
+            const costString = (data.shieldCost > 0 ? `${data.shieldCost}[icon:icon_shield], ` : '') + `${data.cost}[icon:icon_mana]`;
+            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, `${data.name} - ${costString}\n${data.desc}`);
         });
 
         // FIX: Hover Out Animation
