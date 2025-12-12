@@ -671,14 +671,20 @@ export class CombatView {
                     let swordCount = 0;
                     if (window.grid && window.grid.grid) {
                         window.grid.grid.forEach(row => row.forEach(tile => {
-                            if (tile && tile.type === 'SWORD') swordCount++;
+                            // Robust check for Sword type
+                            if (tile && (tile.type === 'SWORD' || tile.type === ASSETS.SWORD) && !tile.isTrash) swordCount++;
                         }));
                     }
                     if (swordCount > data.maxSwords) extraConditionMet = false;
+
+                    // DEBUG AIMED SHOT
+                    // if (skillId === 'AIMED_SHOT') {
+                    //    console.log(`[CombatView] Aimed Shot Check: Swords=${swordCount}/${data.maxSwords}, Met=${extraConditionMet}, Mana=${player.mana}/${cost}, CanAct=${canAct} (Busy=${!canAct})`);
+                    // }
                 }
 
                 const isEnabled = canAct && player.mana >= cost && player.block >= shieldCost && extraConditionMet;
-                const metadata = { swordConditionMet: extraConditionMet }; // Since extraConditionMet IS the sword condition here
+                const metadata = { swordConditionMet: extraConditionMet };
                 this.updateSkillButton(skillId, isEnabled, focus, metadata);
             });
         }

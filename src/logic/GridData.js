@@ -116,7 +116,7 @@ export class GridData {
             }
         }
 
-        console.log('Grid Logic Initialized');
+        // console.log('Grid Logic Initialized');
         // Debug print
         this.debugPrint();
 
@@ -221,7 +221,7 @@ export class GridData {
      * Attempt to swap two items.
      */
     async swapItems(r1, c1, r2, c2) {
-        console.log(`GridData: Swap Requested [${r1},${c1}] <-> [${r2},${c2}]`);
+        // console.log(`GridData: Swap Requested [${r1},${c1}] <-> [${r2},${c2}]`);
         if (!this.isValidCoord(r1, c1) || !this.isValidCoord(r2, c2)) {
             console.warn('Invalid swap coordinates');
             return false;
@@ -252,7 +252,7 @@ export class GridData {
         const matches = this.findMatches();
 
         if (matches.length > 0) {
-            console.log('Match Found!', matches);
+            // console.log('Match Found!', matches);
             // EventBus.emit(EVENTS.MATCHES_FOUND, { matches }); // MOVED to handleMatchResolution
 
             // Proceed to resolution
@@ -264,7 +264,7 @@ export class GridData {
 
             // PHANTOM GLOVES CHECK
             if (runManager.hasRelic('phantom_gloves')) {
-                console.log('Phantom Gloves Active: Allowing swap without match.');
+                // console.log('Phantom Gloves Active: Allowing swap without match.');
                 // Do NOT revert.
                 // Treated as a valid move (consumes move elsewhere).
                 // Need to ensure deadlocks are checked if board state changes?
@@ -277,7 +277,7 @@ export class GridData {
                 return true;
             }
 
-            console.log('No match, swapping back...');
+            // console.log('No match, swapping back...');
             // Swap back
             this.grid[r1][c1] = item1;
             this.grid[r2][c2] = item2;
@@ -338,7 +338,7 @@ export class GridData {
         // 4. Check for Cascading Matches
         const newMatches = this.findMatches();
         if (newMatches.length > 0) {
-            console.log('Cascade Match Found! Resolving...');
+            // console.log('Cascade Match Found! Resolving...');
 
             // CRITICAL: Tell the View to animate these matches!
             // EventBus.emit(EVENTS.MATCHES_FOUND, { matches: newMatches }); // MOVED to handleMatchResolution logic
@@ -560,7 +560,7 @@ export class GridData {
         }
 
         if (moves.length > 0) {
-            console.log('Gravity applied', moves);
+            // console.log('Gravity applied', moves);
             EventBus.emit(EVENTS.GRID_GRAVITY, { moves });
             return moves.length;
         }
@@ -615,7 +615,7 @@ export class GridData {
         }
 
         if (newItems.length > 0) {
-            console.log('Grid Refilled', newItems);
+            // console.log('Grid Refilled', newItems);
             EventBus.emit(EVENTS.GRID_REFILLED, { newItems });
         }
     }

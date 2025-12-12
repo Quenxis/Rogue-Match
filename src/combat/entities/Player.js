@@ -6,7 +6,9 @@ export class Player extends Entity {
         this.mana = 0;
         this.gold = 0;
         this.strength = 0;
+        this.skills = []; // Equipped skills (IDs)
     }
+
 
     addStrength(amount) {
         this.strength += amount;

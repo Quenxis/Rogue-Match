@@ -2,6 +2,7 @@ import { runManager } from '../core/RunManager.js';
 import { EventBus } from '../core/EventBus.js';
 import { RELICS } from '../data/relics.js';
 import { audioManager } from '../core/AudioManager.js';
+import { settingsManager } from '../core/SettingsManager.js';
 import { RichTextHelper } from './RichTextHelper.js';
 
 export class TopBar {
@@ -625,6 +626,41 @@ export class TopBar {
 
         // Load initial volume from manager?
         // Ideally we read audioManager.volume
+
+        // --- AUTO END TURN TOGGLE ---
+        const toggleY = volY + 60;
+        this.settingsContainer.add(this.scene.add.text(centerX, toggleY - 20, 'AUTO END TURN', { font: '16px Verdana', fill: '#aaaaaa' }).setOrigin(0.5));
+
+        const toggleBg = this.scene.add.rectangle(centerX, toggleY + 10, 60, 30, 0x444444).setInteractive({ useHandCursor: true });
+        const toggleKnob = this.scene.add.circle(centerX - 15, toggleY + 10, 14, 0xff0000);
+
+        this.settingsContainer.add([toggleBg, toggleKnob]);
+
+        // State
+        let isAutoEndTurn = settingsManager.get('autoEndTurn', false);
+
+        const updateToggleVisuals = () => {
+            if (isAutoEndTurn) {
+                toggleKnob.x = centerX + 15;
+                toggleKnob.setFillStyle(0x00ff00);
+            } else {
+                toggleKnob.x = centerX - 15;
+                toggleKnob.setFillStyle(0xff0000);
+            }
+        };
+        updateToggleVisuals();
+
+        toggleBg.on('pointerdown', () => {
+            isAutoEndTurn = !isAutoEndTurn;
+            settingsManager.set('autoEndTurn', isAutoEndTurn);
+            updateToggleVisuals();
+        });
+
+        // Store update function to sync when opening settings
+        this.updateAutoRunToggle = () => {
+            isAutoEndTurn = settingsManager.get('autoEndTurn', false);
+            updateToggleVisuals();
+        };
     }
 
     setVolumeFromPointer(pointer, barW, centerX) {
@@ -659,6 +695,7 @@ export class TopBar {
         // Sync visuals when opening
         if (this.settingsContainer.visible) {
             this.updateVolumeVisuals(audioManager.volume);
+            if (this.updateAutoRunToggle) this.updateAutoRunToggle();
         }
     }
 }

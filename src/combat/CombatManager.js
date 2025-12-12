@@ -6,6 +6,7 @@ import { EVENTS, ENTITIES, ASSETS, SKILLS, SKILL_DATA, GAME_SETTINGS, MOVESET_TY
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
+import { settingsManager } from '../core/SettingsManager.js';
 
 
 export class CombatManager {
@@ -31,7 +32,10 @@ export class CombatManager {
         this.player = new Player(savedPlayer.maxHP);
         this.player.currentHP = savedPlayer.currentHP;
         this.player.gold = savedPlayer.gold;
+        this.player.gold = savedPlayer.gold;
         this.player.mana = 0; // Reset Mana per battle
+        this.player.skills = savedPlayer.deck ? [...savedPlayer.deck] : [];
+        // console.log(`[CombatManager] Player Skills Loaded: ${this.player.skills.join(', ')}`);
 
         // Load Enemy Data
         const enemyData = ENEMIES[enemyId] || ENEMIES['slime'];
@@ -159,9 +163,127 @@ export class CombatManager {
             currentMoves: this.currentMoves,
             maxMoves: this.maxMoves
         });
+
+        // Auto End Turn Check
+        this.checkAutoEndTurn();
     }
 
+    checkAutoEndTurn(retryCount = 0) {
+        // 1. Check Setting
+        if (!settingsManager.get('autoEndTurn', false)) return;
 
+        // 2. Conditions
+        if (this.turn !== ENTITIES.PLAYER) return;
+
+        // Wait for Grid to be idle (animations complete)
+        const visualBusy = (this.scene && this.scene.gridView && this.scene.gridView.isAnimating);
+        const logicBusy = (window.grid && window.grid.isAnimating);
+
+        if (visualBusy || logicBusy) {
+            // Retry in 500ms
+            if (retryCount < 20) {
+                // if (retryCount % 5 === 0) console.log(`[AutoRun] Busy (Vis:${visualBusy}), Retrying ${retryCount}...`);
+                this.scene.time.delayedCall(500, () => this.checkAutoEndTurn(retryCount + 1));
+            }
+            return;
+        }
+
+        if (this.currentMoves > 0) return; // Still has moves
+        if (this.canUseAnySkill()) return; // Still has playable skills
+
+        // Debounce: If timer exists, cancel it and restart
+        if (this.autoturnTimer) {
+            this.autoturnTimer.remove(false);
+            this.autoturnTimer = null;
+        }
+
+        // console.log('CombatManager: Auto End Turn Scheduled (0.3s)...');
+
+        // 3. Trigger with Delay (Reduced to 300ms)
+        if (this.scene && this.scene.time) {
+            this.autoturnTimer = this.scene.time.delayedCall(300, () => {
+                this.autoturnTimer = null;
+                // Double check conditions
+                if (this.turn === ENTITIES.PLAYER && this.currentMoves <= 0 && !this.canUseAnySkill()) {
+                    this.endTurn();
+                }
+            });
+        }
+    }
+
+    canUseAnySkill() {
+        if (!this.player) return false;
+
+        // Helper to check standard cost
+        const check = (data) => {
+            const cost = Math.floor(data.cost * (this.player.statusManager.getStack(STATUS_TYPES.FOCUS) > 0 ? 0.5 : 1));
+            if (this.player.mana >= cost) {
+                // console.log(`[AutoEndTurn] Blocked by Usable Skill: ${data.name} (Mana ${this.player.mana}/${cost})`);
+                return true;
+            }
+            return false;
+        };
+
+        const p = this.player;
+        const multiplier = p.statusManager.getStack(STATUS_TYPES.FOCUS) > 0 ? 0.5 : 1;
+
+        // 1. Iterate Owned Skills
+        for (const skillId of this.player.skills) {
+            const data = SKILL_DATA[skillId];
+            if (!data) continue;
+
+            // Special handling for SHIELD_SLAM (Block check)
+            if (skillId === 'SHIELD_SLAM') {
+                const cost = Math.floor(data.cost * multiplier);
+                if (p.mana >= cost && p.block >= (data.shieldCost || 0)) {
+                    // console.log(`[AutoEndTurn] Blocked by Usable Skill: Shield Slam`);
+                    return true;
+                }
+                continue;
+            }
+
+            // Special handling for AIMED_SHOT (Sword check)
+            if (skillId === 'AIMED_SHOT') {
+                const cost = Math.floor(data.cost * multiplier);
+                if (p.mana >= cost) {
+                    // Must check swords
+                    let swordCount = 0;
+                    if (this.scene && this.scene.gridView) {
+                        this.scene.gridView.tokenContainer.list.forEach(sprite => {
+                            if (sprite.type === 'Container') return;
+                            const type = sprite.texture.key;
+                            const isTrash = sprite.getData('isTrash');
+                            // Need to check Constants/GridDetails logic if key matches?
+                            // Typically textures are mapped. Let's assume ASSETS or direct comparison.
+                            // Actually GridView uses 'SWORD' texture key?
+                            // Let's rely on ITEM_TYPES logic if possible or check key.
+                            // Better: Use GridData if possible? no, gridView is safer for "what's visible" 
+                            // BUT CombatView used 'ASSETS.SWORD'.
+                            if ((type === 'SWORD' || type === ASSETS.SWORD) && !isTrash) swordCount++; // Use ASSETS
+                        });
+                    } else if (window.grid && window.grid.grid) {
+                        // Fallback Logic
+                        window.grid.grid.forEach(row => {
+                            row.forEach(tile => {
+                                if (tile && tile.type === 'SWORD' && !tile.isTrash) swordCount++;
+                            });
+                        });
+                    }
+
+                    if (swordCount <= (data.maxSwords || 9)) {
+                        // console.log(`[AutoEndTurn] Blocked by Usable Skill: Aimed Shot (Swords ${swordCount}/${data.maxSwords})`);
+                        return true;
+                    }
+                }
+                continue;
+            }
+
+            // Standard Skills (Fireball, Heal, etc.)
+            if (check(data)) return true;
+        }
+
+        return false;
+    }
 
     tryUseSkill(skillName) {
         if (!this.canInteract()) {
@@ -253,15 +375,15 @@ export class CombatManager {
             if (p.mana >= finalCost && swordCount <= maxSwords) {
                 p.mana -= finalCost;
 
-                // Effect: Piercing Damage + Vulnerable
-                if (data.vulnerable > 0) {
-                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, data.vulnerable);
-                }
-
-                // Deal Damage (Piercing)
+                // Deal Damage FIRST
                 EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'AIMED_SHOT' });
                 // Assuming takeDamage supports options object as 3rd arg based on previous context
                 e.takeDamage(data.damage, p, { isPiercing: true });
+
+                // Effect: Vulnerable AFTER damage
+                if (data.vulnerable > 0) {
+                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, data.vulnerable);
+                }
 
                 // Consume Focus if used
                 if (focus > 0) {
@@ -300,15 +422,20 @@ export class CombatManager {
         let isGridBusy = false;
 
         // Check Scene GridView first (Visual State)
+        let visualBusy = false;
         if (this.scene && this.scene.gridView && this.scene.gridView.isAnimating) {
+            visualBusy = true;
             isGridBusy = true;
         }
         // Fallback to window.grid if scene unavailable (though CombatManager expects scene)
         else if (window.grid && window.grid.isAnimating) {
+            // Logic busy?
             isGridBusy = true;
         }
 
-        return this.turn === ENTITIES.PLAYER && this.currentMoves > 0 && !isGridBusy;
+        // Return true if Player Turn and Grid is Idle (regardless of moves)
+        // Skills can be used with 0 moves if Mana allows.
+        return this.turn === ENTITIES.PLAYER && !isGridBusy;
     }
 
     handleMatches(data) {
@@ -689,14 +816,13 @@ export class CombatManager {
 
         this.currentMoves = this.maxMoves;
         this.player.resetBlock();
-        // Tick Buffs (Duration Based) - REMOVED (Handled by StatusManager.onTurnStart)
-        // this.enemy.tickBuffs();
 
         // Generate Next Intent
-        // Ideally this logic lives in Enemy class, but for "data-driven" centralization:
         this.generateEnemyIntent();
 
         EventBus.emit(EVENTS.TURN_START, { combat: this });
+
+        // Emit State immediately to clear any potential 'disabled' UI from animation locks
         this.emitState();
 
         logManager.log("-- PLAYER TURN --", 'turn');
@@ -758,7 +884,7 @@ export class CombatManager {
     checkWinCondition() {
         if (this.turn === ENTITIES.ENDED) return;
 
-        console.log(`CombatManager: Checking Win Condition. Enemy Dead? ${this.enemy.isDead} (${this.enemy.currentHP}), Player Dead? ${this.player.isDead}`);
+        // console.log(`CombatManager: Checking Win Condition. Enemy Dead? ${this.enemy.isDead} (${this.enemy.currentHP}), Player Dead? ${this.player.isDead}`);
 
         if (this.enemy.isDead) {
             this.turn = ENTITIES.ENDED;

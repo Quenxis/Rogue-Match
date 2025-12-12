@@ -28,6 +28,10 @@ export class GridView {
         this.selectedTile = null; // {r, c, sprite}
         this.animatingIds = new Set(); // Track sprites being animated (e.g. matches) to prevent Sync destruction
 
+        // DEBUG: Unique Instance ID
+        this.instanceId = Math.floor(Math.random() * 10000);
+        // console.log(`[GridView] Created Instance ID: ${this.instanceId}`);
+
         // Create Container for Sprites
         this.tokenContainer = this.scene.add.container(0, 0);
         this.tokenContainer.setDepth(1); // Ensure it's above background but below UI? UI is depth 100.
@@ -42,7 +46,7 @@ export class GridView {
 
         // GLOBAL DEBUG INPUT
         this.scene.input.on('pointerdown', (pointer) => {
-            console.log(`Global Click: WorldX=${pointer.worldX.toFixed(0)}, WorldY=${pointer.worldY.toFixed(0)}`);
+            // console.log(`Global Click: WorldX=${pointer.worldX.toFixed(0)}, WorldY=${pointer.worldY.toFixed(0)}`);
             // Check against grid bounds
             const gridItemHeight = this.tileSize; // 60
             // Row 0 Y approx 140.
@@ -304,44 +308,48 @@ export class GridView {
             return;
         }
         if (window.combat && !window.combat.canInteract()) {
-            console.log('Input ignored: Combat Turn/Moves');
+            console.log('Input ignored: Grid Busy or Not Player Turn');
+            return;
+        }
+
+        // MOVES CHECK: Swapping requires moves
+        if (window.combat && window.combat.turn === ENTITIES.PLAYER && window.combat.currentMoves <= 0) {
+            console.log('Input ignored: No Moves');
 
             // Visual Feedback for No Moves
-            if (window.combat.turn === ENTITIES.PLAYER && window.combat.currentMoves <= 0) {
-                const text = this.scene.add.text(sprite.x, sprite.y - 40, "NO MOVES!", {
-                    font: 'bold 24px Verdana',
-                    fill: '#ff0000',
-                    stroke: '#000000',
-                    strokeThickness: 3
-                }).setOrigin(0.5).setDepth(200).setResolution(2);
+            const text = this.scene.add.text(sprite.x, sprite.y - 40, "NO MOVES!", {
+                font: 'bold 24px Verdana',
+                fill: '#ff0000',
+                stroke: '#000000',
+                strokeThickness: 3
+            }).setOrigin(0.5).setDepth(200).setResolution(2);
+
+            this.scene.tweens.add({
+                targets: text,
+                y: sprite.y - 80,
+                alpha: 0,
+                duration: 1000,
+                ease: 'Power2',
+                onComplete: () => text.destroy()
+            });
+
+            // Shake button hint
+            if (window.combat.endTurnBtn) {
+                this.scene.tweens.killTweensOf(window.combat.endTurnBtn);
+                window.combat.endTurnBtn.setScale(1);
 
                 this.scene.tweens.add({
-                    targets: text,
-                    y: sprite.y - 80,
-                    alpha: 0,
-                    duration: 1000,
-                    ease: 'Power2',
-                    onComplete: () => text.destroy()
+                    targets: window.combat.endTurnBtn,
+                    scale: 1.2,
+                    yoyo: true,
+                    duration: 100,
+                    repeat: 1,
+                    onComplete: () => {
+                        window.combat.endTurnBtn.setScale(1);
+                    }
                 });
-
-                // Shake button hint
-                if (window.combat.endTurnBtn) {
-                    this.scene.tweens.killTweensOf(window.combat.endTurnBtn);
-                    window.combat.endTurnBtn.setScale(1);
-
-                    this.scene.tweens.add({
-                        targets: window.combat.endTurnBtn,
-                        scale: 1.2,
-                        yoyo: true,
-                        duration: 100,
-                        repeat: 1,
-                        onComplete: () => {
-                            window.combat.endTurnBtn.setScale(1);
-                        }
-                    });
-                }
             }
-            return;
+            return; // Stop processing if no moves
         }
 
         // READ FRESH COORDINATES
@@ -349,17 +357,17 @@ export class GridView {
         const c = sprite.getData('col');
         const id = sprite.getData('id');
 
-        console.log(`Clicked Item: ID=${id}, Row=${r}, Col=${c}, Type=${sprite.texture.key}`);
+        // console.log(`Clicked Item: ID=${id}, Row = ${r}, Col = ${c}, Type = ${sprite.texture.key} `);
 
         if (!this.selectedTile) {
             // Select First
             this.selectedTile = { r, c, sprite };
             sprite.setAlpha(0.6); // Visual feedback
-            console.log('Selected FIRST tile');
+            // console.log('Selected FIRST tile');
         } else {
             // Select Second
             const first = this.selectedTile;
-            console.log(`Selected SECOND tile. First=${first.r},${first.c} Second=${r},${c}`);
+            // console.log(`Selected SECOND tile.First = ${first.r},${first.c} Second = ${r},${c} `);
 
             // If clicked same tile, deselect
             if (first.sprite === sprite) {
@@ -376,7 +384,7 @@ export class GridView {
             const dist = Math.abs(first.r - r) + Math.abs(first.c - c);
             if (dist === 1) {
                 // Execute Swap Logic
-                console.log('Valid Swap. Executing...');
+                // console.log('Valid Swap. Executing...');
                 this.setInteractionLock(true);
 
                 // CRITICAL FIX: Handle synchronous rejection (Lock) or Async success
@@ -428,13 +436,16 @@ export class GridView {
             }
             this.isInputLocked = true;
             this.isAnimating = true; // Sync
+            // console.trace(`[GridView ${ this.instanceId }] Interaction LOCKED(Source trace)`);
             if (window.combat) window.combat.emitState();
         } else {
             // Delayed Unlock (Debounce) to bridge gaps between animations (e.g. Match -> Gravity)
             if (this.unlockTimer) this.unlockTimer.remove(false);
             this.unlockTimer = this.scene.time.delayedCall(200, () => {
+                const wasAnimating = this.isAnimating;
                 this.isInputLocked = false;
                 this.isAnimating = false; // Sync
+                // console.log(`[GridView ${this.instanceId}] Unlock Timer Fired.IsAnimating: ${wasAnimating} -> false.Emitting State...`);
                 if (window.combat) window.combat.emitState();
                 this.unlockTimer = null;
             });
@@ -744,11 +755,11 @@ export class GridView {
             row.forEach((item, c) => {
                 if (item.type !== 'EMPTY') {
                     validIds.add(item.id);
-                    occupiedCells[`${r},${c}`] = item.id;
+                    occupiedCells[`${r},${c} `] = item.id;
 
                     // Ensure sprite exists
                     if (!this.sprites[item.id]) {
-                        console.log(`Sync: Creating missing sprite ${item.id} at ${r},${c}`);
+                        console.log(`Sync: Creating missing sprite ${item.id} at ${r},${c} `);
                         this.createToken(r, c, item);
                     }
 
@@ -765,7 +776,7 @@ export class GridView {
                     const expectedY = this.getY(r);
 
                     if (Math.abs(sprite.x - expectedX) > 2 || Math.abs(sprite.y - expectedY) > 2) {
-                        // console.log(`Sync: Correcting sprite pos ${item.id}.`);
+                        // console.log(`Sync: Correcting sprite pos ${ item.id }.`);
                         sprite.x = expectedX;
                         sprite.y = expectedY;
                     }
@@ -785,11 +796,11 @@ export class GridView {
             if (!isValid) {
                 // Protect animating sprites (e.g. dying matches)
                 if (this.animatingIds.has(id)) {
-                    // console.log(`Sync: Skipping destruction of animating sprite ${id}`);
+                    // console.log(`Sync: Skipping destruction of animating sprite ${ id } `);
                     return;
                 }
 
-                console.log(`Sync: Destroying Orphan Sprite ${id}`);
+                console.log(`Sync: Destroying Orphan Sprite ${id} `);
                 this.sprites[id].destroy();
                 if (this.debugRects && this.debugRects[id]) this.debugRects[id].destroy();
                 delete this.sprites[id];
