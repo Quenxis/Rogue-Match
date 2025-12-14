@@ -114,31 +114,23 @@ export class BattleScene extends Phaser.Scene {
 
             // Check if Elite or Boss
             const isSpecial = node && (node.type === 'ELITE' || node.type === 'BOSS');
-            console.log(`[BattleScene] isSpecial: ${isSpecial}`);
 
+            // Determine Rewards
+            let choices = [];
             if (isSpecial) {
-                // Generate Rewards
-                const eliteRewards = runManager.generateEliteRewards();
-                const totalGold = data.combat.goldReward; // Base gold from enemy
-
-                // Launch Reward Scene
-                this.scene.start('RewardScene', {
-                    rewards: {
-                        gold: totalGold,
-                        choices: eliteRewards
-                    }
-                });
-            } else {
-                // Determine Gold
-                const gold = data.combat.goldReward;
-                runManager.addGold(gold);
-
-                // Complete Level Logic in RunManager
-                runManager.completeLevel(); // Move to next node
-
-                // Return to Map
-                this.scene.start('MapScene');
+                choices = runManager.generateEliteRewards();
             }
+
+            const totalGold = data.combat.goldReward;
+
+            // Launch Reward Scene (Always)
+            // RewardScene handles: Adding Gold, Displaying Rewards, and Calling runManager.completeLevel()
+            this.scene.start('RewardScene', {
+                rewards: {
+                    gold: totalGold,
+                    choices: choices
+                }
+            });
         });
     }
 
