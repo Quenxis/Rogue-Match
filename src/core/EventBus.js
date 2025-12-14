@@ -37,6 +37,20 @@ class EventBusImpl {
      * @param {*} data 
      */
     emit(eventName, data) {
+        if (eventName === 'grid:item_updated') {
+            const listeners = this.events[eventName] || [];
+            console.log(`[EventBus] Emitting 'grid:item_updated'. Listeners: ${listeners.length}`);
+            listeners.forEach((callback, index) => {
+                console.log(`[EventBus] Executing Listener #${index}:`, callback);
+                try {
+                    callback(data);
+                } catch (err) {
+                    console.error(`[EventBus] Listener #${index} FAILED:`, err);
+                }
+            });
+            return; // Already handled
+        }
+
         if (!this.events[eventName]) return;
         this.events[eventName].forEach(callback => callback(data));
     }

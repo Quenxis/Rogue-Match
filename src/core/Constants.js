@@ -14,6 +14,9 @@ export const EVENTS = {
     ENEMY_HEAL: 'combat:enemy_heal',
     ENEMY_LOCK: 'combat:enemy_lock',
     ENEMY_TRASH: 'combat:enemy_trash',
+    TOXIN_APPLIED: 'combat:toxin_applied',
+    OUTBREAK_CAST: 'combat:outbreak_cast',
+    EXTRACTION_CAST: 'combat:extraction_cast',
     TURN_START: 'combat:turn_start',
     TURN_END: 'combat:turn_end',
     VICTORY: 'combat:victory',
@@ -57,6 +60,8 @@ export const ASSETS = {
     ICON_LOCK: 'icon_lock',
     ICON_TRASH: 'icon_trash',
     ICON_BOW: 'icon_bow', // New
+    ICON_BOW: 'icon_bow', // New
+    ICON_TOXIN: 'icon_toxin', // New Toxin Icon
     BOW: 'BOW' // New Gem Texture
 };
 
@@ -70,7 +75,10 @@ export const SKILLS = {
     FIREBALL: 'FIREBALL',
     HEAL: 'HEAL',
     SHIELD_SLAM: 'SHIELD_SLAM',
-    AIMED_SHOT: 'AIMED_SHOT'
+    SHIELD_SLAM: 'SHIELD_SLAM',
+    AIMED_SHOT: 'AIMED_SHOT',
+    EXTRACTION: 'EXTRACTION',
+    OUTBREAK: 'OUTBREAK'
 };
 
 // Single source of truth for skill balance
@@ -108,7 +116,25 @@ export const SKILL_DATA = {
         icon: 'ability_4', // User provided icon
         color: 0x22aa22,
         name: 'Aimed Shot',
-        desc: 'Deal 12 Piercing DMG +☠️. Requirements: 9 or less [icon:icon_sword] on grid.'
+        desc: 'Deal 12 Piercing DMG +☠️\nRequirements: 9 or less [icon:icon_sword]on grid'
+    },
+    EXTRACTION: {
+        cost: 3,
+        damagePerStack: 1,
+        healRatio: 2.0, // 200%
+        icon: 'ability_5', // Placeholder
+        color: 0x88ff00,
+        name: 'Extraction',
+        desc: 'Consume all [c:#39ff14]☣️[/c] stacks on the enemy.\nDeal damage equal to the number of [c:#39ff14]☣️[/c] consumed. Heal for 200% of the damage dealt.'
+    },
+    OUTBREAK: {
+        cost: 8,
+        transmuteCount: 3,
+        threshold: 6, // Toxin Threshold for Extra Move
+        icon: 'ability_6', // Placeholder
+        color: 0x44cc00,
+        name: 'Outbreak',
+        desc: 'Convert 3 gems into [icon:icon_potion].\nWhen used, if the enemy has 6+ [c:#39ff14]☣️[/c]\n-> gain 1 Move.'
     }
 };
 
@@ -153,7 +179,9 @@ export const STATUS_TYPES = {
     CRITICAL: 'CRITICAL',
     VULNERABLE: 'VULNERABLE', // New Debuff
     STRENGTH: 'STRENGTH',
-    GREED_CURSE: 'GREED_CURSE'
+    STRENGTH: 'STRENGTH',
+    GREED_CURSE: 'GREED_CURSE',
+    TOXIN: 'TOXIN' // New
 };
 
 export const POTION_DATA = {

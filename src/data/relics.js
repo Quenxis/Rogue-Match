@@ -65,16 +65,25 @@ export const RELICS = {
             onTurnStart: (combat) => {
                 combat.maxMoves = 4;
                 combat.currentMoves = 4;
+                // Add tracking flag to turnState
+                if (combat.manager && combat.manager.turnState) {
+                    combat.manager.turnState.crimsonTriggered = false;
+                }
                 combat.log('Crimson Hourglass: +1 Move. Beware the cost!');
                 return true;
             },
             onSwap: (combat) => {
                 // CombatManager handles swap first, so currentMoves is already decremented.
                 // If we went from 1 -> 0, that was the 4th move.
+                const cm = combat.manager;
                 if (combat.currentMoves === 0) {
-                    combat.player.statusManager.applyStack('BLEED', 6);
-                    // combat.log('Crimson Hourglass exacted its price: 4 Bleed!', 'relic');
-                    return true;
+                    // Check if already triggered this turn
+                    if (cm && cm.turnState && !cm.turnState.crimsonTriggered) {
+                        combat.player.statusManager.applyStack('BLEED', 6);
+                        cm.turnState.crimsonTriggered = true; // Mark as triggered
+                        // combat.log('Crimson Hourglass exacted its price: 4 Bleed!', 'relic');
+                        return true;
+                    }
                 }
                 return false;
             },
@@ -82,10 +91,15 @@ export const RELICS = {
                 // If a swap is reverted, it means the move was NOT consumed (moves refunded).
                 // If we applied Bleed (because we were at 0 moves), we must undo it.
                 // Revert means moves went 0 -> 1.
-                if (combat.currentMoves === 1) { // It's 1 because CombatManager refunded it before this event
-                    combat.player.statusManager.removeStack('BLEED', 6);
-                    // combat.log('Crimson Hourglass penalty reverted.', 'relic');
-                    return true;
+                // Only undo if we JUST triggered it
+                const cm = combat.manager;
+                if (combat.currentMoves === 1) {
+                    if (cm && cm.turnState && cm.turnState.crimsonTriggered) {
+                        combat.player.statusManager.removeStack('BLEED', 6);
+                        cm.turnState.crimsonTriggered = false; // Reset flag
+                        // combat.log('Crimson Hourglass penalty reverted.', 'relic');
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -122,10 +136,17 @@ export const RELICS = {
     },
     'splintered_arrowhead': {
         name: 'Splintered Arrowhead',
-        description: 'Your Bow attacks deal +1 Piercing Damage',
+        description: 'Your [icon:icon_bow] attacks deal +1 Piercing Damage',
         icon: '🏹',
         type: 'PASSIVE',
         hooks: {} // No hooks, handled in CombatManager logic directly
+    },
+    'corrupted_flask': {
+        name: 'Corrupted Flask',
+        description: 'Your [icon:icon_potion] matches no longer heal\nInstead, they apply [c:#39ff14]☣️[/c] to the enemy:\nMatch 3: +3 [c:#39ff14]☣️[/c]\nMatch 4: +5 [c:#39ff14]☣️[/c]\nMatch 5: +8 [c:#39ff14]☣️[/c]\nIf enemy has 12+ [c:#39ff14]☣️[/c]:\nDeal 25 True Damage (ignores [icon:icon_shield])\nand reset [c:#39ff14]☣️[/c] to 0.',
+        icon: '⚗️',
+        type: 'PASSIVE',
+        hooks: {} // Handled in CombatManager
     },
     'blood_tipped_edge': {
         name: 'Blood-Tipped Edge',

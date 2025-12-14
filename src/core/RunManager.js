@@ -37,10 +37,6 @@ export class RunManager {
 
     startNewRun(heroId = 'warrior') {
         // console.log('[RunManager] Starting New Run (Resetting State)!');
-        this.player.currentHP = this.player.maxHP;
-        this.player.gold = 15;
-        this.player.relics = [];
-        this.player.potions = [];
 
         // Store Selected Hero ID
         this.selectedHeroId = heroId;
@@ -49,7 +45,16 @@ export class RunManager {
         // If heroId valid, use it, else default
         const heroData = HEROES[heroId] || HEROES['warrior'];
 
+        // Apply Hero Stats (with defaults if missing)
+        this.player.maxHP = heroData.maxHP || 60; // Default 60
+        this.player.currentHP = this.player.maxHP;
+        this.player.gold = (heroData.gold !== undefined) ? heroData.gold : 15; // Default 15
+
+        this.player.relics = [];
+        this.player.potions = [];
+
         this.player.deck = heroData && heroData.skills ? [...heroData.skills] : ['SHIELD_SLAM'];
+        // Merge starting relics? Or overwrite? Usually start fresh + starting relics
         this.player.relics = heroData && heroData.startingRelics ? [...heroData.startingRelics] : [];
 
         this.generateMap();

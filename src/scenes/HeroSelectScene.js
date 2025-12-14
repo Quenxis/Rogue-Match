@@ -21,10 +21,17 @@ export class HeroSelectScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Container for Heroes
-        const startX = w * 0.25;
-        const gap = w * 0.25;
+        // Calculate dynamic spacing for ANY number of heroes
+        const count = 4; // Warrior, Huntress, Plague Doctor, Locked
+        const cardWidth = 300; // From createHeroCard
+        const spacing = 50;
+        const totalW = (count * cardWidth) + ((count - 1) * spacing);
 
-        const heroKeys = ['warrior', 'huntress', 'locked_2'];
+        // Start X to center the whole group
+        const startX = (w - totalW) / 2 + (cardWidth / 2); // Center of first card
+        const gap = cardWidth + spacing;
+
+        const heroKeys = ['warrior', 'huntress', 'plague_doctor', 'locked_1'];
 
         heroKeys.forEach((key, index) => {
             const x = startX + (index * gap);

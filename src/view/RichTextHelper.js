@@ -21,6 +21,7 @@ export class RichTextHelper {
 
         let cursorX = 10;
         let cursorY = 10;
+        let currentColor = color;
 
         // Tokenize (Split by Newlines first, then Icons)
         const lines = text.split('\n');
@@ -33,8 +34,12 @@ export class RichTextHelper {
                 return;
             }
 
-            // Split line by Icons
-            const parts = line.split(/(\[icon:[a-zA-Z0-9_]+\])/g);
+            // Regex to split by Icons AND Color Tags
+            // Catch groups: 
+            // 1. [icon:key]
+            // 2. [c:color]
+            // 3. [/c]
+            const parts = line.split(/(\[icon:[^\]]+\]|\[c:[^\]]+\]|\[\/c\])/g);
 
             parts.forEach(part => {
                 if (!part) return;
@@ -53,47 +58,67 @@ export class RichTextHelper {
                             .setDisplaySize(iconSize, iconSize)
                             .setOrigin(0.5);
                         container.add(icon);
-                        cursorX += iconSize + 2; // Minimal space after icon (let text spaces handle the rest)
+                        cursorX += iconSize + 2;
                     }
+                } else if (part.startsWith('[c:')) {
+                    // --- START COLOR ---
+                    // Format: [c:#ff0000]
+                    const hex = part.replace('[c:', '').replace(']', '');
+                    currentColor = hex;
+                } else if (part === '[/c]') {
+                    // --- END COLOR ---
+                    currentColor = options.color || '#ffffff';
                 } else {
                     // --- TEXT HANDLING ---
-                    // Tokenize by keeping spaces (matched as separate tokens)
                     const tokens = part.match(/(\S+|\s+)/g) || [];
 
                     tokens.forEach(token => {
-                        // Is it purely whitespace?
                         if (/^\s+$/.test(token)) {
-                            // Add Space Width (approx 4px per space char)
                             cursorX += 4 * token.length;
                             return;
                         }
 
-                        // It's a word
                         const word = token;
+                        // Use original word logic without text variant hacks, relying on setTint
+                        let displayWord = word;
 
-                        // Create temp text to measure
-                        const tempText = scene.add.text(0, 0, word, { font: font, fill: color }).setVisible(false);
+                        const tempText = scene.add.text(0, 0, displayWord, { font: font }).setVisible(false);
                         const w = tempText.width;
                         tempText.destroy();
 
-                        // Check Wrap
                         if (cursorX + w > maxWidth) {
                             cursorX = 10;
                             cursorY += lineHeight;
                         }
 
-                        // Add Text
-                        const txt = scene.add.text(cursorX, cursorY + (lineHeight - parseInt(fontSize) - 2) / 2, word, {
-                            font: font, fill: color
+                        // Create text object first
+                        const txt = scene.add.text(cursorX, cursorY + (lineHeight - parseInt(fontSize) - 2) / 2, displayWord, {
+                            font: font,
+                            fill: '#ffffff' // Default white fill base for tinting
                         }).setOrigin(0, 0).setResolution(2);
-                        container.add(txt);
 
-                        cursorX += w; // No extra padding forced
+                        // Apply Color
+                        if (currentColor !== (options.color || '#ffffff')) {
+                            // Parse hex string to number for setTint (0xRRGGBB)
+                            // Assumes format is always #RRGGBB or #RGB
+                            const colorNum = parseInt(currentColor.replace('#', '0x'), 16);
+                            txt.setTint(colorNum);
+                        } else {
+                            if (options.color) {
+                                // Apply default color if not white
+                                txt.setTint(parseInt(options.color.replace('#', '0x'), 16));
+                            } else {
+                                txt.clearTint();
+                            }
+                        }
+
+                        container.add(txt);
+                        cursorX += w;
                     });
                 }
             });
 
-            // End of Line (Explicit \n)
+            // End of Line
             cursorX = 10;
             cursorY += lineHeight;
         });
@@ -116,5 +141,28 @@ export class RichTextHelper {
         const totalH = cursorY + 10; // Extra padding at bottom
 
         return { width: totalW, height: totalH };
+    }
+
+    /**
+     * Generates a standardized tooltip text for skills.
+     * @param {object} data - Skill data object (name, cost, shieldCost, desc)
+     * @returns {string} Formatted rich text string
+     */
+    static getSkillTooltipText(data) {
+        // Format Cost: "6[icon:icon_shield], 5[icon:icon_mana]"
+        let costString = '';
+
+        if (data.shieldCost > 0) {
+            costString += `${data.shieldCost}[icon:icon_shield], `;
+        }
+
+        // Mana cost is usually standard, but check if exists (0 cost skills possible)
+        if (data.cost !== undefined) {
+            costString += `${data.cost}[icon:icon_mana]`;
+        }
+
+        // Combine: "Fireball + 6[icon:icon_mana]\nDescription"
+        // Note: The previous code had " + " separator. Keeping it consistent.
+        return `${data.name} -> ${costString}\n${data.desc}`;
     }
 }

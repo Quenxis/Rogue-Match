@@ -399,6 +399,77 @@ export class CombatManager {
                     logManager.log(`Cannot use Aimed Shot! Too many swords (${swordCount}/${maxSwords})`, 'warning');
                 }
             }
+        } else if (skillName === SKILLS.EXTRACTION) {
+            const data = SKILL_DATA.EXTRACTION;
+
+            // Validate Requirement (Server-side check)
+            const currentStacks = e.statusManager.getStack(STATUS_TYPES.TOXIN);
+            if (currentStacks <= 0) {
+                logManager.log('Extraction requires Toxin present on enemy.', 'warning');
+                return;
+            }
+
+            useSkill(data.cost, () => {
+                // 1. Get Stacks (Again, to be safe or reuse var)
+                const stacks = currentStacks;
+                if (stacks > 0) {
+                    // 2. Consume
+                    e.statusManager.stacks[STATUS_TYPES.TOXIN] = 0; // Clear all
+
+                    // Trigger Custom Visuals
+                    EventBus.emit(EVENTS.EXTRACTION_CAST, { stacks: stacks });
+
+                    // 3. Deal Damage
+                    const dmg = stacks * data.damagePerStack;
+                    // Skip standard Lunge animation because we have a custom visuals
+                    EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: 'SKILL', skill: 'EXTRACTION', skipAnimation: true });
+                    e.takeDamage(dmg, p);
+
+                    // 4. Heal
+                    const heal = Math.floor(dmg * data.healRatio);
+                    EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal, type: 'SKILL', skipAnimation: true });
+                    p.heal(heal);
+
+                    logManager.log(`Extraction: Consumed ${stacks} Toxin. Dealt ${dmg} DMG, Healed ${heal} HP.`, 'info');
+
+                    this.checkWinCondition(); // Check for kill or end turn state
+                } else {
+                    logManager.log('Extraction cast on 0 Toxin! Wasted.', 'warning');
+                }
+            });
+        } else if (skillName === SKILLS.OUTBREAK) {
+            const data = SKILL_DATA.OUTBREAK;
+            useSkill(data.cost, async () => {
+                // 1. Transmute Gems
+                if (window.grid && window.grid.transmuteRandomGems) {
+                    const count = await window.grid.transmuteRandomGems(data.transmuteCount, ITEM_TYPES.POTION, {
+                        preModificationCallback: async (targets) => {
+                            // Trigger Animation
+                            EventBus.emit(EVENTS.OUTBREAK_CAST, { targets });
+                            // Wait for animation impact (flight time approx 400-600ms)
+                            await new Promise(resolve => setTimeout(resolve, 600));
+                        }
+                    });
+                    logManager.log(`Outbreak: Transmuted ${count} gems to Potions.`, 'info');
+                } else {
+                    console.error('[DEBUG] Outbreak Failed: window.grid or transmuteRandomGems missing!', window.grid);
+                }
+
+                // 2. Check Threshold for Extra Move
+                // 2. Check Threshold for Extra Move
+                const stacks = e.statusManager.getStack(STATUS_TYPES.TOXIN);
+                console.log(`[DEBUG] Outbreak Check: Stacks=${stacks}, Threshold=${data.threshold}`);
+
+                if (stacks >= data.threshold) {
+                    this.currentMoves += 1; // Grant immediate move
+                    logManager.log('Outbreak: Toxin Threshold met! +1 Move.', 'info');
+                    this.emitState(); // Update UI immediately
+                } else {
+                    logManager.log(`Outbreak: Threshold not met (${stacks}/${data.threshold}). No extra move.`, 'warning');
+                }
+
+                this.checkWinCondition(); // Ensure turn ends if moves = 0
+            });
         }
 
     }
@@ -574,19 +645,46 @@ export class CombatManager {
                 break;
 
             case ITEM_TYPES.POTION:
-                let heal = size * 1;
-                // Regen (Tier 2+)
-                if (size === 4) sm.applyStack(STATUS_TYPES.REGEN, 3);
+                const hasRelic = runManager.hasRelic('corrupted_flask');
 
-                // Big Heal + 4 Regen + Cleanse (Tier 3)
-                if (size >= 5) {
-                    heal += 5;
-                    sm.applyStack(STATUS_TYPES.REGEN, 4);
-                    sm.cleanse(10);
+
+                if (hasRelic) {
+                    // CORRUPTED FLASK LOGIC
+                    // Disable Healing/Cleanse/Regen from match. Apply TOXIN instead.
+                    let toxinStacks = 0;
+                    if (size === 3) toxinStacks = 3;
+                    if (size === 4) toxinStacks = 5;
+                    if (size >= 5) toxinStacks = 8;
+
+                    e.statusManager.applyStack(STATUS_TYPES.TOXIN, toxinStacks);
+                    logManager.log(`Corrupted Flask: Applied ${toxinStacks} Toxin!`, 'relic');
+
+                    // 1. Player does Attack Animation (Visual Only - Damage is 0 or ignored for anim)
+                    EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: 0, type: 'VISUAL_ONLY' });
+
+                    // 2. Enemy gets Toxic Bubble Effect
+                    EventBus.emit(EVENTS.TOXIN_APPLIED);
+
+                    // No events emitted for Heal, but we MUST update UI to show stacks
+                    this.emitState();
+                    // Immediate Explosion Check
+                    this.checkToxinOverdose();
+                } else {
+                    // STANDARD LOGIC
+                    let heal = size * 1;
+                    // Regen (Tier 2+)
+                    if (size === 4) sm.applyStack(STATUS_TYPES.REGEN, 3);
+
+                    // Big Heal + 4 Regen + Cleanse (Tier 3)
+                    if (size >= 5) {
+                        heal += 5;
+                        sm.applyStack(STATUS_TYPES.REGEN, 4);
+                        sm.cleanse(10);
+                    }
+
+                    EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal });
+                    p.heal(heal);
                 }
-
-                EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal });
-                p.heal(heal);
                 break;
 
             case ITEM_TYPES.MANA:
@@ -647,6 +745,9 @@ export class CombatManager {
     endTurn() {
         if (this.turn !== ENTITIES.PLAYER) return;
         if (this.player.isDead || this.enemy.isDead) return;
+
+        // --- PLAGUE DOCTOR: OVERDOSE MECHANIC ---
+        this.checkToxinOverdose();
 
         // Trigger Turn End Events (Relics etc)
         // This allows relics like Greed Pact to trigger punishment before turn swap
@@ -714,6 +815,33 @@ export class CombatManager {
             this.enemy.statusManager.onTurnEnd();
             this.startPlayerTurn();
         });
+    }
+
+    checkToxinOverdose() {
+        if (!this.enemy || this.enemy.isDead) return;
+
+        if (runManager.hasRelic('corrupted_flask')) {
+            let stacks = this.enemy.statusManager.getStack(STATUS_TYPES.TOXIN);
+            while (stacks >= 12) {
+                console.log(`[CombatManager] CheckToxinOverdose: ${stacks} stacks. BOOM!`);
+                logManager.log(`OVERDOSE! Exploded for 25 True Damage!`, 'relic');
+                const damage = 25;
+
+                // Visuals for Explosion
+                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: damage, type: 'CRIT' }); // Reuse crit visual for generic impact
+
+                this.enemy.takeDamage(damage, this.player, { isPiercing: true });
+
+                // Reduce stacks by 12 (preserving overflow)
+                stacks -= 12;
+                this.enemy.statusManager.stacks[STATUS_TYPES.TOXIN] = stacks;
+
+                this.emitState(); // UI Update per explosion
+
+                // Safety break for infinite loops (unlikely but good practice)
+                if (stacks < 0) { stacks = 0; break; }
+            }
+        }
     }
 
     executeEnemyIntent() {
@@ -878,13 +1006,12 @@ export class CombatManager {
             }
         }
 
-        console.log(`Enemy Intent Generated: ${this.enemy.currentIntent.text}`);
     }
+
 
     checkWinCondition() {
         if (this.turn === ENTITIES.ENDED) return;
 
-        // console.log(`CombatManager: Checking Win Condition. Enemy Dead? ${this.enemy.isDead} (${this.enemy.currentHP}), Player Dead? ${this.player.isDead}`);
 
         if (this.enemy.isDead) {
             this.turn = ENTITIES.ENDED;

@@ -22,6 +22,7 @@ export class BootScene extends Phaser.Scene {
         this.load.image('tex_orc', 'assets/entities/orc.png');
         this.load.image('tex_dragon', 'assets/entities/dragon.png');
         this.load.image('huntress', 'assets/entities/huntress.png');
+        this.load.image('hero_doctor', 'assets/entities/plague_doctor.png');
 
         // Icons (Small versions for UI)
         this.load.image('icon_sword', 'assets/icons/sword.png');
@@ -30,6 +31,8 @@ export class BootScene extends Phaser.Scene {
         this.load.image('icon_lock', 'assets/icons/lock.png');
         this.load.image('icon_trash', 'assets/icons/trash.png');
         this.load.image('icon_coin', 'assets/icons/coin.png');
+        this.load.image('icon_bow', 'assets/icons/bow.png');
+        this.load.image('icon_potion', 'assets/icons/potion.png');
 
         // Items (Global for Guide)
         this.load.image('SWORD', 'assets/items/sword.png');
@@ -40,7 +43,6 @@ export class BootScene extends Phaser.Scene {
         this.load.image('trash', 'assets/items/trash.png');
         this.load.image('lock', 'assets/items/lock.png');
         this.load.image('BOW', 'assets/items/bow.png'); // New Bow Gem
-        this.load.image('icon_bow', 'assets/items/bow.png'); // Fallback icon using same asset
 
         // Backgrounds
         this.load.image('map_bg', 'assets/backgrounds/map_bg.png');
@@ -51,7 +53,9 @@ export class BootScene extends Phaser.Scene {
         // Abilities
         this.load.image('ability_2', 'assets/abilities/heal.png');
         this.load.image('ability_3', 'assets/abilities/shield_slam.png');
-        this.load.image('ability_4', 'assets/abilities/aimed_shot.png'); // New Ability
+        this.load.image('ability_4', 'assets/abilities/aimed_shot.png');
+        this.load.image('ability_5', 'assets/abilities/extraction.png');
+        this.load.image('ability_6', 'assets/abilities/outbreak.png');
     }
 
     create() {

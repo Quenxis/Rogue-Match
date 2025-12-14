@@ -68,7 +68,8 @@ export class CombatView {
 
         // Store references for cleanup
         // Store references for cleanup
-        this.onPlayerAttack = () => {
+        this.onPlayerAttack = (data) => {
+            if (data && data.skipAnimation) return; // Skip lunge if requested
             this.queueAnimation(done => this.animateAttack(this.heroSprite, this.enemySprite, 50, 0xff0000, done));
         };
         this.onEnemyAttack = (data) => {
@@ -79,7 +80,8 @@ export class CombatView {
         this.onPlayerDefend = () => {
             this.queueAnimation(done => this.animateDefend(this.heroSprite, done));
         };
-        this.onPlayerHeal = () => {
+        this.onPlayerHeal = (data) => {
+            if (data && data.skipAnimation) return;
             this.queueAnimation(done => this.animateHeal(this.heroSprite, done));
         };
         this.onEnemyDefend = () => {
@@ -98,6 +100,15 @@ export class CombatView {
         this.onEnemyTrash = () => {
             this.queueAnimation(done => this.animateGridShake(done));
         };
+        this.onToxinApplied = () => {
+            this.queueAnimation(done => this.animateToxicApply(this.enemySprite, done));
+        };
+        this.onOutbreakCast = (data) => {
+            this.queueAnimation(done => this.animateOutbreak(data.targets, done));
+        };
+        this.onExtractionCast = (data) => {
+            this.queueAnimation(done => this.animateExtraction(data, done));
+        };
 
 
         EventBus.on(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
@@ -108,6 +119,9 @@ export class CombatView {
         EventBus.on(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
         EventBus.on(EVENTS.ENEMY_LOCK, this.onEnemyLock);
         EventBus.on(EVENTS.ENEMY_TRASH, this.onEnemyTrash);
+        EventBus.on(EVENTS.TOXIN_APPLIED, this.onToxinApplied);
+        EventBus.on(EVENTS.OUTBREAK_CAST, this.onOutbreakCast);
+        EventBus.on(EVENTS.EXTRACTION_CAST, this.onExtractionCast);
     }
 
     destroy() {
@@ -676,15 +690,22 @@ export class CombatView {
                         }));
                     }
                     if (swordCount > data.maxSwords) extraConditionMet = false;
+                }
 
-                    // DEBUG AIMED SHOT
-                    // if (skillId === 'AIMED_SHOT') {
-                    //    console.log(`[CombatView] Aimed Shot Check: Swords=${swordCount}/${data.maxSwords}, Met=${extraConditionMet}, Mana=${player.mana}/${cost}, CanAct=${canAct} (Busy=${!canAct})`);
-                    // }
+                if (skillId === 'EXTRACTION') {
+                    const toxin = (enemy && enemy.statusManager) ? enemy.statusManager.getStack(STATUS_TYPES.TOXIN) : 0;
+                    if (toxin <= 0) extraConditionMet = false;
+                }
+
+                // CHECK BONUS CONDITION (Gold Aura)
+                let bonusConditionMet = false;
+                if (skillId === 'OUTBREAK') {
+                    const toxin = (enemy && enemy.statusManager) ? enemy.statusManager.getStack(STATUS_TYPES.TOXIN) : 0;
+                    if (toxin >= data.threshold) bonusConditionMet = true;
                 }
 
                 const isEnabled = canAct && player.mana >= cost && player.block >= shieldCost && extraConditionMet;
-                const metadata = { swordConditionMet: extraConditionMet };
+                const metadata = { swordConditionMet: extraConditionMet, bonusConditionMet: bonusConditionMet };
                 this.updateSkillButton(skillId, isEnabled, focus, metadata);
             });
         }
@@ -695,7 +716,9 @@ export class CombatView {
 
             // RELIC VISUAL: Crimson Hourglass Warning
             // If moves == 1 and relic active, Pulse Red.
-            if (currentMoves === 1 && runManager.hasRelic('crimson_hourglass')) {
+            const crimsonTriggered = this.combatManager.turnState ? this.combatManager.turnState.crimsonTriggered : false;
+
+            if (currentMoves === 1 && runManager.hasRelic('crimson_hourglass') && !crimsonTriggered) {
                 // Trigger Warning State (Once)
                 if (!this.movesPulse) {
                     this.movesText.setColor('#d80909ff'); // White Core
@@ -810,10 +833,6 @@ export class CombatView {
                         repeat: -1
                     });
                 }
-            } else {
-                // Normal Text
-                btn.badgeText.setColor('#ffffff');
-
                 if (btn.pulseTween) {
                     btn.pulseTween.stop();
                     btn.pulseTween = null;
@@ -822,11 +841,60 @@ export class CombatView {
                     btn.badgeText.setScale(1);
                 }
             }
+
+            // BONUS CONDITION VISUAL (Gold Aura)
+            if (metadata.bonusConditionMet) {
+                // Ensure Texture Exists
+                this.createGoldGlowTexture();
+
+                if (!btn.bonusGlow) {
+                    // Create Sprite behind the icon (index 0 usually, or specifically behind btn.icon)
+                    // Container children: [bg, icon, badge...]
+                    // We want it behind the icon but above bg? Or just behind everything?
+                    // bg is at 0. Let's put it at 1 (above bg).
+                    btn.bonusGlow = this.scene.add.image(0, 0, 'gold_glow');
+                    btn.bonusGlow.setBlendMode(Phaser.BlendModes.ADD);
+                    btn.bonusGlow.setScale(1.2);
+                    btn.bonusGlow.setAlpha(0.6);
+
+                    // Specific position manipulation inside container
+                    // But 'addAt' is safer if we knew index. Simple 'add' puts it on top.
+                    // Let's use sendToBack then moveUp
+                    btn.container.add(btn.bonusGlow);
+                    btn.container.sendToBack(btn.bonusGlow);
+                    // If bg is also at back, we might want to check z-order, but usually fine.
+
+                    btn.bonusTween = this.scene.tweens.add({
+                        targets: btn.bonusGlow,
+                        scale: { from: 1.2, to: 1.5 },
+                        alpha: { from: 1.0, to: 0.5 }, // Stronger Pulse
+                        duration: 1000,
+                        yoyo: true,
+                        repeat: -1,
+                        ease: 'Sine.easeInOut'
+                    });
+                }
+            } else {
+                // Cleanup if condition lost
+                if (btn.bonusGlow) {
+                    if (btn.bonusTween) btn.bonusTween.stop();
+                    btn.bonusTween = null;
+                    btn.bonusGlow.destroy();
+                    btn.bonusGlow = null;
+                }
+            }
         } else {
             // DISABLED STATE: Grayscale/Darkened, BUT INTERACTIVE for Tooltip
             btn.container.setAlpha(1);
             btn.container.setScale(1);
-            // btn.bg.disableInteractive(); // REMOVED to allow Tooltip
+
+            // Cleanup Bonus Glow if it exists (e.g. became disabled while glowing)
+            if (btn.bonusGlow) {
+                if (btn.bonusTween) btn.bonusTween.stop();
+                btn.bonusTween = null;
+                btn.bonusGlow.destroy();
+                btn.bonusGlow = null;
+            }
 
             // Dim and Grayscale Effect
             btn.icon.setTint(0x555555);
@@ -987,6 +1055,70 @@ export class CombatView {
             onComplete: () => {
                 if (target.clearTint) target.clearTint();
                 if (onComplete) onComplete(); // Signal DONE
+            }
+        });
+    }
+
+    animateToxicApply(target, onComplete = null) {
+        if (!target || !this.scene) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        // 1. VISUAL EFFECT: RISING TOXIC BUBBLES
+        const particles = this.scene.add.graphics();
+        particles.setDepth(target.depth + 1);
+        particles.blendMode = Phaser.BlendModes.NORMAL;
+
+        // Toxic Green / Black palette
+        particles.fillStyle(0x111111, 1); // Start Black
+
+        const w = target.displayWidth || target.width;
+
+        // Draw 5-8 random bubbles
+        for (let i = 0; i < 8; i++) {
+            const offsetX = (Math.random() - 0.5) * w * 0.6;
+            const offsetY = (Math.random() * -30);
+            const radius = 2 + Math.random() * 5;
+
+            // Mix Neon Green and Black
+            const color = Math.random() > 0.5 ? 0x39ff14 : 0x000000;
+            particles.fillStyle(color, 1); // Opaque for black to be visible
+            particles.fillCircle(offsetX, offsetY, radius);
+        }
+
+        particles.x = target.x;
+        particles.y = target.y - 10;
+
+        // Animate Floating Up
+        this.scene.tweens.add({
+            targets: particles,
+            y: particles.y - 100,
+            alpha: 0,
+            scaleX: 0.5,
+            scaleY: 0.5,
+            duration: 1200, // Slower, more viscous
+            ease: 'Sine.Out',
+            onComplete: () => {
+                particles.destroy();
+            }
+        });
+
+        // 2. CHARACTER PULSE (Sickly Green Tint)
+        const startScaleX = target.scaleX;
+        const startScaleY = target.scaleY;
+
+        if (target.setTint) target.setTint(0x88ff88); // Sickly Green
+
+        this.scene.tweens.add({
+            targets: target,
+            scaleX: startScaleX * 1.05, // Subtle shudder
+            scaleY: startScaleY * 1.05,
+            yoyo: true,
+            duration: 500,
+            onComplete: () => {
+                if (target.clearTint) target.clearTint();
+                if (onComplete) onComplete();
             }
         });
     }
@@ -1282,6 +1414,168 @@ export class CombatView {
         });
     }
 
+    animateOutbreak(targets = [], onComplete = null) {
+        if (!this.scene) return;
+
+        // 1. Source: Player
+        const player = this.heroSprite;
+        const startX = player.x;
+        const startY = player.y - (player.height * 0.5);
+
+        // 2. Lunge Animation
+        this.scene.tweens.add({
+            targets: player,
+            x: startX + 50, // Move Right (towards grid)
+            duration: 200,
+            yoyo: true,
+            ease: 'Power1',
+            onYoyo: () => {
+                // SPAWN POTIONS
+                const count = (targets && targets.length > 0) ? targets.length : 3;
+
+                // Grid Helper
+                let getTargetPos;
+                if (this.scene.gridView && window.grid) {
+                    const gv = this.scene.gridView;
+                    getTargetPos = (r, c) => ({
+                        x: gv.offsetX + c * gv.tileSize,
+                        y: gv.offsetY + r * gv.tileSize
+                    });
+                } else {
+                    return; // Fail safe
+                }
+
+                for (let i = 0; i < count; i++) {
+                    // Create Potion Sprite
+                    let potion = this.scene.add.image(player.x + 20, startY, 'icon_potion'); // Assuming 'icon_potion' loaded
+                    potion.setDisplaySize(40, 40);
+                    potion.setDepth(500);
+                    potion.scale = 0;
+
+                    // Target
+                    let tx, ty;
+                    if (targets && targets[i]) {
+                        const pos = getTargetPos(targets[i].r, targets[i].c);
+                        tx = pos.x;
+                        ty = pos.y;
+                    } else {
+                        tx = this.scene.scale.width / 2;
+                        ty = this.scene.scale.height / 2;
+                    }
+
+                    // Timeline: Pop In -> Fly -> Splash
+                    this.scene.tweens.add({
+                        targets: potion,
+                        scale: 1,
+                        duration: 100,
+                        delay: i * 50,
+                        onComplete: () => {
+                            // Fly
+                            this.scene.tweens.add({
+                                targets: potion,
+                                x: tx,
+                                y: ty,
+                                rotation: Math.PI * 4, // Spin
+                                duration: 450,
+                                ease: 'Quad.Out',
+                                onComplete: () => {
+                                    // Impact Splash
+                                    this.createPotionSplash(tx, ty);
+                                    potion.destroy();
+                                }
+                            });
+                        }
+                    });
+                }
+            },
+            onComplete: () => {
+                player.x = startX;
+                if (onComplete) onComplete();
+            }
+        });
+    }
+
+    animateExtraction(data, onComplete = null) {
+        if (!this.scene) return;
+
+        const enemy = this.enemySprite;
+        const player = this.heroSprite;
+        const startX = enemy.x;
+        const startY = enemy.y - (enemy.height * 0.5);
+        const targetX = player.x;
+        const targetY = player.y - (player.height * 0.5);
+
+        // 1. Create Particles (Energy Blobs) - SWARM EFFECT
+        const particleCount = 25; // Much more particles!
+
+        for (let i = 0; i < particleCount; i++) {
+            // Mix Neon Green and Black
+            const color = Math.random() > 0.5 ? 0x39ff14 : 0x000000;
+            // Spawn randomly around enemy body
+            const spawnX = startX + (Math.random() - 0.5) * (enemy.displayWidth || 100);
+            const spawnY = startY + (Math.random() - 0.5) * (enemy.displayHeight || 100);
+
+            const blob = this.scene.add.circle(spawnX, spawnY, 4 + Math.random() * 6, color);
+            blob.setDepth(200);
+            blob.setAlpha(0.8);
+
+            this.scene.tweens.add({
+                targets: blob,
+                x: targetX,
+                y: targetY,
+                scale: { from: 1, to: 0.2 }, // Shrink as absorbed
+                // Randomize flight time for chaotic "swarm" feel
+                duration: 600 + Math.random() * 600,
+                delay: i * 20, // Staggered start (stream effect)
+                ease: 'Quad.In', // Accelerate towards player
+                onComplete: () => {
+                    blob.destroy();
+                }
+            });
+        }
+
+        // 2. Flash Player (Absorption)
+        const startScaleX = player.scaleX;
+        const startScaleY = player.scaleY;
+
+        this.scene.time.delayedCall(400, () => {
+            if (player.setTint) player.setTint(0x39ff14);
+            this.scene.tweens.add({
+                targets: player,
+                scaleX: startScaleX * 1.05, // Only 5% increase relative to current size
+                scaleY: startScaleY * 1.05,
+                yoyo: true,
+                duration: 200,
+                onComplete: () => {
+                    player.setScale(startScaleX, startScaleY); // Reset to ensure safety
+                    if (player.clearTint) player.clearTint();
+                    if (onComplete) onComplete();
+                }
+            });
+        });
+    }
+
+    createPotionSplash(x, y) {
+        // Mini splash effect
+        const particles = this.scene.add.graphics();
+        particles.setDepth(200);
+
+        for (let j = 0; j < 6; j++) {
+            const color = Math.random() > 0.5 ? 0x00ff00 : 0x8800ff; // Green/Purple
+            particles.fillStyle(color, 1);
+            particles.fillCircle(x, y, 2 + Math.random() * 4);
+        }
+
+        this.scene.tweens.add({
+            targets: particles,
+            scaleX: 2,
+            scaleY: 2,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => particles.destroy()
+        });
+    }
+
 
     // Helper: Scales sprite to fit within maxW/maxH while preserving Aspect Ratio
     fitSprite(sprite, maxW, maxH, customScale = 1) {
@@ -1380,8 +1674,7 @@ export class CombatView {
         bg.on('pointerover', () => {
             this.scene.tweens.add({ targets: container, scale: 1.1, duration: 100 });
             const worldMatrix = container.getWorldTransformMatrix();
-            const costString = (data.shieldCost > 0 ? `${data.shieldCost}[icon:icon_shield], ` : '') + `${data.cost}[icon:icon_mana]`;
-            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, `${data.name} - ${costString}\n${data.desc}`);
+            this.showTooltip(worldMatrix.tx, worldMatrix.ty - 80, RichTextHelper.getSkillTooltipText(data));
         });
 
         // FIX: Hover Out Animation
@@ -1389,6 +1682,8 @@ export class CombatView {
             this.scene.tweens.add({ targets: container, scale: 1, duration: 100 });
             this.hideTooltip();
         });
+
+
 
         // Click
         bg.on('pointerdown', () => {
@@ -1432,6 +1727,9 @@ export class CombatView {
 
         const str = statusManager.getStack(STATUS_TYPES.STRENGTH);
         if (str > 0) items.push({ icon: '💪', count: str, tooltip: 'Strength: Increases damage by stack amount' });
+
+        const toxin = statusManager.getStack(STATUS_TYPES.TOXIN);
+        if (toxin > 0) items.push({ icon: '☣️', count: toxin, color: '#76ff03', tooltip: 'Toxin: Non-decaying poison. Explodes at 12 stacks!' });
 
         return items;
     }
@@ -1503,6 +1801,19 @@ export class CombatView {
             graphics.fillCircle(64, 64, r);
         }
         graphics.generateTexture('red_mist_glow', 128, 128);
+    }
+
+    createGoldGlowTexture() {
+        if (this.scene.textures.exists('gold_glow')) return;
+
+        const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+        // Soft Gold Halo
+        for (let r = 64; r > 0; r -= 2) {
+            const alpha = 0.15 * (1 - (r / 64)); // Increased from 0.08 to 0.15 for stronger glow
+            graphics.fillStyle(0xffd700, alpha); // Gold
+            graphics.fillCircle(64, 64, r);
+        }
+        graphics.generateTexture('gold_glow', 128, 128);
     }
 
     manageMistEffect(active) {

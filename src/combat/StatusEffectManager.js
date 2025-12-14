@@ -14,7 +14,9 @@ const CONFIG = {
     [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' },
     [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' },
     [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' },
-    [STATUS_TYPES.GREED_CURSE]: { max: 1, category: 'DEBUFF' }
+    [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' },
+    [STATUS_TYPES.GREED_CURSE]: { max: 1, category: 'DEBUFF' },
+    [STATUS_TYPES.TOXIN]: { max: 999, category: 'DEBUFF', persistent: true } // Persistent flag for logic checks
 };
 
 export class StatusEffectManager {
@@ -96,6 +98,7 @@ export class StatusEffectManager {
     onTurnEnd() {
         // DECAY Logic
         // Bleed, Regen, Thorns, Vulnerable decay by 1.
+        // TOXIN is persistent (0 decay).
         [STATUS_TYPES.BLEED, STATUS_TYPES.REGEN, STATUS_TYPES.THORNS, STATUS_TYPES.VULNERABLE].forEach(type => {
             if (this.stacks[type] > 0) {
                 this.removeStack(type, 1);

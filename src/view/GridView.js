@@ -62,6 +62,7 @@ export class GridView {
         this.animateMatchesBind = this.animateMatches.bind(this);
         this.animateGravityBind = this.animateGravity.bind(this);
         this.animateRefillBind = this.animateRefill.bind(this);
+        this.handleItemUpdateBind = this.handleItemUpdate.bind(this);
 
         EventBus.on(EVENTS.GRID_CREATED, this.createGridVisualsBind);
         EventBus.on(EVENTS.ITEM_SWAPPED, this.animateSwapBind);
@@ -70,7 +71,8 @@ export class GridView {
         EventBus.on(EVENTS.GRID_GRAVITY, this.animateGravityBind);
         EventBus.on(EVENTS.GRID_GRAVITY, this.animateGravityBind);
         EventBus.on(EVENTS.GRID_REFILLED, this.animateRefillBind);
-        EventBus.on(EVENTS.GRID_ITEM_UPDATED, (data) => this.handleItemUpdate(data));
+        EventBus.on(EVENTS.GRID_ITEM_UPDATED, this.handleItemUpdateBind);
+        console.log('[GridView] BindEvents complete. Subscribed to GRID_ITEM_UPDATED.');
     }
 
     destroy() {
@@ -80,6 +82,7 @@ export class GridView {
         EventBus.off(EVENTS.MATCHES_FOUND, this.animateMatchesBind);
         EventBus.off(EVENTS.GRID_GRAVITY, this.animateGravityBind);
         EventBus.off(EVENTS.GRID_REFILLED, this.animateRefillBind);
+        EventBus.off(EVENTS.GRID_ITEM_UPDATED, this.handleItemUpdateBind);
 
         if (this.tokenContainer) {
             this.tokenContainer.destroy();
@@ -412,7 +415,8 @@ export class GridView {
                             // If we unlock here immediately for matches, we might unlock prematurely while cascading?
                             // swapItems returns AFTER cascade completely finishes.
                             // So it IS safe to unlock here.
-                            console.log('Swap Sequence Complete (Match/Cascade resolved). Unlocking.');
+                            // swapItems returns AFTER cascade completely finishes.
+                            // So it IS safe to unlock here.
                             this.setInteractionLock(false);
                             this.selectedTile = null;
                         }
@@ -420,7 +424,6 @@ export class GridView {
                 });
             } else {
                 // Clicked far away, select new
-                console.log('Invalid Swap (Distance mismatch). New Selection.');
                 this.selectedTile = { r, c, sprite };
                 sprite.setAlpha(0.6);
             }
@@ -717,6 +720,8 @@ export class GridView {
         });
     }
 
+
+
     /**
      * Instantly finish all grid animations and sync state.
      */
@@ -745,7 +750,6 @@ export class GridView {
 
     syncVisuals() {
         if (!this.scene || !this.scene.sys) return;
-        console.log('Syncing Visuals...');
         const logicGrid = window.grid.grid;
         const validIds = new Set();
         const occupiedCells = {}; // "r,c" -> itemId
@@ -823,13 +827,26 @@ export class GridView {
     }
     handleItemUpdate({ item, silent = false }) {
         if (!item) return;
+
+        console.log(`[GridView] handleItemUpdate (Legacy) for Item ${item.id} (${item.type})`);
+
         // Re-create token to reflect new state (Lock/Trash)
         // Wait, item has ID. We have sprites[id].
         const sprite = this.sprites[item.id];
         if (sprite) {
             const r = sprite.getData('row');
             const c = sprite.getData('col');
-            this.createToken(r, c, item, silent);
+            const newSprite = this.createToken(r, c, item, silent);
+
+            // Pop Animation
+            if (!silent && newSprite) {
+                this.scene.tweens.add({
+                    targets: newSprite,
+                    scale: { from: 0.5, to: newSprite.scaleX }, // Pop up
+                    duration: 200,
+                    ease: 'Back.out'
+                });
+            }
         }
     }
 

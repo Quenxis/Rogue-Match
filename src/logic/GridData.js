@@ -18,6 +18,10 @@ export class GridData {
         this.isFastForward = false;
         this.matches = []; // array of matched groups
         this.isFastForward = false;
+
+        // Expose to global scope for CombatManager logic
+        window.grid = this;
+        console.log('[GridData] Initialized and attached to window.grid');
     }
 
     // --- MANIPULATION API FOR ENEMIES ---
@@ -252,7 +256,6 @@ export class GridData {
         const matches = this.findMatches();
 
         if (matches.length > 0) {
-            // console.log('Match Found!', matches);
             // EventBus.emit(EVENTS.MATCHES_FOUND, { matches }); // MOVED to handleMatchResolution
 
             // Proceed to resolution
@@ -260,7 +263,6 @@ export class GridData {
 
             return true;
         } else {
-            console.log('No match found.');
 
             // PHANTOM GLOVES CHECK
             if (runManager.hasRelic('phantom_gloves')) {
@@ -646,6 +648,11 @@ export class GridData {
                     matchLen++;
                 }
 
+                // Debug specific to Potion visual issues
+                if (type === 'POTION' && matchLen >= 2) {
+                    // console.log(`[DEBUG] Potential Vertical Potion Match at ${r},${c}. Len: ${matchLen}`);
+                }
+
                 if (matchLen >= 3) {
                     for (let i = 0; i < matchLen; i++) {
                         addMatch(r + i, c);
@@ -719,5 +726,64 @@ export class GridData {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Converts random non-trash/locked gems to a target type.
+     * @param {number} count - Number of gems to convert
+     * @param {string} targetType - Type to convert to (e.g. ITEM_TYPES.POTION)
+     * @returns {number} - Number of gems actually converted
+     */
+    async transmuteRandomGems(count, targetType, options = {}) {
+        if (!targetType) {
+            // console.error('[DEBUG] TargetType is null!');
+            return 0;
+        }
+
+        // 1. Find Candidates (Not Trash, Not Locked, Not already Target Type)
+        const candidates = [];
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const item = this.grid[r][c];
+                // console.log(`[DEBUG] Check ${r},${c}: Locked=${item.isLocked}, Trash=${item.isTrash}, Type=${item.type}`);
+                if (!item.isLocked && !item.isTrash && item.type !== ITEM_TYPES.EMPTY && item.type !== targetType) {
+                    candidates.push({ r, c });
+                }
+            }
+        }
+
+
+
+        // 2. Shuffle Candidates
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        // 3. Select Top N
+        const selected = candidates.slice(0, count);
+
+
+        // OPTIONAL: Pre-modification animation callback (Async)
+        if (options && options.preModificationCallback) {
+            await options.preModificationCallback(selected);
+        }
+
+        // 4. Convert
+        selected.forEach(({ r, c }) => {
+            const item = this.grid[r][c];
+            item.type = targetType;
+            // Trigger visual update for this specific item
+            EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item: item });
+        });
+
+        if (selected.length > 0) {
+            const matches = this.findMatches();
+            if (matches.length > 0) {
+                this.handleMatchResolution(matches);
+            }
+        }
+
+        return selected.length;
     }
 }
