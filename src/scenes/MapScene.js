@@ -32,7 +32,11 @@ export class MapScene extends Phaser.Scene {
         this.topBar.setTitle('The Cave');
 
         // Listen for Potion Use (Map context)
-        EventBus.on('potion:use_requested', (index) => this.handlePotionUse(index));
+        this.onPotionUseBound = (index) => this.handlePotionUse(index);
+        EventBus.on('potion:use_requested', this.onPotionUseBound);
+
+        // Cleanup
+        this.events.on('shutdown', this.shutdown, this);
 
         const tiers = runManager.map;
         const centerX = this.scale.width / 2;
@@ -277,6 +281,10 @@ export class MapScene extends Phaser.Scene {
             // Go to Hero Selection instead of immediate restart
             this.scene.start('HeroSelectScene');
         });
+    }
+
+    shutdown() {
+        EventBus.off('potion:use_requested', this.onPotionUseBound);
     }
 
     handlePotionUse(index) {
