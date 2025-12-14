@@ -454,7 +454,21 @@ export class CombatManager {
             });
         } else if (skillName === SKILLS.OUTBREAK) {
             const data = SKILL_DATA.OUTBREAK;
+
+            // Capture Toxin Stacks IMMEDIATELY
+            const currentToxin = e.statusManager.getStack(STATUS_TYPES.TOXIN);
+            const shouldGrantMove = currentToxin >= data.threshold;
+
             useSkill(data.cost, async () => {
+                // Grant Move Immediately if condition was met at start
+                if (shouldGrantMove) {
+                    this.currentMoves++;
+                    logManager.log(`Outbreak: Threshold met (${currentToxin}), +1 Action!`, 'skill');
+                    this.emitState(); // Update UI immediately
+                } else {
+                    logManager.log(`Outbreak: Threshold not met (${currentToxin}/${data.threshold})`, 'info');
+                }
+
                 // 1. Transmute Gems
                 if (window.grid && window.grid.transmuteRandomGems) {
                     const count = await window.grid.transmuteRandomGems(data.transmuteCount, ITEM_TYPES.POTION, {
@@ -472,19 +486,6 @@ export class CombatManager {
                     logManager.log(`Outbreak: Transmuted ${count} gems to Potions.`, 'info');
                 } else {
                     console.error('[DEBUG] Outbreak Failed: window.grid or transmuteRandomGems missing!', window.grid);
-                }
-
-                // 2. Check Threshold for Extra Move
-                // 2. Check Threshold for Extra Move
-                const stacks = e.statusManager.getStack(STATUS_TYPES.TOXIN);
-                console.log(`[DEBUG] Outbreak Check: Stacks=${stacks}, Threshold=${data.threshold}`);
-
-                if (stacks >= data.threshold) {
-                    this.currentMoves += 1; // Grant immediate move
-                    logManager.log('Outbreak: Toxin Threshold met! +1 Move.', 'info');
-                    this.emitState(); // Update UI immediately
-                } else {
-                    logManager.log(`Outbreak: Threshold not met (${stacks}/${data.threshold}). No extra move.`, 'warning');
                 }
 
                 this.checkWinCondition(); // Ensure turn ends if moves = 0

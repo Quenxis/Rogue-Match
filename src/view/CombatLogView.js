@@ -412,6 +412,11 @@ export class CombatLogView {
                 if (s.isLocked !== undefined) this.isLocked = s.isLocked;
 
                 this.isExpanded = !!s.expanded;
+                if (this.isExpanded) {
+                    this.currentHeight = this.maxHeight;
+                } else {
+                    this.currentHeight = this.minHeight;
+                }
             }
         } catch (e) {
             console.error('Log Settings Load Error', e);
