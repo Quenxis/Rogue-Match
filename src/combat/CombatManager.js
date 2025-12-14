@@ -1160,11 +1160,8 @@ export class CombatManager {
 
             // console.log(`[Victory] RunManager After: ${runManager.player.gold}`);
 
-            // Legacy navigation removed. BattleScene handles victory now.
-            this.scene.time.delayedCall(3000, () => {
-                // Go to Hero Selection on Defeat
-                this.scene.scene.start('HeroSelectScene');
-            });
+            // Navigation is handled by BattleScene (handleVictory) via EVENTS.VICTORY
+            return;
             return;
         }
     }
