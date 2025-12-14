@@ -1,3 +1,39 @@
+// Helper to generate dynamic moves consistency
+const Actions = {
+    Attack: (val, weight = 1.0) => ({
+        type: 'ATTACK', value: val, weight, text: `Attack (${val})`
+    }),
+    HeavyAttack: (val, weight = 1.0) => ({
+        type: 'ATTACK', value: val, weight, text: `Heavy Attack (${val})`
+    }),
+    Defend: (val, weight = 1.0) => ({
+        type: 'DEFEND', value: val, weight, text: `Defend (${val})`
+    }),
+    BuffStrength: (val, weight = 1.0, duration = 3) => ({
+        type: 'BUFF', effect: 'STRENGTH', value: val, weight, text: `Roar (Power Up ${duration} Turns)`
+    }),
+    DebuffLock: (val, weight = 1.0, name = 'Lock') => ({
+        type: 'DEBUFF', effect: 'LOCK', value: val, weight, text: `${name} (Lock ${val})`
+    }),
+    DebuffTrash: (val, weight = 1.0, name = 'Trash') => ({
+        type: 'DEBUFF', effect: 'TRASH', value: val, weight, text: `${name} (Trash ${val})`
+    }),
+    Earthquake: (dmg, weight = 1.0) => ({
+        type: 'ATTACK', value: dmg, weight, effect: 'SHUFFLE', text: `Earthquake (${dmg} Dmg + Shuffle)`
+    }),
+    PrismaticResonance: (dmg, convertCount, weight = 1.0) => ({
+        type: 'ATTACK', value: dmg, count: convertCount, weight, effect: 'MANA_CONVERT', text: `Prismatic Resonance (${dmg} Dmg + Spawn Mana)`
+    }),
+    ManaDevour: (weight = 1.0) => ({
+        type: 'DEBUFF', value: 0, weight, text: 'Mana Devour (Consume Mana)', effect: 'MANA_DEVOUR',
+        dynamicTooltip: (cfg) => {
+            return `Mana Devour:
+ >${cfg.threshold || 6}[icon:icon_mana]: Heal ${cfg.healPerGem}x[icon:icon_mana] + 💪
+ <=${cfg.threshold || 6}[icon:icon_mana]: Self-Dmg ${cfg.damagePerGem}x[icon:icon_mana] + ☠️`;
+        }
+    })
+};
+
 // Probabilities sum to 1.0 (or logic handles weight)
 export const ENEMIES = {
     'slime': {
@@ -8,8 +44,8 @@ export const ENEMIES = {
         maxHP: 40,
         goldReward: 15,
         moveset: [
-            { type: 'ATTACK', value: 6, weight: 0.6, text: 'Attack (6)' },
-            { type: 'DEBUFF', effect: 'LOCK', value: 2, weight: 0.4, text: 'Sticky Spit (Lock 2)' }
+            Actions.Attack(6, 0.6),
+            Actions.DebuffLock(2, 0.4, 'Sticky Spit')
         ]
     },
     'rat': {
@@ -20,9 +56,9 @@ export const ENEMIES = {
         maxHP: 30,
         goldReward: 10,
         moveset: [
-            { type: 'ATTACK', value: 10, weight: 0.4, text: 'Attack (10)' },
-            { type: 'DEBUFF', effect: 'TRASH', value: 3, weight: 0.4, text: 'Kick Dirt (Trash 3)' },
-            { type: 'DEFEND', value: 12, weight: 0.2, text: 'Defend (Block 12)' }
+            Actions.Attack(10, 0.4),
+            Actions.DebuffTrash(3, 0.4, 'Kick Dirt'),
+            Actions.Defend(12, 0.2)
         ]
     },
     'orc': {
@@ -34,8 +70,8 @@ export const ENEMIES = {
         maxHP: 80,
         goldReward: 25,
         moveset: [
-            { type: 'ATTACK', value: 15, weight: 0.7, text: 'Attack (15)' },
-            { type: 'DEFEND', value: 12, weight: 0.3, text: 'Defend (12)' }
+            Actions.Attack(15, 0.7),
+            Actions.Defend(12, 0.3)
         ]
     },
     'skeleton': {
@@ -47,23 +83,47 @@ export const ENEMIES = {
         maxHP: 60,
         goldReward: 20,
         moveset: [
-            { type: 'ATTACK', value: 12, weight: 0.5, text: 'Attack (12)' },
-            { type: 'DEFEND', value: 10, weight: 0.3, text: 'Defend (10)' },
-            { type: 'ATTACK', value: 18, weight: 0.2, text: 'Heavy Attack (18)' }
+            Actions.Attack(12, 0.5),
+            Actions.Defend(10, 0.3),
+            Actions.HeavyAttack(18, 0.2)
         ]
     },
     'dragon': {
         name: 'Young Dragon',
         texture: 'tex_dragon',
-        hp: 150,
+        hp: 100,
         scale: 1.4,
-        maxHP: 150,
+        maxHP: 100,
+        goldReward: 70,
+        isElite: true, // Now Elite, not Boss
+        moveset: [
+            Actions.Attack(15, 0.5),
+            Actions.BuffStrength(3, 0.2),
+            Actions.DebuffTrash(4, 0.3, 'Tail Sweep')
+        ]
+    },
+    'crystal_burrower': {
+        name: 'Crystal Burrower',
+        texture: 'tex_crystal_burrower',
+        hp: 200,
+        maxHP: 200,
+        scale: 1.6,
+        yOffset: 20,
         goldReward: 100,
         isBoss: true,
+        strengthMagnitude: 10, // Deals +10 Dmg when Powered Up
         moveset: [
-            { type: 'ATTACK', value: 15, weight: 0.5, text: 'Attack (15)' },
-            { type: 'BUFF', effect: 'STRENGTH', value: 10, weight: 0.3, text: 'Roar (+10 Str)' },
-            { type: 'DEBUFF', effect: 'TRASH', value: 4, weight: 0.2, text: 'Tail Sweep (Trash 4)' }
-        ]
+            Actions.Earthquake(12, 1.0), // Turn 1
+            Actions.DebuffLock(3, 1.0, 'Crystal Spores'), // Turn 2
+            Actions.PrismaticResonance(8, 3, 1.0), // Turn 3: 8 DMG + Convert 3
+            Actions.ManaDevour(1.0) // Turn 4
+        ],
+        manaDevourConfig: {
+            threshold: 6,      // > 6 = Positive, <= 6 = Negative
+            healPerGem: 3,      // HP Healed per gem (Positive)
+            damagePerGem: 5,    // HP Lost per gem (Negative)
+            strengthStacks: 2,  // Strength derived from success
+            vulnerableStacks: 3 // Vulnerable derived from failure
+        }
     },
 };

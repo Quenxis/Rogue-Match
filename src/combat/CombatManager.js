@@ -24,6 +24,7 @@ export class CombatManager {
         this.scene = scene; // Kept strictly for .time (Timers)
 
         const enemyId = data.enemyId || 'slime';
+        this.enemyId = enemyId;
         const nodeType = data.nodeType || 'BATTLE';
 
         // Load Player State from Global RunManager
@@ -47,6 +48,8 @@ export class CombatManager {
             this.enemy = new Enemy(enemyData.name, enemyData.maxHP);
         }
         this.enemy.moveset = enemyData.moveset;
+        this.enemy.strengthMagnitude = enemyData.strengthMagnitude || 5;
+        this.enemy.manaDevourConfig = enemyData.manaDevourConfig || {};
 
         // Store reward info
         this.goldReward = enemyData.goldReward || 10;
@@ -278,7 +281,19 @@ export class CombatManager {
                 continue;
             }
 
-            // Standard Skills (Fireball, Heal, etc.)
+            // Special handling for EXTRACTION (Toxin check)
+            if (skillId === SKILLS.EXTRACTION) {
+                const cost = Math.floor(data.cost * multiplier);
+                const toxin = this.enemy.statusManager.getStack(STATUS_TYPES.TOXIN);
+
+                if (p.mana >= cost && toxin > 0) {
+                    // console.log(`[AutoEndTurn] Blocked by Usable Skill: Extraction`);
+                    return true;
+                }
+                continue;
+            }
+
+            // Standard Skills (Fireball, Heal, Outbreak, etc.)
             if (check(data)) return true;
         }
 
@@ -444,10 +459,14 @@ export class CombatManager {
                 if (window.grid && window.grid.transmuteRandomGems) {
                     const count = await window.grid.transmuteRandomGems(data.transmuteCount, ITEM_TYPES.POTION, {
                         preModificationCallback: async (targets) => {
-                            // Trigger Animation
-                            EventBus.emit(EVENTS.OUTBREAK_CAST, { targets });
-                            // Wait for animation impact (flight time approx 400-600ms)
-                            await new Promise(resolve => setTimeout(resolve, 600));
+                            await new Promise(resolve => {
+                                EventBus.emit(EVENTS.OUTBREAK_CAST, {
+                                    targets,
+                                    onComplete: resolve
+                                });
+                                // Safety fallback
+                                setTimeout(resolve, 3000);
+                            });
                         }
                     });
                     logManager.log(`Outbreak: Transmuted ${count} gems to Potions.`, 'info');
@@ -852,53 +871,55 @@ export class CombatManager {
 
         switch (intent.type) {
             case MOVESET_TYPES.ATTACK:
-                // Calculate damage including strength
-                // If value is base damage from moveset, we add strength here or in Enemy class?
-                // Enemy data has 'value': 6.
-                // We should add this.enemy.getStrength() - but wait, getStrength includes base?
-                // No, getStrength currently returns buff total. Base is 0.
-                // Re-reading Enemy.js: getStrength returns (this.strength || 0) + buffs.
-                // So we add that to the attack value.
+                // Handle Special Attack Effects first (e.g., Shuffle from Earthquake)
+                if (intent.effect === 'SHUFFLE') {
+                    if (window.grid) {
+                        EventBus.emit('visual:shake', { duration: 400, intensity: 0.005 }); // Earthquake
+                        window.grid.reshuffle(true);
+                        logManager.log('Earthquake! Board Shuffled.', 'warning');
+                    }
+                } else if (intent.effect === 'MANA_CONVERT') {
+                    // Prismatic Resonance: Deal Damage + Convert Gems
+                    // Damage is handled below by standard flow (since it's ATTACK now)
+                    if (window.grid) {
+                        const count = intent.count || 3;
+                        window.grid.transmuteRandomGems(count, ITEM_TYPES.MANA, {
+                            preModificationCallback: async (targets) => {
+                                await new Promise(resolve => {
+                                    EventBus.emit('enemy:prismatic_resonance', {
+                                        targets,
+                                        onComplete: resolve
+                                    });
+                                    // Safety fallback
+                                    setTimeout(resolve, 3000);
+                                });
+                            }
+                        }).then(c => logManager.log(`Prismatic Resonance: ${c} gems became MANA!`, 'warning'));
+                    }
+                }
+
+                // Standard Damage Application
                 const totalDmg = intent.value + this.enemy.getStrength();
                 this.player.takeDamage(totalDmg, this.enemy);
                 logManager.log(`Enemy attacks for ${totalDmg} (Base ${intent.value} + Str ${this.enemy.getStrength()})`, 'combat');
 
-                // Consume Strength (One-Use)
-                if (this.enemy.statusManager) {
-                    this.enemy.statusManager.consumeStacks(STATUS_TYPES.STRENGTH);
-                }
                 break;
             case MOVESET_TYPES.DEFEND:
                 this.enemy.addBlock(intent.value);
                 break;
             case MOVESET_TYPES.BUFF:
                 if (intent.effect === 'STRENGTH') {
-                    // Apply temporary buff
-                    // Note: Status System doesn't handle "Duration" in turns easily yet for stacking buffs
-                    // unless we just rely on the -1 decay per turn.
-                    // Roar gives +10 Strength. With -1 decay, it lasts 10 turns effectively but gets weaker?
-                    // Original logic: "Duration 3 turns", value was constant.
-                    // Current Status Logic: Decay 1 per turn.
-                    // If we want it to stay +10 for 3 turns, we need a "BuffManager" or different status logic.
-                    // User asked to "fix it using status system".
-                    // For now, I will just apply the stacks.
-                    // If the user wants "Constant +10 for 3 turns", that requires a new Status Type (e.g. TIMED_BUFF).
-                    // Given the constraint, "applyStack" is the direct translation, 
-                    // BUT 10 Strength decaying by 1 is: 10, 9, 8... 
-                    // This is slightly different behavior but fits the new system.
-
+                    // Compensation for Turn-End Decay: Add +1 Silent Stack
+                    this.enemy.statusManager.applyStack(STATUS_TYPES.STRENGTH, 1, true);
                     this.enemy.statusManager.applyStack(STATUS_TYPES.STRENGTH, intent.value);
                     logManager.log(`Enemy gains ${intent.value} Strength!`, 'warning');
 
                     // SCRIPTED AI: Force 2 Attacks after Buff
-                    // Find the primary ATTACK move from moveset
                     const attackMove = this.enemy.moveset.find(m => m.type === MOVESET_TYPES.ATTACK);
                     if (attackMove) {
                         this.enemy.forcedIntents.push(attackMove);
                         this.enemy.forcedIntents.push(attackMove);
-                        console.log('CombatManager: Scripted 2 Attacks for Enemy.');
                     }
-
                 } else if (intent.effect === 'HEAL') {
                     this.enemy.heal(intent.value);
                 }
@@ -906,20 +927,95 @@ export class CombatManager {
             case MOVESET_TYPES.DEBUFF:
                 if (intent.effect === 'LOCK') {
                     if (window.grid) {
-                        // Pass silent=true so visuals don't update immediately (waiting for animation)
                         const targets = window.grid.lockRandomGems(intent.value, true);
                         logManager.log(`Enemy Locked ${targets.length} Gems!`, 'warning');
                         EventBus.emit(EVENTS.ENEMY_LOCK, { value: intent.value, targets: targets });
-                        // EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'LOCKED!', color: 0x9900cc });
                     }
                 } else if (intent.effect === 'TRASH') {
                     if (window.grid) {
                         const targets = window.grid.trashRandomGems(intent.value, true);
                         logManager.log(`Enemy Trashed ${targets.length} Gems!`, 'warning');
                         EventBus.emit(EVENTS.ENEMY_TRASH, { value: intent.value, targets: targets });
-                        // EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'TRASHED!', color: 0x333333 });
+                    }
+                } else if (intent.effect === 'MANA_DEVOUR') {
+                    // Mana Devour Logic
+                    if (window.grid) {
+                        const manaType = ITEM_TYPES.MANA;
+                        let manaCount = 0;
+                        const targets = [];
+
+                        window.grid.grid.forEach((row, r) => row.forEach((item, c) => {
+                            if (item.type === manaType && !item.isTrash) {
+                                manaCount++;
+                                targets.push({ item, r, c });
+                            }
+                        }));
+
+                        logManager.log(`Mana Devour: Consumed ${manaCount} Mana Gems!`, 'warning');
+
+                        // trigger Visuals FIRST - Pass outcome data AND config
+                        // We must wait for animation "Pop Up" phase before clearing grid
+                        (async () => {
+                            await new Promise(resolve => {
+                                EventBus.emit('enemy:mana_devour', {
+                                    targets: targets,
+                                    manaCount: manaCount,
+                                    config: this.enemy.manaDevourConfig || {},
+                                    onComplete: resolve
+                                });
+                                // Safety fallback
+                                setTimeout(resolve, 3000);
+                            });
+
+                            // Delayed Removal (After Pop Up)
+                            targets.forEach(wrapper => {
+                                wrapper.item.type = ITEM_TYPES.EMPTY;
+                                EventBus.emit(EVENTS.GRID_ITEM_UPDATED, { item: wrapper.item, silent: true });
+                            });
+
+                            window.grid.applyGravity();
+                            window.grid.refill();
+
+                            // Re-enable Cascades (Propady)
+                            const matches = window.grid.findMatches();
+                            if (matches.length > 0) {
+                                window.grid.handleMatchResolution(matches);
+                            }
+
+                            const devConfig = this.enemy.manaDevourConfig || {};
+                            const threshold = devConfig.threshold || 6;
+
+                            if (manaCount <= threshold) {
+                                logManager.log('Mana Devour: Low Mana! Boss takes damage + Vulnerable!', 'positive');
+
+                                // 1. Take Damage
+                                const dmgPer = devConfig.damagePerGem || 5;
+                                const selfDmg = manaCount * dmgPer;
+                                if (selfDmg > 0) {
+                                    this.enemy.takeDamage(selfDmg, null, { isPiercing: true });
+                                }
+
+                                // 2. Apply Vulnerable
+                                const vulnStacks = devConfig.vulnerableStacks || 3;
+                                this.enemy.statusManager.applyStack(STATUS_TYPES.VULNERABLE, vulnStacks);
+                            } else {
+                                logManager.log('Mana Devour: High Mana! Boss Heals + Strength!', 'negative');
+
+                                // 1. Heal
+                                const healPer = devConfig.healPerGem || 3;
+                                const healAmount = manaCount * healPer;
+                                this.enemy.heal(healAmount);
+
+                                // 2. Apply Strength
+                                const strStacks = devConfig.strengthStacks || 3;
+                                // Apply +1 silent (decay compensation) + Visible Stacks
+                                this.enemy.statusManager.applyStack(STATUS_TYPES.STRENGTH, 1, true);
+                                this.enemy.statusManager.applyStack(STATUS_TYPES.STRENGTH, strStacks);
+                            }
+                        })();
                     }
                 }
+                break;
         }
     }
 
@@ -963,11 +1059,18 @@ export class CombatManager {
             this.enemy.currentIntent = { ...next };
 
             // Dynamic Update for Strength
+            // Dynamic Update for Strength
             if (this.enemy.currentIntent.type === 'ATTACK') {
                 const currentStr = this.enemy.getStrength();
                 if (currentStr > 0) {
                     const totalDmg = this.enemy.currentIntent.value + currentStr;
-                    this.enemy.currentIntent.text = `Attack (${totalDmg})`;
+                    if (this.enemy.currentIntent.effect === 'MANA_CONVERT') {
+                        this.enemy.currentIntent.text = `Prismatic Resonance (${totalDmg} Dmg + Spawn Mana)`;
+                    } else if (this.enemy.currentIntent.effect === 'SHUFFLE') {
+                        this.enemy.currentIntent.text = `Earthquake (${totalDmg} Dmg + Shuffle)`;
+                    } else {
+                        this.enemy.currentIntent.text = `Attack (${totalDmg})`;
+                    }
                 }
             }
             console.log(`Enemy Intent (Forced): ${this.enemy.currentIntent.text}`);
@@ -981,28 +1084,52 @@ export class CombatManager {
             return;
         }
 
-        // Weighted Random Selection
-        const totalWeight = moveset.reduce((sum, move) => sum + (move.weight || 1), 0);
-        let random = Math.random() * totalWeight;
-
-        let selectedMove = moveset[0];
-        for (const move of moveset) {
-            random -= (move.weight || 1);
-            if (random <= 0) {
-                selectedMove = move;
-                break;
+        // --- BOSS LOGIC: CRYSTAL BURROWER (4-Turn Loop) ---
+        if (this.enemyId === 'crystal_burrower') {
+            if (typeof this.enemy.patternIndex === 'undefined') {
+                this.enemy.patternIndex = 0;
             }
+
+            // Fixed Loop: 0 -> 1 -> 2 -> 3 -> 0
+            const moveIndex = this.enemy.patternIndex % 4;
+            const selectedMove = moveset[moveIndex];
+
+            this.enemy.currentIntent = { ...selectedMove };
+
+            // Advance pattern for NEXT turn
+            this.enemy.patternIndex++;
+
+            console.log(`Crystal Burrower Intent: Index ${moveIndex} (${this.enemy.currentIntent.text})`);
+        } else {
+            // Standard Weighted Random Selection
+            const totalWeight = moveset.reduce((sum, move) => sum + (move.weight || 1), 0);
+            let random = Math.random() * totalWeight;
+
+            let selectedMove = moveset[0];
+            for (const move of moveset) {
+                random -= (move.weight || 1);
+                if (random <= 0) {
+                    selectedMove = move;
+                    break;
+                }
+            }
+            this.enemy.currentIntent = { ...selectedMove };
         }
 
-        // CLONE the intent to avoid mutating global moveset definition
-        this.enemy.currentIntent = { ...selectedMove };
-
+        // Update Text for ATTACK to show Strength
         // Update Text for ATTACK to show Strength
         if (this.enemy.currentIntent.type === 'ATTACK') {
             const currentStr = this.enemy.getStrength();
             if (currentStr > 0) {
                 const totalDmg = this.enemy.currentIntent.value + currentStr;
-                this.enemy.currentIntent.text = `Attack (${totalDmg})`;
+                // Special naming for known moves
+                if (this.enemy.currentIntent.effect === 'MANA_CONVERT') {
+                    this.enemy.currentIntent.text = `Prismatic Resonance (${totalDmg} Dmg + Spawn Mana)`;
+                } else if (this.enemy.currentIntent.effect === 'SHUFFLE') {
+                    this.enemy.currentIntent.text = `Earthquake (${totalDmg} Dmg + Shuffle)`;
+                } else {
+                    this.enemy.currentIntent.text = `Attack (${totalDmg})`;
+                }
             }
         }
 
@@ -1028,25 +1155,14 @@ export class CombatManager {
             // console.log(`[Victory] RunManager Before: ${runManager.player.gold}`);
 
             runManager.updatePlayerState(this.player.currentHP, finalGold);
-            runManager.completeLevel();
+            // runManager.completeLevel(); // MOVED TO BattleScene.js to handle Rewards properly!
 
             // console.log(`[Victory] RunManager After: ${runManager.player.gold}`);
 
-            this.scene.time.delayedCall(1500, () => {
-                this.scene.scene.start('RewardScene', {
-                    rewards: { gold: this.goldReward }
-                });
-            });
-            return;
-        }
-        if (this.player.isDead) {
-            this.turn = ENTITIES.ENDED;
-            logManager.log('DEFEAT! You have been slain!', 'turn');
-            EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'DEFEAT', color: 0xff0000 });
-
+            // Legacy navigation removed. BattleScene handles victory now.
             this.scene.time.delayedCall(3000, () => {
-                runManager.startNewRun();
-                this.scene.scene.start('MapScene');
+                // Go to Hero Selection on Defeat
+                this.scene.scene.start('HeroSelectScene');
             });
             return;
         }

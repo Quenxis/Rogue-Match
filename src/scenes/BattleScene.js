@@ -5,6 +5,7 @@
  */
 
 import { EventBus } from '../core/EventBus.js';
+import { runManager } from '../core/RunManager.js';
 import { EVENTS, ASSETS } from '../core/Constants.js';
 import { GridData } from '../logic/GridData.js';
 import { AssetFactory } from '../view/AssetFactory.js';
@@ -97,11 +98,52 @@ export class BattleScene extends Phaser.Scene {
         // Start Combat Logic (Emits initial state to View)
         this.combatManager.init();
 
+        // Listen for Victory
+        this.onVictoryBound = this.handleVictory.bind(this);
+        EventBus.on(EVENTS.VICTORY, this.onVictoryBound);
+
         // Cleanup on shutdown
         this.events.on('shutdown', this.shutdown, this);
     }
 
+    handleVictory(data) {
+        // Wait a moment for animations
+        this.time.delayedCall(1000, () => {
+            const node = runManager.currentNode; // Get current node info
+            console.log(`[BattleScene] Victory! Node: ${node ? node.id : 'null'} Type: ${node ? node.type : 'N/A'}`);
+
+            // Check if Elite or Boss
+            const isSpecial = node && (node.type === 'ELITE' || node.type === 'BOSS');
+            console.log(`[BattleScene] isSpecial: ${isSpecial}`);
+
+            if (isSpecial) {
+                // Generate Rewards
+                const eliteRewards = runManager.generateEliteRewards();
+                const totalGold = data.combat.goldReward; // Base gold from enemy
+
+                // Launch Reward Scene
+                this.scene.start('RewardScene', {
+                    rewards: {
+                        gold: totalGold,
+                        choices: eliteRewards
+                    }
+                });
+            } else {
+                // Determine Gold
+                const gold = data.combat.goldReward;
+                runManager.addGold(gold);
+
+                // Complete Level Logic in RunManager
+                runManager.completeLevel(); // Move to next node
+
+                // Return to Map
+                this.scene.start('MapScene');
+            }
+        });
+    }
+
     shutdown() {
+        EventBus.off(EVENTS.VICTORY, this.onVictoryBound);
         if (this.combatManager) {
             this.combatManager.destroy();
             this.combatManager = null;

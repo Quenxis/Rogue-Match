@@ -23,6 +23,7 @@ export class BootScene extends Phaser.Scene {
         this.load.image('tex_dragon', 'assets/entities/dragon.png');
         this.load.image('huntress', 'assets/entities/huntress.png');
         this.load.image('hero_doctor', 'assets/entities/plague_doctor.png');
+        this.load.image('tex_crystal_burrower', 'assets/entities/crystal_burrower.png');
 
         // Icons (Small versions for UI)
         this.load.image('icon_sword', 'assets/icons/sword.png');

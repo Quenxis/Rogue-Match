@@ -39,9 +39,9 @@ class EventBusImpl {
     emit(eventName, data) {
         if (eventName === 'grid:item_updated') {
             const listeners = this.events[eventName] || [];
-            console.log(`[EventBus] Emitting 'grid:item_updated'. Listeners: ${listeners.length}`);
+            // console.log(`[EventBus] Emitting 'grid:item_updated'. Listeners: ${listeners.length}`);
             listeners.forEach((callback, index) => {
-                console.log(`[EventBus] Executing Listener #${index}:`, callback);
+                // console.log(`[EventBus] Executing Listener #${index}:`, callback);
                 try {
                     callback(data);
                 } catch (err) {

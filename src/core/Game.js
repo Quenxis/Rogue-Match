@@ -15,8 +15,9 @@ import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
 
 import { HeroSelectScene } from '../scenes/HeroSelectScene.js';
+import { RestScene } from '../scenes/RestScene.js';
 
-export const APP_VERSION = '0.3.44';
+export const APP_VERSION = '0.3.46';
 
 const config = {
     type: Phaser.AUTO,
@@ -24,7 +25,7 @@ const config = {
     height: 1080,
     parent: 'game-container',
     backgroundColor: '#000000',
-    scene: [BootScene, HeroSelectScene, MapScene, BattleScene, RewardScene, ShopScene, EventScene, TreasureScene], // BootScene -> HeroSelectScene
+    scene: [BootScene, HeroSelectScene, MapScene, BattleScene, RewardScene, ShopScene, EventScene, TreasureScene, RestScene], // BootScene -> HeroSelectScene
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH

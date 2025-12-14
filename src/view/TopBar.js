@@ -575,7 +575,7 @@ export class TopBar {
 
         // Window
         const winW = 400;
-        const winH = 300;
+        const winH = 400;
         const windowBg = this.scene.add.rectangle(centerX, centerY, winW, winH, 0x222222).setStrokeStyle(4, 0x3b2d23);
         this.settingsContainer.add(windowBg);
 
@@ -636,7 +636,7 @@ export class TopBar {
 
         this.settingsContainer.add([toggleBg, toggleKnob]);
 
-        // State
+        // State Auto End Turn
         let isAutoEndTurn = settingsManager.get('autoEndTurn', false);
 
         const updateToggleVisuals = () => {
@@ -656,10 +656,43 @@ export class TopBar {
             updateToggleVisuals();
         });
 
+        // --- SHOW COMBAT LOG TOGGLE ---
+        const logToggleY = toggleY + 70;
+        this.settingsContainer.add(this.scene.add.text(centerX, logToggleY - 20, 'SHOW COMBAT LOG', { font: '16px Verdana', fill: '#aaaaaa' }).setOrigin(0.5));
+
+        const logToggleBg = this.scene.add.rectangle(centerX, logToggleY + 10, 60, 30, 0x444444).setInteractive({ useHandCursor: true });
+        const logToggleKnob = this.scene.add.circle(centerX - 15, logToggleY + 10, 14, 0xff0000);
+
+        this.settingsContainer.add([logToggleBg, logToggleKnob]);
+
+        let isShowLog = settingsManager.get('showCombatLog', true);
+
+        const updateLogToggleVisuals = () => {
+            if (isShowLog) {
+                logToggleKnob.x = centerX + 15;
+                logToggleKnob.setFillStyle(0x00ff00);
+            } else {
+                logToggleKnob.x = centerX - 15;
+                logToggleKnob.setFillStyle(0xff0000);
+            }
+        };
+        updateLogToggleVisuals();
+
+        logToggleBg.on('pointerdown', () => {
+            isShowLog = !isShowLog;
+            settingsManager.set('showCombatLog', isShowLog);
+            updateLogToggleVisuals();
+            EventBus.emit('settings:toggle_combat_log', isShowLog);
+        });
+
+
         // Store update function to sync when opening settings
         this.updateAutoRunToggle = () => {
             isAutoEndTurn = settingsManager.get('autoEndTurn', false);
             updateToggleVisuals();
+
+            isShowLog = settingsManager.get('showCombatLog', true);
+            updateLogToggleVisuals();
         };
     }
 

@@ -428,9 +428,11 @@ export class GridData {
         return hasMatch;
     }
 
-    async reshuffle() {
-        console.log('Reshuffling Grid...');
-        EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'NO MOVES! SHUFFLING...', color: 0xff0000 });
+    async reshuffle(silent = false) {
+        // console.log('Reshuffling Grid...');
+        if (!silent) {
+            EventBus.emit(EVENTS.SHOW_NOTIFICATION, { text: 'NO MOVES! SHUFFLING...', color: 0xff0000 });
+        }
 
         let valid = false;
         let attempts = 0;
@@ -526,7 +528,9 @@ export class GridData {
         // We might want a small delay? But logic is sync.
         // Let's just reshuffle immediately.
 
-        this.reshuffle();
+        this.applyGravity(); // Ensure gaps are at top (standardize)
+        this.refill();       // FILL EMPTY TILES (Crucial fix for Empty Grid deadlock)
+        this.reshuffle(true); // Silent Reshuffle to avoid "NO MOVES" notification during recovery
     }
 
 

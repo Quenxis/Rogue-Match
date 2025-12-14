@@ -14,7 +14,6 @@ const CONFIG = {
     [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' },
     [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' },
     [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' },
-    [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' },
     [STATUS_TYPES.GREED_CURSE]: { max: 1, category: 'DEBUFF' },
     [STATUS_TYPES.TOXIN]: { max: 999, category: 'DEBUFF', persistent: true } // Persistent flag for logic checks
 };
@@ -34,7 +33,7 @@ export class StatusEffectManager {
      * Apply stacks of a specific effect type.
      * Logic: Current = Math.Min(Current + New, Max)
      */
-    applyStack(type, amount) {
+    applyStack(type, amount, silent = false) {
         if (!CONFIG[type]) return;
 
         const current = this.stacks[type] || 0;
@@ -45,7 +44,9 @@ export class StatusEffectManager {
 
         if (added > 0) {
             this.stacks[type] = newTotal;
-            logManager.log(`${this.entity.name} gained ${added} ${type} (Total: ${newTotal})`, 'info');
+            if (!silent) {
+                logManager.log(`${this.entity.name} gained ${added} ${type} (Total: ${newTotal})`, 'info');
+            }
         }
     }
 
@@ -99,7 +100,7 @@ export class StatusEffectManager {
         // DECAY Logic
         // Bleed, Regen, Thorns, Vulnerable decay by 1.
         // TOXIN is persistent (0 decay).
-        [STATUS_TYPES.BLEED, STATUS_TYPES.REGEN, STATUS_TYPES.THORNS, STATUS_TYPES.VULNERABLE].forEach(type => {
+        [STATUS_TYPES.BLEED, STATUS_TYPES.REGEN, STATUS_TYPES.THORNS, STATUS_TYPES.VULNERABLE, STATUS_TYPES.STRENGTH].forEach(type => {
             if (this.stacks[type] > 0) {
                 this.removeStack(type, 1);
             }

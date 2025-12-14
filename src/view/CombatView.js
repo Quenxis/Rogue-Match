@@ -4,7 +4,7 @@
  */
 
 import { EventBus } from '../core/EventBus.js';
-import { EVENTS, ASSETS, SKILLS, SKILL_DATA, ENTITIES, STATUS_TYPES } from '../core/Constants.js';
+import { EVENTS, ASSETS, SKILLS, SKILL_DATA, ENTITIES, STATUS_TYPES, GAME_SETTINGS } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { HEROES } from '../data/heroes.js';
@@ -104,11 +104,27 @@ export class CombatView {
             this.queueAnimation(done => this.animateToxicApply(this.enemySprite, done));
         };
         this.onOutbreakCast = (data) => {
-            this.queueAnimation(done => this.animateOutbreak(data.targets, done));
+            this.queueAnimation(done => this.animateOutbreak(data, done));
         };
         this.onExtractionCast = (data) => {
             this.queueAnimation(done => this.animateExtraction(data, done));
         };
+        this.onPrismaticResonance = (data) => {
+            this.queueAnimation(done => this.animatePrismaticResonance(data, done));
+        };
+        EventBus.on('enemy:prismatic_resonance', this.onPrismaticResonance);
+
+        this.onVisualShake = (data) => {
+            if (this.scene && this.scene.cameras && this.scene.cameras.main) {
+                this.scene.cameras.main.shake(data.duration || 300, data.intensity || 0.01);
+            }
+        };
+        EventBus.on('visual:shake', this.onVisualShake);
+
+        this.onManaDevour = (data) => {
+            this.queueAnimation(done => this.animateManaDevour(data, done));
+        };
+        EventBus.on('enemy:mana_devour', this.onManaDevour);
 
 
         EventBus.on(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
@@ -136,6 +152,9 @@ export class CombatView {
         EventBus.off(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
         EventBus.off(EVENTS.ENEMY_LOCK, this.onEnemyLock);
         EventBus.off(EVENTS.ENEMY_TRASH, this.onEnemyTrash);
+        EventBus.off('enemy:prismatic_resonance', this.onPrismaticResonance);
+        EventBus.off('visual:shake', this.onVisualShake);
+        EventBus.off('enemy:mana_devour', this.onManaDevour);
 
         // 2. Destroy UI Elements
         if (this.centerText) this.centerText.destroy();
@@ -203,21 +222,47 @@ export class CombatView {
             if (child !== this.tooltipBg) child.destroy();
         });
 
-        // Use Helper with Defaults
+        // Use Helper with Defaults but enforce wrapping
         const { width, height } = RichTextHelper.renderRichText(
             this.scene,
             this.tooltipContainer,
-            text
+            text,
+            { maxWidth: 320 } // Wrap earlier to avoid huge wide lines
         );
 
         this.tooltipBg.setSize(width, height);
-        this.tooltipContainer.setPosition(x, y);
-        this.tooltipContainer.setVisible(true);
 
-        // Adjust alignment if off screen? (Optional polish)
-        if (x + width > this.scene.scale.width) {
-            this.tooltipContainer.setX(this.scene.scale.width - width - 10);
+        // --- SMART POSITIONING ---
+        const screenW = this.scene.scale.width;
+        const screenH = this.scene.scale.height;
+
+        let finalX = x;
+        let finalY = y;
+
+        // 1. Horizontal Clamp
+        if (finalX + width > screenW) {
+            finalX = screenW - width - 10; // Align with right edge
         }
+        if (finalX < 10) {
+            finalX = 10; // Align with left edge
+        }
+
+        // 2. Vertical Clamp (Flip if bottom overflow)
+        if (finalY + height > screenH) {
+            // Try flipping up instead of just clamping
+            // Assuming 'y' was top-left, we might want to put it ABOVE the cursor/target
+            // But we don't know the target height here easily unless passed.
+            // Check if we can move it UP by height.
+            finalY = y - height - 20;
+
+            // If still out of bounds (top), just clamp to bottom
+            if (finalY < 0) {
+                finalY = screenH - height - 10;
+            }
+        }
+
+        this.tooltipContainer.setPosition(finalX, finalY);
+        this.tooltipContainer.setVisible(true);
     }
 
     hideTooltip() {
@@ -564,7 +609,7 @@ export class CombatView {
                 // Update Icon based on type
                 let iconKey = ASSETS.ICON_SWORD; // Default: Attack
                 let tintColor = 0xff4444; // Red for attack
-                let tooltipText = 'Attack';
+                let tooltipText = intent.text || 'Attack'; // Dynamic from Data
 
                 // Ensure Intent Emoji exists
                 if (!this.intentEmoji) {
@@ -580,43 +625,108 @@ export class CombatView {
                 }
 
                 if (intent.type === 'DEFEND' || intent.type === 'BLOCK') {
+                    // Reset Layout
+                    this.intentText.x = 28;
+                    if (this.intentIconSecondary) this.intentIconSecondary.setVisible(false);
+                    this.intentIcon.x = 0;
+
                     iconKey = ASSETS.ICON_SHIELD;
                     tintColor = 0x44aaff; // Blue
-                    tooltipText = 'Defend';
+                    tooltipText = intent.text || 'Defend';
                     this._showIntentIcon(iconKey, tintColor);
                 } else if (intent.type === 'BUFF') {
+                    // Reset Layout
+                    this.intentText.x = 28;
+                    if (this.intentIconSecondary) this.intentIconSecondary.setVisible(false);
+                    this.intentIcon.x = 0;
+
                     if (intent.effect === 'STRENGTH') {
                         this.intentIcon.setVisible(false);
                         this.intentEmoji.setVisible(true).setText('💪');
-                        tooltipText = `Roar: Increases strength by ${intent.value}`;
+                        tooltipText = intent.text || `Increase Strength`;
                     } else {
                         iconKey = ASSETS.ICON_SWORD;
                         tintColor = 0xffaa44; // Orange
-                        tooltipText = intent.effect || 'Buff';
+                        tooltipText = intent.text || intent.effect || 'Buff';
                         this._showIntentIcon(iconKey, tintColor);
                     }
                 } else if (intent.type === 'DEBUFF') {
+                    // Reset Layout Defaults
+                    this.intentText.x = 28;
+                    if (this.intentIconSecondary) this.intentIconSecondary.setVisible(false);
+                    this.intentIcon.x = 0;
+
                     this._showIntentIcon(iconKey, tintColor); // Reset defaults
                     // Specific icons for Lock and Trash - no tint, use icon as-is
                     if (intent.effect === 'LOCK') {
                         iconKey = ASSETS.ICON_LOCK;
                         tintColor = null; // No tint - use original icon colors
-                        tooltipText = 'Lock: Locks random gems';
+                        tooltipText = intent.text || 'Lock';
                         this._showIntentIcon(iconKey, tintColor);
                     } else if (intent.effect === 'TRASH') {
                         iconKey = ASSETS.ICON_TRASH;
                         tintColor = null; // No tint - use original icon colors
-                        tooltipText = 'Trash: Turns gems into junk';
+                        tooltipText = intent.text || 'Trash';
                         this._showIntentIcon(iconKey, tintColor);
+                    } else if (intent.effect === 'MANA_DEVOUR') {
+                        // Mana Devour Visuals
+                        this.intentIcon.setVisible(false);
+                        if (this.intentIconSecondary) this.intentIconSecondary.setVisible(false); // Double verify
+                        this.intentEmoji.setVisible(true).setText('🧿'); // Eye/Void
+
+                        // Dynamic Tooltip (Refactored to Data)
+                        if (intent.dynamicTooltip && enemy.manaDevourConfig) {
+                            tooltipText = intent.dynamicTooltip(enemy.manaDevourConfig);
+                        } else {
+                            tooltipText = intent.text || 'Mana Devour';
+                        }
+
+                        this.intentText.x = 35; // Slight adjustment for Emoji
                     } else {
                         iconKey = ASSETS.ICON_MANA;
                         tintColor = 0xaa44ff;
-                        tooltipText = intent.effect || 'Debuff';
+                        tooltipText = intent.text || intent.effect || 'Debuff';
                         this._showIntentIcon(iconKey, tintColor);
                     }
                 } else {
                     // Attack
-                    this._showIntentIcon(ASSETS.ICON_SWORD, 0xff4444);
+                    if (intent.effect === 'SHUFFLE') {
+                        // T1 Earthquake specific visual
+                        this.intentIcon.setVisible(false);
+                        this.intentEmoji.setVisible(true).setText('🌋');
+                        this.intentEmoji.x = 0; // Reset
+                        this.intentText.x = 35; // Slight adjust for emoji width
+                        tooltipText = intent.text || 'Earthquake';
+                        if (this.intentIconSecondary) this.intentIconSecondary.setVisible(false);
+                    } else if (intent.effect === 'MANA_CONVERT') {
+                        // T3 Prismatic Resonance: Sword + Mana Icon
+
+                        // 1. Ensure Secondary Icon Exists
+                        if (!this.intentIconSecondary) {
+                            this.intentIconSecondary = this.scene.add.image(0, 0, ASSETS.ICON_MANA).setDisplaySize(44, 44).setOrigin(0.5);
+                            this.intentContainer.add(this.intentIconSecondary);
+                        }
+
+                        // 2. Setup Layout (Tighter Spacing)
+                        this.intentIcon.setVisible(true).setTexture(ASSETS.ICON_SWORD).setTint(0xff4444);
+                        this.intentIcon.setDisplaySize(44, 44); // Match sizes
+                        this.intentIcon.x = -15; // Closer to center
+
+                        this.intentIconSecondary.setVisible(true).setTexture(ASSETS.ICON_MANA);
+                        this.intentIconSecondary.setDisplaySize(44, 44); // ensure size update
+                        this.intentIconSecondary.x = 15; // Closer to center
+
+                        this.intentEmoji.setVisible(false);
+
+                        this.intentText.x = 45; // Closer text
+
+                    } else {
+                        // Reset Position & Visibility for Standard Attacks
+                        this.intentIcon.x = 0;
+                        this.intentText.x = 28;
+                        if (this.intentIconSecondary) this.intentIconSecondary.setVisible(false);
+                        this._showIntentIcon(ASSETS.ICON_SWORD, 0xff4444);
+                    }
                 }
 
                 // ... text update logic ...
@@ -624,9 +734,26 @@ export class CombatView {
                 // Apply Text (with Strength calculation for Attack)
                 if (intent.type === 'ATTACK') {
                     const str = enemy.getStrength ? enemy.getStrength() : 0;
-                    const val = intent.value + str;
-                    tooltipText = `Attack: ${val} damage`;
-                    this.intentText.setText(`${val}`);
+                    const totalVal = intent.value + str;
+
+                    if (intent.text) {
+                        // If we have a base text like "Attack (12)", we want "Attack (22)" or "Attack (12 + 10)"
+                        // Simple approach: Replace the number in parentheses if possible, or append.
+                        // Actually, let's just use the intention name + total value.
+                        // But intent.text includes the value currently.
+                        // Let's rely on the Action generator format "Name (Val)".
+                        // We can regex replace the value?
+                        // Or just append strength info: "Attack (12) + 10 Str"
+                        if (str > 0) {
+                            tooltipText = `${intent.text} + ${str} Str = ${totalVal}`;
+                        } else {
+                            tooltipText = intent.text;
+                        }
+                    } else {
+                        tooltipText = `Attack: ${totalVal} damage`;
+                    }
+                    this.intentText.setText(`${totalVal}`);
+
                 } else if (intent.value !== undefined && intent.value > 0) {
                     this.intentText.setText(`${intent.value}`);
                 } else {
@@ -1414,8 +1541,9 @@ export class CombatView {
         });
     }
 
-    animateOutbreak(targets = [], onComplete = null) {
+    animateOutbreak(data, onComplete = null) {
         if (!this.scene) return;
+        const targets = data.targets || [];
 
         // 1. Source: Player
         const player = this.heroSprite;
@@ -1432,6 +1560,7 @@ export class CombatView {
             onYoyo: () => {
                 // SPAWN POTIONS
                 const count = (targets && targets.length > 0) ? targets.length : 3;
+                let completedCount = 0;
 
                 // Grid Helper
                 let getTargetPos;
@@ -1442,31 +1571,42 @@ export class CombatView {
                         y: gv.offsetY + r * gv.tileSize
                     });
                 } else {
-                    return; // Fail safe
+                    if (data.onComplete) data.onComplete();
+                    return;
                 }
 
                 for (let i = 0; i < count; i++) {
-                    // Create Potion Sprite
-                    let potion = this.scene.add.image(player.x + 20, startY, 'icon_potion'); // Assuming 'icon_potion' loaded
-                    potion.setDisplaySize(40, 40);
+                    // Create Potion Sprite (Using Grid Texture)
+                    let potion;
+                    const tex = ASSETS.POTION || 'POTION';
+                    if (this.scene.textures.exists(tex)) {
+                        const size = 50 * GAME_SETTINGS.GRID_SCALE;
+                        potion = this.scene.add.image(player.x + 20, startY, tex);
+                        potion.setDisplaySize(size, size);
+                    } else {
+                        potion = this.scene.add.image(player.x + 20, startY, 'icon_potion');
+                        potion.setDisplaySize(40, 40);
+                    }
                     potion.setDepth(500);
                     potion.scale = 0;
 
                     // Target
                     let tx, ty;
+                    let pos;
                     if (targets && targets[i]) {
-                        const pos = getTargetPos(targets[i].r, targets[i].c);
+                        pos = getTargetPos(targets[i].r, targets[i].c);
                         tx = pos.x;
                         ty = pos.y;
                     } else {
                         tx = this.scene.scale.width / 2;
                         ty = this.scene.scale.height / 2;
+                        pos = { x: tx, y: ty };
                     }
 
-                    // Timeline: Pop In -> Fly -> Splash
+                    // Timeline: Pop In -> Fly -> Impact (Lock Style)
                     this.scene.tweens.add({
                         targets: potion,
-                        scale: 1,
+                        scale: 0.6,
                         duration: 100,
                         delay: i * 50,
                         onComplete: () => {
@@ -1475,13 +1615,27 @@ export class CombatView {
                                 targets: potion,
                                 x: tx,
                                 y: ty,
-                                rotation: Math.PI * 4, // Spin
-                                duration: 450,
+                                rotation: Math.PI * 4,
+                                duration: 400,
                                 ease: 'Quad.Out',
                                 onComplete: () => {
-                                    // Impact Splash
-                                    this.createPotionSplash(tx, ty);
-                                    potion.destroy();
+                                    // IMPACT: Signal Logic
+                                    completedCount++;
+                                    if (completedCount >= count) {
+                                        if (data.onComplete) data.onComplete();
+                                    }
+
+                                    // Visual "Pop/Settling" (Lock Style: Scale Up + Fade Out)
+                                    this.scene.tweens.add({
+                                        targets: potion,
+                                        scale: 1.0,
+                                        duration: 250,
+                                        yoyo: true,
+                                        onComplete: () => {
+                                            potion.destroy();
+                                            if (completedCount >= count && onComplete) onComplete();
+                                        }
+                                    });
                                 }
                             });
                         }
@@ -1505,15 +1659,17 @@ export class CombatView {
         const targetX = player.x;
         const targetY = player.y - (player.height * 0.5);
 
-        // 1. Create Particles (Energy Blobs) - SWARM EFFECT
-        const particleCount = 25; // Much more particles!
+        // 1. Create Particles (Energy Blobs) - SWARM EFFECT (Restored)
+        const particleCount = 25;
 
         for (let i = 0; i < particleCount; i++) {
             // Mix Neon Green and Black
             const color = Math.random() > 0.5 ? 0x39ff14 : 0x000000;
             // Spawn randomly around enemy body
-            const spawnX = startX + (Math.random() - 0.5) * (enemy.displayWidth || 100);
-            const spawnY = startY + (Math.random() - 0.5) * (enemy.displayHeight || 100);
+            const w = enemy.displayWidth || 100;
+            const h = enemy.displayHeight || 100;
+            const spawnX = startX + (Math.random() - 0.5) * w;
+            const spawnY = startY + (Math.random() - 0.5) * h;
 
             const blob = this.scene.add.circle(spawnX, spawnY, 4 + Math.random() * 6, color);
             blob.setDepth(200);
@@ -1538,11 +1694,12 @@ export class CombatView {
         const startScaleX = player.scaleX;
         const startScaleY = player.scaleY;
 
-        this.scene.time.delayedCall(400, () => {
+        // Delay flash until some particles arrive
+        this.scene.time.delayedCall(600, () => {
             if (player.setTint) player.setTint(0x39ff14);
             this.scene.tweens.add({
                 targets: player,
-                scaleX: startScaleX * 1.05, // Only 5% increase relative to current size
+                scaleX: startScaleX * 1.05,
                 scaleY: startScaleY * 1.05,
                 yoyo: true,
                 duration: 200,
@@ -1576,6 +1733,238 @@ export class CombatView {
         });
     }
 
+    animatePrismaticResonance(data, onComplete) {
+        if (!this.scene) return;
+        const targets = data.targets || [];
+
+        // 1. Source: Boss
+        const source = this.enemySprite;
+        const startX = source.x;
+        const startY = source.y - (source.height * 0.5);
+
+        // Grid Helper
+        let getTargetPos;
+        if (this.scene.gridView && window.grid) {
+            const gv = this.scene.gridView;
+            getTargetPos = (r, c) => ({
+                x: gv.offsetX + c * gv.tileSize,
+                y: gv.offsetY + r * gv.tileSize
+            });
+        } else {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        // 2. Animate Projectiles (Mana Crystals)
+        let completedCount = 0;
+        const total = targets.length;
+        if (total === 0) {
+            if (data.onComplete) data.onComplete(); // Ensure logic proceeds even if no targets
+            if (onComplete) onComplete();
+            return;
+        }
+
+        targets.forEach((t, i) => {
+            // Create Mana Crystal Sprite (Using Grid Texture)
+            let crystal;
+            if (this.scene.textures.exists(ASSETS.MANA)) {
+                const size = 50 * GAME_SETTINGS.GRID_SCALE;
+                crystal = this.scene.add.image(startX, startY, ASSETS.MANA).setDisplaySize(size, size);
+            } else {
+                crystal = this.scene.add.text(startX, startY, '💎', { fontSize: '32px' }).setOrigin(0.5);
+            }
+            crystal.setDepth(500);
+            crystal.scale = 0; // Start small for Pop In
+
+            const pos = getTargetPos(t.r, t.c);
+
+            // Timeline: Pop In -> Fly -> Impact (Lock Style)
+            this.scene.tweens.add({
+                targets: crystal,
+                scale: 0.6, // Pop In
+                duration: 100,
+                delay: i * 50,
+                onComplete: () => {
+                    // Fly
+                    this.scene.tweens.add({
+                        targets: crystal,
+                        x: pos.x,
+                        y: pos.y,
+                        rotation: Math.PI * 4,
+                        duration: 400,
+                        ease: 'Quad.Out',
+                        onComplete: () => {
+                            // IMPACT: Signal Logic
+                            completedCount++;
+                            if (completedCount >= total) {
+                                if (data.onComplete) data.onComplete();
+                            }
+
+                            // Visual "Pop/Settling" (Lock Style: Scale Up + Fade Out)
+                            this.scene.tweens.add({
+                                targets: crystal,
+                                scale: 1.0,
+                                duration: 250,
+                                yoyo: true,
+                                onComplete: () => {
+                                    crystal.destroy();
+                                    if (completedCount >= total && onComplete) onComplete();
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    animateManaDevour(data, onComplete) {
+        if (!this.scene) return;
+        const targets = data.targets || [];
+
+        // 1. Destination: Boss
+        const dest = this.enemySprite;
+        const destX = dest.x;
+        const destY = dest.y - (dest.height * 0.5);
+
+        // Grid Helper
+        let getTargetPos;
+        if (this.scene.gridView && window.grid) {
+            const gv = this.scene.gridView;
+            getTargetPos = (r, c) => ({
+                x: gv.offsetX + c * gv.tileSize,
+                y: gv.offsetY + r * gv.tileSize
+            });
+        } else {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        let completedCount = 0;
+        const total = targets.length;
+        if (total === 0) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        let poppedCount = 0;
+
+        // 2. Create Clones and Suck
+        targets.forEach((t, i) => {
+            // Clone Mana Sprite (Using Grid Texture)
+            let crystal;
+            if (this.scene.textures.exists(ASSETS.MANA)) {
+                const size = 50 * GAME_SETTINGS.GRID_SCALE;
+                crystal = this.scene.add.image(0, 0, ASSETS.MANA).setDisplaySize(size, size);
+            } else {
+                crystal = this.scene.add.text(0, 0, '💎', { fontSize: '32px' }).setOrigin(0.5);
+            }
+            crystal.setDepth(500);
+
+            const startPos = getTargetPos(t.r, t.c);
+            crystal.setPosition(startPos.x, startPos.y);
+
+            // Phase 1: Pop Up (Anticipation)
+            this.scene.tweens.add({
+                targets: crystal,
+                scale: 0.8,
+                angle: (Math.random() - 0.5) * 20, // Slight rotation
+                duration: 400,
+                ease: 'Back.Out',
+                delay: i * 20,
+                onComplete: () => {
+                    // Trigger Logic Reset (Gravity) ONLY when ALL icons have popped
+                    poppedCount++;
+                    if (poppedCount >= total) {
+                        if (data.onComplete) data.onComplete();
+                    }
+
+                    // Phase 2: Suck into Boss
+                    // Add small delay (Hold) so the grid collapses under the hovering gem
+                    this.scene.tweens.add({
+                        targets: crystal,
+                        x: destX + (Math.random() - 0.5) * 30,
+                        y: destY + (Math.random() - 0.5) * 30,
+                        scale: 0.5,
+                        duration: 600,
+                        delay: 150, // HOLD PHASE
+                        ease: 'Quad.In',
+                        onComplete: () => {
+                            // Impact Effect
+                            // Impact Effect
+                            completedCount++;
+
+                            if (completedCount >= total) {
+                                const count = data.manaCount || 0;
+                                const threshold = (data.config && data.config.threshold) || 6;
+
+                                if (count > threshold) {
+                                    // HIGH MANA: Power Up
+                                    const healAmt = count * (data.config.healPerGem || 3);
+
+                                    this.scene.tweens.add({
+                                        targets: this.enemySprite,
+                                        scaleX: this.enemySprite.scaleX * 1.15,
+                                        scaleY: this.enemySprite.scaleY * 1.15,
+                                        duration: 300,
+                                        yoyo: true,
+                                        ease: 'Sine.InOut',
+                                        onStart: () => this.enemySprite.setTint(0xaa44ff),
+                                        onComplete: () => this.enemySprite.clearTint()
+                                    });
+
+                                    this.showFloatingText(destX, destY - 80, "STRENGTH", 0xaa44ff);
+                                } else {
+                                    // LOW MANA: Weakened
+                                    const dmgAmt = count * (data.config.damagePerGem || 5);
+
+                                    this.scene.tweens.add({
+                                        targets: this.enemySprite,
+                                        x: '+=6',
+                                        duration: 50,
+                                        yoyo: true,
+                                        repeat: 5,
+                                        onStart: () => this.enemySprite.setTint(0x888888),
+                                        onComplete: () => this.enemySprite.clearTint()
+                                    });
+
+                                    this.showFloatingText(destX, destY - 80, "VULNERABLE", 0xff4444);
+                                }
+
+                                if (onComplete) onComplete();
+                            }
+                            crystal.destroy();
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+
+    // Helper: Show floating text
+    showFloatingText(x, y, text, color = 0xffffff) {
+        if (!this.scene) return;
+
+        const txt = this.scene.add.text(x, y, text, {
+            fontFamily: 'Verdana',
+            fontSize: '24px',
+            color: typeof color === 'number' ? '#' + color.toString(16).padStart(6, '0') : color,
+            stroke: '#000000',
+            strokeThickness: 4,
+            align: 'center'
+        }).setOrigin(0.5);
+        txt.setDepth(1000);
+
+        this.scene.tweens.add({
+            targets: txt,
+            y: y - 50,
+            alpha: 0,
+            duration: 1200,
+            ease: 'Power2',
+            onComplete: () => txt.destroy()
+        });
+    }
 
     // Helper: Scales sprite to fit within maxW/maxH while preserving Aspect Ratio
     fitSprite(sprite, maxW, maxH, customScale = 1) {
@@ -1726,7 +2115,15 @@ export class CombatView {
         if (vuln > 0) items.push({ icon: '☠️', count: vuln, tooltip: 'Vulnerable: Takes 25% extra damage' });
 
         const str = statusManager.getStack(STATUS_TYPES.STRENGTH);
-        if (str > 0) items.push({ icon: '💪', count: str, tooltip: 'Strength: Increases damage by stack amount' });
+        if (str > 0) {
+            let desc = `Strength: Increases damage by ${str}`;
+            // Dynamic check for Enemy (Magnitude based)
+            if (statusManager.entity && statusManager.entity.strengthMagnitude) {
+                const mag = statusManager.entity.strengthMagnitude;
+                desc = `Strength: Increases damage by ${mag}`;
+            }
+            items.push({ icon: '💪', count: str, tooltip: desc });
+        }
 
         const toxin = statusManager.getStack(STATUS_TYPES.TOXIN);
         if (toxin > 0) items.push({ icon: '☣️', count: toxin, color: '#76ff03', tooltip: 'Toxin: Non-decaying poison. Explodes at 12 stacks!' });

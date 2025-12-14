@@ -8,8 +8,12 @@ export class Enemy extends Entity {
     }
 
     getStrength() {
-        // Base strength (0) + Status Strength
-        return this.statusManager ? this.statusManager.getStack('STRENGTH') : 0;
+        // Strength Stacks = Duration (Turns)
+        // Magnitude = this.strengthMagnitude (default 5)
+        if (this.statusManager && this.statusManager.getStack('STRENGTH') > 0) {
+            return this.strengthMagnitude || 5;
+        }
+        return 0;
     }
 
     generateIntent() {

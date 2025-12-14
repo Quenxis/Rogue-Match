@@ -35,9 +35,7 @@ export class TreasureScene extends Phaser.Scene {
         this.chest.setText('🎁'); // Open
 
         // Pick Random Relic
-        const allRelicIds = Object.keys(RELICS);
-        const playerRelics = runManager.getRelics();
-        const available = allRelicIds.filter(id => !playerRelics.includes(id));
+        const available = runManager.getAvailableRelicIds(); // Includes HeroSpecific filter now
 
         let rewardId = null;
         if (available.length > 0) {

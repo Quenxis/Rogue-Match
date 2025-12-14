@@ -211,6 +211,15 @@ export class GridView {
     }
 
     createToken(r, c, item, silent = false) {
+        // FIX: Handle EMPTY items by destroying existing sprite and returning null
+        if (item.type === 'EMPTY') {
+            if (this.sprites[item.id]) {
+                this.sprites[item.id].destroy();
+                delete this.sprites[item.id];
+            }
+            return null;
+        }
+
         const x = this.getX(c);
         const y = this.getY(r);
 
@@ -804,7 +813,7 @@ export class GridView {
                     return;
                 }
 
-                console.log(`Sync: Destroying Orphan Sprite ${id} `);
+                // console.log(`Sync: Destroying Orphan Sprite ${id} `);
                 this.sprites[id].destroy();
                 if (this.debugRects && this.debugRects[id]) this.debugRects[id].destroy();
                 delete this.sprites[id];
@@ -828,7 +837,7 @@ export class GridView {
     handleItemUpdate({ item, silent = false }) {
         if (!item) return;
 
-        console.log(`[GridView] handleItemUpdate (Legacy) for Item ${item.id} (${item.type})`);
+        // console.log(`[GridView] handleItemUpdate (Legacy) for Item ${item.id} (${item.type})`);
 
         // Re-create token to reflect new state (Lock/Trash)
         // Wait, item has ID. We have sprites[id].

@@ -139,14 +139,16 @@ export const RELICS = {
         description: 'Your [icon:icon_bow] attacks deal +1 Piercing Damage',
         icon: '🏹',
         type: 'PASSIVE',
-        hooks: {} // No hooks, handled in CombatManager logic directly
+        hooks: {}, // No hooks, handled in CombatManager logic directly
+        heroSpecific: true
     },
     'corrupted_flask': {
         name: 'Corrupted Flask',
         description: 'Your [icon:icon_potion] matches no longer heal\nInstead, they apply [c:#39ff14]☣️[/c] to the enemy:\nMatch 3: +3 [c:#39ff14]☣️[/c]\nMatch 4: +5 [c:#39ff14]☣️[/c]\nMatch 5: +8 [c:#39ff14]☣️[/c]\nIf enemy has 12+ [c:#39ff14]☣️[/c]:\nDeal 25 True Damage (ignores [icon:icon_shield])\nand reset [c:#39ff14]☣️[/c] to 0.',
         icon: '⚗️',
         type: 'PASSIVE',
-        hooks: {} // Handled in CombatManager
+        hooks: {}, // Handled in CombatManager
+        heroSpecific: true
     },
     'blood_tipped_edge': {
         name: 'Blood-Tipped Edge',
@@ -154,7 +156,8 @@ export const RELICS = {
         icon: '🗡️',
         color: 0xA13535, // Blood Red
         type: 'PASSIVE',
-        hooks: {}
+        hooks: {},
+        heroSpecific: true
     },
     'tortoise_shell': {
         name: 'Tortoise Shell',

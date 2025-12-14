@@ -62,27 +62,59 @@ export class MapScene extends Phaser.Scene {
         const gapX = availableWidth / (Math.max(tiers.length - 1, 1));
         const startX = paddingX;
 
-        // Store visual positions for drawing lines
+        // Calculate visual positions
         const nodePositions = []; // [tier][index] = {x, y}
 
         tiers.forEach((tierNodes, tierIndex) => {
-            const x = startX + (tierIndex * gapX);
-            const gapY = 100 * GAME_SETTINGS.MAP_SCALE; // Vertical gap
-            const totalHeight = (tierNodes.length - 1) * gapY;
-            const startY = centerY - (totalHeight / 2);
-
             nodePositions[tierIndex] = [];
 
+            // Dynamic Vertical Spacing
+            // We want to use most of the screen height, but center the cluster.
+            // Max density is usually 4 or 5. Let's assume max spacing needed is for 5.
+            // Actually, better to spread freely.
+            const paddingY = 80 * GAME_SETTINGS.MAP_SCALE; // Top/Bottom padding
+            const availableHeight = mapHeight - (paddingY * 2);
+
+            // Calculate gapY for THIS tier specifically to spread them out?
+            // Or uniform gapY? Uniform looks cleaner. 
+            // If we have 4 nodes, we have 3 gaps.
+            // Let's settle on a generous gap that fits 4-5 nodes.
+            // If we force full height usage, 2 nodes might be too far apart.
+            // Let's stick to a robust standard gap, but larger than before.
+            // Old gap: 100. New goal: ~150-180?
+            // Or, distribute evenly in vertical space:
+            const count = tierNodes.length;
+            const gapY = (count > 1) ? availableHeight / (count + 1) : 0;
+            // Wait, "distribute evenly" means different gaps for different column sizes.
+            // That might make lines look chaotic.
+            // Better: Fixed gap, but centered.
+            // Max nodes = 4. 
+            const fixedGapY = availableHeight / 5; // Space for 5 slots (creates 4 nodes + margins)
+
+            const totalHeight = (count - 1) * fixedGapY;
+            const startY = centerY - (totalHeight / 2);
+
+            const x = startX + (tierIndex * gapX);
+
             tierNodes.forEach((node, nodeIndex) => {
-                const offsetY = ((nodeIndex + tierIndex) % 2 === 0) ? 15 : -15;
-                const y = startY + (nodeIndex * gapY) + offsetY;
-                nodePositions[tierIndex][nodeIndex] = { x, y };
+                // Jitter
+                const seed = (tierIndex * 1337) + (nodeIndex * 73);
+                const jitterX = Math.sin(seed) * 10;
+                const jitterY = Math.cos(seed * 0.5) * 15;
+
+                const nodeX = x + jitterX;
+                const nodeY = startY + (nodeIndex * fixedGapY) + jitterY;
+                nodePositions[tierIndex][nodeIndex] = { x: nodeX, y: nodeY };
             });
         });
 
-        // DRAW LINES
+        // DRAW LINES (Dashed & Offset)
         const graphics = this.add.graphics();
-        graphics.lineStyle(4, 0x3b2d23, 0.8); // Dark Brown Ink, slightly transparent
+        const lineThickness = 3;
+        const lineColor = 0x3b2d23; // Dark Brown Ink
+        const dashLength = 10;
+        const gapLength = 8;
+        const nodeRadius = 22 * GAME_SETTINGS.MAP_SCALE; // Avg radius to offset
 
         tiers.forEach((tierNodes, tierIndex) => {
             tierNodes.forEach((node, nodeIndex) => {
@@ -92,10 +124,36 @@ export class MapScene extends Phaser.Scene {
                     node.next.forEach(nextIndex => {
                         if (nodePositions[tierIndex + 1] && nodePositions[tierIndex + 1][nextIndex]) {
                             const endPos = nodePositions[tierIndex + 1][nextIndex];
-                            graphics.beginPath();
-                            graphics.moveTo(startPos.x, startPos.y);
-                            graphics.lineTo(endPos.x, endPos.y);
-                            graphics.strokePath();
+
+                            // Calculate Offset Points
+                            const angle = Phaser.Math.Angle.Between(startPos.x, startPos.y, endPos.x, endPos.y);
+                            const offsetX = Math.cos(angle) * nodeRadius;
+                            const offsetY = Math.sin(angle) * nodeRadius;
+
+                            const x1 = startPos.x + offsetX;
+                            const y1 = startPos.y + offsetY;
+                            const x2 = endPos.x - offsetX;
+                            const y2 = endPos.y - offsetY;
+
+                            // Draw Dashed Line manually
+                            const dist = Phaser.Math.Distance.Between(x1, y1, x2, y2);
+                            const steps = dist / (dashLength + gapLength);
+
+                            for (let i = 0; i < steps; i++) {
+                                const t1 = i / steps;
+                                const t2 = (i + 0.6) / steps; // draw 60% of the segment (dash)
+
+                                const lx1 = Phaser.Math.Linear(x1, x2, t1);
+                                const ly1 = Phaser.Math.Linear(y1, y2, t1);
+                                const lx2 = Phaser.Math.Linear(x1, x2, t2);
+                                const ly2 = Phaser.Math.Linear(y1, y2, t2);
+
+                                graphics.lineStyle(lineThickness, lineColor, 0.6);
+                                graphics.beginPath();
+                                graphics.moveTo(lx1, ly1);
+                                graphics.lineTo(lx2, ly2);
+                                graphics.strokePath();
+                            }
                         }
                     });
                 }
@@ -128,6 +186,7 @@ export class MapScene extends Phaser.Scene {
         else if (node.type === 'TREASURE') { color = 0x4682b4; label = '💎'; } // Steel Blue
         else if (node.type === 'ELITE') { color = 0xa03000; label = '😈'; radius = 20 * GAME_SETTINGS.MAP_SCALE; } // Rust
         else if (node.type === 'EVENT') { color = 0x6a0dad; label = '❓'; } // Muted Purple
+        else if (node.type === 'REST') { color = 0xff4500; label = '🔥'; radius = 20 * GAME_SETTINGS.MAP_SCALE; } // Orange Red
         else if (node.type === 'BATTLE') { color = 0x5c5c5c; } // Standard Battle
 
         // 2. Status Overrides
@@ -182,7 +241,7 @@ export class MapScene extends Phaser.Scene {
     }
 
     handleNodeClick(node) {
-        console.log('Entering node', node);
+        console.log(`[MapScene] Clicked Node: ${node.id} (Tier ${node.tier}, ${node.type}) - Status: ${node.status}`);
         runManager.enterNode(node);
 
         if (node.type === 'SHOP') {
@@ -191,6 +250,8 @@ export class MapScene extends Phaser.Scene {
             this.scene.start('TreasureScene');
         } else if (node.type === 'EVENT') {
             this.scene.start('EventScene', { eventId: null });
+        } else if (node.type === 'REST') {
+            this.scene.start('RestScene');
         } else {
             // Battle / Elite / Boss
             this.scene.start('BattleScene', {
@@ -213,8 +274,8 @@ export class MapScene extends Phaser.Scene {
         }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
 
         restartBtn.on('pointerdown', () => {
-            runManager.startNewRun();
-            this.scene.restart();
+            // Go to Hero Selection instead of immediate restart
+            this.scene.start('HeroSelectScene');
         });
     }
 

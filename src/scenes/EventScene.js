@@ -121,9 +121,7 @@ export class EventScene extends Phaser.Scene {
 
         // Custom Logic for 'gamble_relic' from RunManager
         if (result.gambleWon) {
-            const keys = Object.keys(RELICS);
-            const playerRelics = runManager.getRelics();
-            const available = keys.filter(id => !playerRelics.includes(id));
+            const available = runManager.getAvailableRelicIds();
 
             if (available.length > 0) {
                 const randomId = available[Math.floor(Math.random() * available.length)];
