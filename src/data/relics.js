@@ -175,5 +175,71 @@ export const RELICS = {
                 return false;
             }
         }
+    },
+    'travelers_backpack': {
+        name: 'Traveler\'s Backpack',
+        description: 'Increases Max HP by 25.',
+        icon: '🎒',
+        type: 'PASSIVE',
+        color: 0x8B5E3C,
+        hooks: {
+            onEquip: (manager) => {
+                manager.player.maxHP += 25;
+                manager.player.currentHP += 25;
+                // manager.log('Traveler\'s Backpack: +25 Max HP'); // RunManager doesn't have log method easily accessible for UI, but console is fine
+            }
+        }
+    },
+    'phoenix_feather': {
+        name: 'Phoenix Feather',
+        description: 'If you would die, instead survive with 50% HP. (Consumed on use)',
+        icon: '🪶',
+        color: 0xFF8C1A,
+        type: 'PASSIVE',
+        hooks: {} // Logic in CombatManager.checkWinCondition
+    },
+    'healing_herb': {
+        name: 'Healing Herb',
+        description: 'Matching 3+ [icon:icon_potion] heals +2 HP / or +2 DMG to enemy.',
+        icon: '🌿',
+        type: 'PASSIVE',
+        hooks: {} // Logic in CombatManager.resolveMatchGroup
+    },
+    'cracked_shield': {
+        name: 'Cracked Shield',
+        description: 'Your first [icon:icon_shield] match of combat gives +50% Block.',
+        icon: '🛡️', // Maybe broken shield icon if available?
+        color: 0x8B6A4A,
+        type: 'PASSIVE',
+        hooks: {} // Logic in CombatManager
+    },
+    'regeneration_stone': {
+        name: 'Regeneration Stone',
+        description: 'At the start of your turn, heal 2 HP.',
+        icon: '💎',
+        color: 0x3FAF6C,
+        type: 'PASSIVE',
+        hooks: {
+            onTurnStart: (combat) => {
+                // Use Scene Timer for reliability
+                if (combat.manager && combat.manager.scene) {
+                    combat.manager.scene.time.delayedCall(500, () => {
+                        combat.player.heal(2);
+                        combat.log('Regeneration Stone: +2 HP');
+                        combat.emitEvent('combat:player_heal', { value: 2, type: 'RELIC', skipAnimation: false });
+                        combat.emitState(); // Visual Update
+                    });
+                } else {
+                    // Fallback
+                    setTimeout(() => {
+                        combat.player.heal(2);
+                        combat.log('Regeneration Stone: +2 HP');
+                        combat.emitEvent('combat:player_heal', { value: 2, type: 'RELIC', skipAnimation: false });
+                        combat.emitState();
+                    }, 500);
+                }
+                return true;
+            }
+        }
     }
 };

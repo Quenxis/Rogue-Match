@@ -63,7 +63,8 @@ export class RunManager {
 
         this.player.deck = heroData && heroData.skills ? [...heroData.skills] : ['SHIELD_SLAM'];
         // Merge starting relics
-        this.player.relics = heroData && heroData.startingRelics ? [...heroData.startingRelics] : [];
+        const startingRelics = heroData && heroData.startingRelics ? [...heroData.startingRelics] : [];
+        startingRelics.forEach(r => this.addRelic(r));
 
         this.generateMap();
     }
@@ -73,6 +74,29 @@ export class RunManager {
         if (!this.player.relics.includes(relicId)) {
             this.player.relics.push(relicId);
             console.log(`Relic added: ${relicId}`);
+
+            // Trigger onEquip hook if exists
+            const relic = RELICS[relicId];
+            if (relic && relic.hooks && relic.hooks.onEquip) {
+                console.log(`Triggering onEquip for ${relicId}`);
+                relic.hooks.onEquip(this);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    removeRelic(relicId) {
+        const index = this.player.relics.indexOf(relicId);
+        if (index > -1) {
+            this.player.relics.splice(index, 1);
+            console.log(`Relic removed: ${relicId}`);
+
+            // Trigger onUnequip hook if exists (for completeness, though not strictly requested yet)
+            const relic = RELICS[relicId];
+            if (relic && relic.hooks && relic.hooks.onUnequip) {
+                relic.hooks.onUnequip(this);
+            }
             return true;
         }
         return false;

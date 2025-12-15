@@ -59,7 +59,10 @@ export class RelicSystem {
             set maxMoves(v) { cm.maxMoves = v; },
             get currentMoves() { return cm.currentMoves; },
             set currentMoves(v) { cm.currentMoves = v; },
-            get manager() { return cm; }
+            get currentMoves() { return cm.currentMoves; },
+            set currentMoves(v) { cm.currentMoves = v; },
+            get manager() { return cm; },
+            emitEvent: (event, data) => EventBus.emit(event, data)
         };
     }
 

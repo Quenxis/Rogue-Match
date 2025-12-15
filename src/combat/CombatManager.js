@@ -77,6 +77,7 @@ export class CombatManager {
         this.turnState = {
             goldCollected: false
         };
+        this.hasDefended = false; // For Cracked Shield relic
 
         this.generateEnemyIntent();
         EventBus.emit(EVENTS.TURN_START, { combat: this }); // Trigger Start of Battle Relics BEFORE View Update
@@ -660,6 +661,13 @@ export class CombatManager {
                 if (size === 4) sm.applyStack(STATUS_TYPES.THORNS, 3);
                 if (size >= 5) sm.applyStack(STATUS_TYPES.THORNS, 6);
 
+                // Cracked Shield Relic
+                if (runManager.hasRelic('cracked_shield') && !this.hasDefended) {
+                    block = Math.floor(block * 1.5);
+                    this.hasDefended = true;
+                    logManager.log('Cracked Shield: +50% Block!', 'relic');
+                }
+
                 EventBus.emit(EVENTS.PLAYER_DEFEND, { value: block });
                 p.addBlock(block);
                 break;
@@ -675,6 +683,14 @@ export class CombatManager {
                     if (size === 3) toxinStacks = 3;
                     if (size === 4) toxinStacks = 5;
                     if (size >= 5) toxinStacks = 8;
+
+                    // Healing Herb Synergy
+                    if (runManager.hasRelic('healing_herb') && size >= 3) {
+                        const herbDmg = 2;
+                        logManager.log('Healing Herb deals 2 Extra Damage!', 'relic');
+                        e.takeDamage(herbDmg, p);
+                        EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: herbDmg, type: 'RELIC' });
+                    }
 
                     e.statusManager.applyStack(STATUS_TYPES.TOXIN, toxinStacks);
                     logManager.log(`Corrupted Flask: Applied ${toxinStacks} Toxin!`, 'relic');
@@ -692,6 +708,26 @@ export class CombatManager {
                 } else {
                     // STANDARD LOGIC
                     let heal = size * 1;
+
+                    // Healing Herb Relic
+                    if (runManager.hasRelic('healing_herb') && size >= 3) {
+                        // Check for Corrupted Flask (Plague Doctor Synergy)
+                        if (runManager.hasRelic('corrupted_flask')) {
+                            // "Potion" deals damage/toxin instead of healing.
+                            // Boost this effect! +2 DMG per comments.
+                            // But wait, the damage comes from the relic logic above?
+                            // No, corrupted flask logic is in the 'if (hasRelic)' block ABOVE this else.
+                            // This block is only reached if !hasRelic('corrupted_flask').
+                            // Wait, I need to check where Corrupted Flask logic is.
+                            // It is in lines 671-692.
+                            // Standard logic is in else block (692+).
+                            // So Healing Herb here ONLY affects Standard Potions.
+                            // To support Corrupted Flask, I must edit the Corrupted Flask block too!
+                        } else {
+                            heal += 2;
+                        }
+                    }
+
                     // Regen (Tier 2+)
                     if (size === 4) sm.applyStack(STATUS_TYPES.REGEN, 3);
 
@@ -1169,6 +1205,29 @@ export class CombatManager {
 
         // 1. Check Player Death
         if (this.player.isDead) {
+            // Phoenix Feather Relic Check
+            if (runManager.hasRelic('phoenix_feather')) {
+                logManager.log('Phoenix Feather activates!', 'relic');
+
+                // Revive
+                const reviveHP = Math.floor(this.player.maxHP * 0.5);
+                this.player.currentHP = reviveHP;
+                this.player.isDead = false; // CRITICAL FIX: Clear death flag
+
+                // Update Global State immediately to prevent sync issues
+                runManager.updatePlayerState(this.player.currentHP, this.player.gold);
+
+                // Remove Relic
+                runManager.removeRelic('phoenix_feather');
+
+                this.emitState(); // Update UI
+
+                // Optional: Emit specific resurrection event for specialized UI
+                // EventBus.emit(EVENTS.PLAYER_RESURRECTED); 
+
+                return; // Prevent Game Over
+            }
+
             this.turn = ENTITIES.ENDED;
             logManager.log('DEFEAT! Player has died.', 'turn');
             EventBus.emit(EVENTS.GAME_OVER, { combat: this });
