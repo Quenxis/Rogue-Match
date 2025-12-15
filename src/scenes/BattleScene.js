@@ -102,6 +102,10 @@ export class BattleScene extends Phaser.Scene {
         this.onVictoryBound = this.handleVictory.bind(this);
         EventBus.on(EVENTS.VICTORY, this.onVictoryBound);
 
+        // Listen for Defeat
+        this.onDefeatBound = this.handleDefeat.bind(this);
+        EventBus.on(EVENTS.GAME_OVER, this.onDefeatBound);
+
         // Cleanup on shutdown
         this.events.on('shutdown', this.shutdown, this);
     }
@@ -134,26 +138,40 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
+    handleDefeat(data) {
+        // Wait a moment for death animation
+        this.time.delayedCall(1500, () => {
+            runManager.resetRun(); // Ensure run is cleared
+            // Go to Hero Select to restart run
+            this.scene.start('HeroSelectScene');
+        });
+    }
+
     shutdown() {
-        EventBus.off(EVENTS.VICTORY, this.onVictoryBound);
-        if (this.combatManager) {
-            this.combatManager.destroy();
-            this.combatManager = null;
+        try {
+            EventBus.off(EVENTS.VICTORY, this.onVictoryBound);
+            EventBus.off(EVENTS.GAME_OVER, this.onDefeatBound);
+            if (this.combatManager) {
+                this.combatManager.destroy();
+                this.combatManager = null;
+            }
+            if (this.combatView) {
+                this.combatView.destroy();
+                this.combatView = null;
+            }
+            if (this.relicSystem) {
+                this.relicSystem.destroy();
+                this.relicSystem = null;
+            }
+            if (this.gridView) {
+                this.gridView.destroy();
+                this.gridView = null;
+            }
+            // TopBar usually cleans itself up via 'shutdown' event, but manual is safer?
+            // TopBar listens to 'shutdown'.
+        } catch (e) {
+            console.error('[BattleScene] Error during shutdown:', e);
         }
-        if (this.combatView) {
-            this.combatView.destroy();
-            this.combatView = null;
-        }
-        if (this.relicSystem) {
-            this.relicSystem.destroy();
-            this.relicSystem = null;
-        }
-        if (this.gridView) {
-            this.gridView.destroy();
-            this.gridView = null;
-        }
-        // TopBar usually cleans itself up via 'shutdown' event, but manual is safer?
-        // TopBar listens to 'shutdown'.
     }
 
     update() {

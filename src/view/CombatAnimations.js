@@ -211,6 +211,48 @@ export class CombatAnimations {
         });
     }
 
+    showTurnBanner() {
+        if (!this.scene) return;
+        const cx = this.scene.scale.width / 2;
+        const cy = this.scene.scale.height / 2;
+
+        const container = this.scene.add.container(cx, cy);
+        container.setDepth(100); // Top layer
+
+        const bg = this.scene.add.rectangle(0, 0, 800, 100, 0x000000, 0.7);
+        const text = this.scene.add.text(0, 0, "-- YOUR TURN --", {
+            font: 'bold 48px Arial',
+            fill: '#ffd700',
+            stroke: '#000000',
+            strokeThickness: 6
+        }).setOrigin(0.5);
+
+        container.add([bg, text]);
+        container.setAlpha(0);
+        container.setScale(0.8);
+
+        this.scene.tweens.add({
+            targets: container,
+            alpha: 1,
+            scale: 1,
+            duration: 300,
+            ease: 'Back.out',
+            onComplete: () => {
+                this.scene.tweens.add({
+                    targets: container,
+                    alpha: 0,
+                    scale: 1.2,
+                    duration: 500,
+                    delay: 800, // Stay on screen for bit
+                    ease: 'Power2',
+                    onComplete: () => {
+                        container.destroy();
+                    }
+                });
+            }
+        });
+    }
+
     animateHeal(target, onComplete = null) {
         if (!target || !this.scene) {
             if (onComplete) onComplete();
@@ -354,8 +396,14 @@ export class CombatAnimations {
                 },
                 onComplete: () => {
                     enemy.x = startX; // Reset Position
-                    if (onComplete) onComplete();
+                    // Do NOT call onComplete here. Wait for shake.
                 }
+            });
+
+            // Wait for Shake (starts at 200ms, lasts ~600ms -> ends at ~800ms)
+            // Add safety buffer -> 900ms
+            this.scene.time.delayedCall(900, () => {
+                if (onComplete) onComplete();
             });
         } else {
             performShake();
@@ -443,8 +491,7 @@ export class CombatAnimations {
                 this.scene.tweens.add({
                     targets: lock,
                     scale: 1,
-                    duration: 100,
-                    delay: i * 50, // Stagger
+                    duration: 200,
                     onComplete: () => {
                         // 2. Fly to Target
                         this.scene.tweens.add({
@@ -458,9 +505,9 @@ export class CombatAnimations {
                                 // IMPACT VISUAL: 1. Expand Projectile (Lock) to cover
                                 this.scene.tweens.add({
                                     targets: lock,
-                                    scale: 1.3, // Go slightly bigger than grid item
+                                    scale: 1.2, // Go slightly bigger than grid item
                                     duration: 100,
-                                    ease: 'Back.Out',
+                                    ease: 'Quad.Out',
                                     onComplete: () => {
                                         // 2. REVEAL GRID OVERLAY (Now covered by projectile)
                                         if (currentTargetId && targetOverlays[currentTargetId]) {
@@ -469,19 +516,19 @@ export class CombatAnimations {
                                             // Pop the overlay itself
                                             this.scene.tweens.add({
                                                 targets: overlay,
-                                                scaleX: 1.2,
-                                                scaleY: 1.2,
+                                                scaleX: 1.0,
+                                                scaleY: 1.0,
                                                 yoyo: true,
-                                                duration: 100
+                                                duration: 200
                                             });
                                         }
 
                                         // 3. Fade Out / Destroy Projectile
                                         this.scene.tweens.add({
                                             targets: lock,
-                                            scale: 1.5,
+                                            scale: 0.6,
                                             alpha: 0,
-                                            duration: 250,
+                                            duration: 300,
                                             onComplete: () => {
                                                 lock.destroy();
                                             }
@@ -494,10 +541,10 @@ export class CombatAnimations {
                 });
             }
 
-            // Wait for longest flight
-            this.scene.time.delayedCall(1000, () => {
-                if (!enemy && onComplete) onComplete();
-                // If enemy exists, onComplete is called by the yoyo tween
+            // Wait for longest flight (1000ms approx timeline)
+            this.scene.time.delayedCall(1200, () => {
+                // Always signal completion here, ensuring projectiles are done.
+                if (onComplete) onComplete();
             });
         };
 
@@ -513,7 +560,7 @@ export class CombatAnimations {
                 },
                 onComplete: () => {
                     enemy.x = startX;
-                    if (onComplete) onComplete();
+                    // Do NOT call onComplete here. Wait for projectiles.
                 }
             });
         } else {
@@ -588,14 +635,14 @@ export class CombatAnimations {
                             x: tx,
                             y: ty,
                             rotation: Math.PI * 4,
-                            duration: 400,
+                            duration: 250,
                             ease: 'Quad.Out',
                             onComplete: () => {
                                 // IMPACT: 1. Expand to cover grid cell
                                 this.scene.tweens.add({
                                     targets: potion,
-                                    scale: 1.15, // Expand to cover
-                                    duration: 100,
+                                    scale: 1.0, // Expand to cover
+                                    duration: 150,
                                     ease: 'Quad.Out',
                                     onComplete: () => {
                                         // 2. TIMING: Trigger Logic NOW (Grid updates under the covered sprite)
@@ -609,10 +656,11 @@ export class CombatAnimations {
                                             targets: potion,
                                             scale: 1.0,
                                             alpha: 0,
-                                            duration: 200,
+                                            duration: 250,
                                             onComplete: () => {
                                                 potion.destroy();
-                                                if (completedCount >= count && !player && onComplete) onComplete();
+                                                // Only trigger if this matches total count (regardless of player existence)
+                                                if (completedCount >= count && onComplete) onComplete();
                                             }
                                         });
                                     }
@@ -637,7 +685,7 @@ export class CombatAnimations {
                 },
                 onComplete: () => {
                     player.x = startX;
-                    if (onComplete) onComplete();
+                    // Do NOT call onComplete here. Wait for potions.
                 }
             });
         } else {
@@ -708,9 +756,13 @@ export class CombatAnimations {
                 onComplete: () => {
                     player.setScale(startScaleX, startScaleY); // Reset to ensure safety
                     if (player.clearTint) player.clearTint();
-                    if (onComplete) onComplete();
                 }
             });
+        });
+
+        // 3. Wait for ALL animations (Particles take max ~1200ms)
+        this.scene.time.delayedCall(1300, () => {
+            if (onComplete) onComplete();
         });
     }
 
@@ -799,7 +851,7 @@ export class CombatAnimations {
                             // IMPACT: 1. Expand to cover grid cell
                             this.scene.tweens.add({
                                 targets: crystal,
-                                scale: 1.15, // Expand to cover
+                                scale: 1.0, // Expand to cover
                                 duration: 100,
                                 ease: 'Quad.Out',
                                 onComplete: () => {
@@ -887,7 +939,7 @@ export class CombatAnimations {
             // Animate: Pulse (Pop Up) - No floating
             this.scene.tweens.add({
                 targets: ghost,
-                scale: 1.2,
+                scale: 0.8,
                 duration: 400,
                 ease: 'Back.out',
                 delay: i * 30,

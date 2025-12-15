@@ -32,8 +32,19 @@ export class RunManager {
         this.currentNode = null; // Track exact current node { tier, index }
     }
 
+    resetRun() {
+        this.map = [];
+        this.currentNode = null;
+        this.currentTier = 0;
+        this.player.currentHP = 0; // Mark as dead/reset
+    }
+
     startNewRun(heroId = 'warrior') {
-        // console.log('[RunManager] Starting New Run (Resetting State)!');
+        // Reset Map & Progression FIRST
+        this.map = [];
+        this.currentTier = 0;
+        this.currentNode = null;
+        this.currentActIndex = 0;
 
         // Store Selected Hero ID
         this.selectedHeroId = heroId;
@@ -55,8 +66,6 @@ export class RunManager {
         this.player.relics = heroData && heroData.startingRelics ? [...heroData.startingRelics] : [];
 
         this.generateMap();
-        this.currentTier = 0;
-        this.currentNode = null;
     }
 
     // --- Inventory System ---

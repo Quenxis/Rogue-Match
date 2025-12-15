@@ -14,9 +14,12 @@ export class MapScene extends Phaser.Scene {
         // Play BGM
         audioManager.playBGM('bgm_main', this);
 
-        // If no run matches, start one
+        // If no run matches, go to Hero Select!
+        // (Do NOT auto-start a run, as that bypasses selection)
         if (!runManager.map.length) {
-            runManager.startNewRun();
+            console.log('[MapScene] No active run found (Map empty). Redirecting to HeroSelectScene.');
+            this.scene.start('HeroSelectScene');
+            return;
         }
 
         // console.log(`[MapScene] Create. RunManager Gold: ${runManager.player.gold}`);

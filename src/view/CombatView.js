@@ -52,7 +52,12 @@ export class CombatView {
 
     processQueue() {
         if (this.isAnimating) return;
-        if (this.animationQueue.length === 0) return;
+
+        if (this.animationQueue.length === 0) {
+            // Signal that all animations are done
+            EventBus.emit(EVENTS.UI_ANIMATION_COMPLETE);
+            return;
+        }
 
         this.isAnimating = true;
         const nextTask = this.animationQueue.shift();
@@ -96,6 +101,7 @@ export class CombatView {
 
         EventBus.on(EVENTS.UI_UPDATE, this.updateUIBind);
         EventBus.on(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
+        EventBus.on(EVENTS.TURN_START, () => this.animations.showTurnBanner()); // Visual turn start notification
         this.onEnemyLock = (data) => {
             // data contains { value, targets }
             this.queueAnimation(done => this.animations.animateGridLock(this.enemySprite, data.targets, done));

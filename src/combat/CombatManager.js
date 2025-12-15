@@ -798,7 +798,8 @@ export class CombatManager {
 
             const intent = this.enemy.currentIntent;
 
-            // Emit Attack Event BEFORE damage is applied (so Relics like Spiked Shield see current Block)
+            // Emit Attack Event BEFORE damage is applied
+
             if (intent && intent.type === 'ATTACK') {
                 EventBus.emit(EVENTS.ENEMY_ATTACK, {
                     damage: intent.value,
@@ -833,7 +834,9 @@ export class CombatManager {
 
             // Decay Enemy Statuses
             this.enemy.statusManager.onTurnEnd();
-            this.startPlayerTurn();
+
+            // Wait for animations (e.g. Attacks) to finish before giving control back
+            this.waitForEnemyTurnComplete();
         });
     }
 
@@ -1020,6 +1023,30 @@ export class CombatManager {
         }
     }
 
+    waitForEnemyTurnComplete(retryCount = 0) {
+        if (this.turn === ENTITIES.ENDED) return;
+
+        // 1. Check if View is animating
+        const isAnimating = (this.scene && this.scene.combatView && this.scene.combatView.isAnimating);
+
+        if (!isAnimating) {
+            // Done! Start Player Turn
+            this.startPlayerTurn();
+        } else {
+            // Still animating, wait for event or timeout
+
+            // Failsafe: If we are stuck waiting for too long (e.g. 5 seconds), force proceed
+            if (retryCount > 50) { // 50 * 100ms = 5s
+                console.warn('[CombatManager] Enemy Turn Wait Timed Out! Forcing Turn Start.');
+                this.startPlayerTurn();
+                return;
+            }
+
+            // Ideally we wait for EVENT, but a polling fallback is robust against missed events
+            this.scene.time.delayedCall(100, () => this.waitForEnemyTurnComplete(retryCount + 1));
+        }
+    }
+
     startPlayerTurn() {
         if (this.turn === ENTITIES.ENDED) return;
         this.turn = ENTITIES.PLAYER;
@@ -1139,6 +1166,14 @@ export class CombatManager {
 
     checkWinCondition() {
         if (this.turn === ENTITIES.ENDED) return;
+
+        // 1. Check Player Death
+        if (this.player.isDead) {
+            this.turn = ENTITIES.ENDED;
+            logManager.log('DEFEAT! Player has died.', 'turn');
+            EventBus.emit(EVENTS.GAME_OVER, { combat: this });
+            return;
+        }
 
 
         if (this.enemy.isDead) {

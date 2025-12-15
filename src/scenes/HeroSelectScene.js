@@ -8,37 +8,60 @@ export class HeroSelectScene extends Phaser.Scene {
     }
 
     create() {
-        const w = this.scale.width;
-        const h = this.scale.height;
+        try {
+            console.log('[HeroSelectScene] create() STARTED.');
 
-        // Background (Placeholder color until user provides image)
-        this.add.rectangle(w / 2, h / 2, w, h, 0x111111).setOrigin(0.5);
+            // Ensure no other gameplay scenes are running (fixes issues with cheats/parallel scenes)
+            this.scene.manager.scenes.forEach(s => {
+                const status = s.sys.settings.status;
+                const key = s.scene.key;
+                if (key !== 'HeroSelectScene' && key !== 'BootScene' && (status === Phaser.Scenes.RUNNING || status === Phaser.Scenes.SLEEPING || s.sys.settings.visible)) {
+                    this.scene.stop(key);
+                }
+            });
 
-        // Title
-        this.add.text(w / 2, 100, 'Select Your Hero', {
-            font: 'bold 64px Arial',
-            fill: '#ffffff'
-        }).setOrigin(0.5);
+            this.inputEnabled = false; // Block input initially
 
-        // Container for Heroes
-        // Calculate dynamic spacing for ANY number of heroes
-        const count = 4; // Warrior, Huntress, Plague Doctor, Locked
-        const cardWidth = 300; // From createHeroCard
-        const spacing = 50;
-        const totalW = (count * cardWidth) + ((count - 1) * spacing);
+            // Enable input after delay
+            this.time.delayedCall(1000, () => {
+                this.inputEnabled = true;
+            });
 
-        // Start X to center the whole group
-        const startX = (w - totalW) / 2 + (cardWidth / 2); // Center of first card
-        const gap = cardWidth + spacing;
+            const w = this.scale.width;
+            const h = this.scale.height;
 
-        const heroKeys = ['warrior', 'huntress', 'plague_doctor', 'locked_1'];
+            // Background (Placeholder color until user provides image)
+            this.add.rectangle(w / 2, h / 2, w, h, 0x111111).setOrigin(0.5);
 
-        heroKeys.forEach((key, index) => {
-            const x = startX + (index * gap);
-            const y = h / 2;
+            // Title
+            this.add.text(w / 2, 100, 'Select Your Hero', {
+                font: 'bold 64px Arial',
+                fill: '#ffffff'
+            }).setOrigin(0.5);
 
-            this.createHeroCard(x, y, key);
-        });
+            // Container for Heroes
+            // Calculate dynamic spacing for ANY number of heroes
+            const count = 4; // Warrior, Huntress, Plague Doctor, Locked
+            const cardWidth = 300; // From createHeroCard
+            const spacing = 50;
+            const totalW = (count * cardWidth) + ((count - 1) * spacing);
+
+            // Start X to center the whole group
+            const startX = (w - totalW) / 2 + (cardWidth / 2); // Center of first card
+            const gap = cardWidth + spacing;
+
+            const heroKeys = ['warrior', 'huntress', 'plague_doctor', 'locked_1'];
+
+            heroKeys.forEach((key, index) => {
+                const x = startX + (index * gap);
+                const y = h / 2;
+
+                this.createHeroCard(x, y, key);
+            });
+        } catch (error) {
+            console.error('[HeroSelectScene] CRITICAL ERROR in create():', error);
+            console.error(error.stack);
+        }
     }
 
     createHeroCard(x, y, heroId) {
@@ -98,6 +121,7 @@ export class HeroSelectScene extends Phaser.Scene {
             });
 
             bg.on('pointerdown', () => {
+                if (!this.inputEnabled) return; // Prevent early clicks
                 console.log('Hero Selected:', heroId);
                 // Start Run
                 runManager.startNewRun(heroId);
