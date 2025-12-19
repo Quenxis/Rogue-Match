@@ -165,9 +165,8 @@ export class RewardScene extends Phaser.Scene {
 
     handleChoice(choice) {
         if (choice.type === REWARD_TYPES.TRAIT) {
-            // Add Trait Logic
-            if (!runManager.traits) runManager.traits = [];
-            runManager.traits.push(choice.id);
+            // Add Trait Logic - Use centralized manager method to ensure events fire and sets update
+            runManager.unlockMastery(choice.id);
             console.log(`[Reward] Gained Trait: ${choice.title}`);
         } else if (choice.type === REWARD_TYPES.GOLD) {
             runManager.addGold(choice.value);

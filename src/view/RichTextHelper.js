@@ -15,41 +15,54 @@ export class RichTextHelper {
         const fontSize = options.fontSize || '20px';
         const color = options.color || '#ffffff';
         const font = options.font || `${fontSize} Verdana`;
-
-        // Clear previous content (safely, sparing optional background if passed, but usually container is cleared by caller or we append)
-        // Helper assumes it appends to container. Caller handles clearing.
+        const center = options.center || false;
 
         let cursorX = 10;
         let cursorY = 10;
         let currentColor = color;
+        let currentLineObjs = []; // Track objects for centering
 
-        // Tokenize (Split by Newlines first, then Icons)
+        // Function to flush line and center it
+        const flushLine = () => {
+            if (center && currentLineObjs.length > 0) {
+                // Calculate actual line width used (from 10 to cursorX)
+                // cursorX starts at 10. So width is cursorX - 10.
+                // Or we can find minX and maxX of objects.
+                // Objects are placed at X.
+                // Let's rely on cursorX being the end of the line.
+                // Wait, if we wrap, cursorX resets.
+                // So at this point cursorX is the end position of the last element.
+
+                const contentWidth = cursorX - 10;
+                const shiftX = (maxWidth - contentWidth) / 2;
+
+                if (shiftX > 0) {
+                    currentLineObjs.forEach(obj => obj.x += shiftX);
+                }
+            }
+            currentLineObjs = [];
+        };
+
         const lines = text.split('\n');
 
         lines.forEach((line) => {
             if (!line) {
-                // Empty line (double newline)
+                flushLine();
                 cursorX = 10;
                 cursorY += lineHeight;
                 return;
             }
 
-            // Regex to split by Icons AND Color Tags
-            // Catch groups: 
-            // 1. [icon:key]
-            // 2. [c:color]
-            // 3. [/c]
             const parts = line.split(/(\[icon:[^\]]+\]|\[c:[^\]]+\]|\[\/c\])/g);
 
             parts.forEach(part => {
                 if (!part) return;
 
                 if (part.startsWith('[icon:')) {
-                    // --- ICON HANDLING ---
                     const key = part.replace('[icon:', '').replace(']', '');
                     if (scene.textures.exists(key)) {
-                        // Check Wrap
                         if (cursorX + iconSize > maxWidth) {
+                            flushLine();
                             cursorX = 10;
                             cursorY += lineHeight;
                         }
@@ -58,54 +71,47 @@ export class RichTextHelper {
                             .setDisplaySize(iconSize, iconSize)
                             .setOrigin(0.5);
                         container.add(icon);
+                        currentLineObjs.push(icon);
                         cursorX += iconSize + 2;
                     }
                 } else if (part.startsWith('[c:')) {
-                    // --- START COLOR ---
-                    // Format: [c:#ff0000]
                     const hex = part.replace('[c:', '').replace(']', '');
                     currentColor = hex;
                 } else if (part === '[/c]') {
-                    // --- END COLOR ---
                     currentColor = options.color || '#ffffff';
                 } else {
-                    // --- TEXT HANDLING ---
                     const tokens = part.match(/(\S+|\s+)/g) || [];
 
                     tokens.forEach(token => {
+                        // Whitespace handling
                         if (/^\s+$/.test(token)) {
+                            // If starting a line, ignore leading whitespace? Maybe. for now keep it.
                             cursorX += 4 * token.length;
                             return;
                         }
 
                         const word = token;
-                        // Use original word logic without text variant hacks, relying on setTint
-                        let displayWord = word;
-
-                        const tempText = scene.add.text(0, 0, displayWord, { font: font }).setVisible(false);
+                        // Temp text for measure
+                        const tempText = scene.add.text(0, 0, word, { font: font }).setVisible(false);
                         const w = tempText.width;
                         tempText.destroy();
 
                         if (cursorX + w > maxWidth) {
+                            flushLine();
                             cursorX = 10;
                             cursorY += lineHeight;
                         }
 
-                        // Create text object first
-                        const txt = scene.add.text(cursorX, cursorY + (lineHeight - parseInt(fontSize) - 2) / 2, displayWord, {
+                        const txt = scene.add.text(cursorX, cursorY + (lineHeight - parseInt(fontSize) - 2) / 2, word, {
                             font: font,
-                            fill: '#ffffff' // Default white fill base for tinting
+                            fill: '#ffffff'
                         }).setOrigin(0, 0).setResolution(2);
 
-                        // Apply Color
                         if (currentColor !== (options.color || '#ffffff')) {
-                            // Parse hex string to number for setTint (0xRRGGBB)
-                            // Assumes format is always #RRGGBB or #RGB
                             const colorNum = parseInt(currentColor.replace('#', '0x'), 16);
                             txt.setTint(colorNum);
                         } else {
                             if (options.color) {
-                                // Apply default color if not white
                                 txt.setTint(parseInt(options.color.replace('#', '0x'), 16));
                             } else {
                                 txt.clearTint();
@@ -113,32 +119,30 @@ export class RichTextHelper {
                         }
 
                         container.add(txt);
+                        currentLineObjs.push(txt);
                         cursorX += w;
                     });
                 }
             });
 
-            // End of Line
+            // End of Line (Explicit newline in text)
+            flushLine();
             cursorX = 10;
             cursorY += lineHeight;
         });
 
-        // Return dimensions for background sizing
+        // Final flush just in case
+        flushLine();
+
+        // Measure Total
         let maxUsedW = 0;
         container.each(child => {
-            const r = child.x + (child.width * child.scaleX * (1 - child.originX)); // Approx right edge
-            // child.x is usually left or center. 
-            // If Text (origin 0,0): x + width
-            // If Image (origin 0.5): x + width/2
-            let right = 0;
-            if (child.originX === 0) right = child.x + child.width;
-            else if (child.originX === 0.5) right = child.x + child.displayWidth / 2;
-
-            if (right > maxUsedW) maxUsedW = right;
+            const r = child.x + (child.displayWidth * (1 - child.originX));
+            if (r > maxUsedW) maxUsedW = r;
         });
 
         const totalW = Math.max(200, Math.min(maxUsedW + 10, maxWidth + 20));
-        const totalH = cursorY + 10; // Extra padding at bottom
+        const totalH = cursorY + 10;
 
         return { width: totalW, height: totalH };
     }

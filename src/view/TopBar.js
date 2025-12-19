@@ -83,10 +83,11 @@ export class TopBar {
         this.relicIcons = [];
 
         // RICHER TOOLTIP (Container)
-        this.relicTooltip = this.scene.add.container(0, 0).setDepth(2001).setVisible(false).setScrollFactor(0);
+        // Add directly to scene to ensure it renders above everything (depth management)
+        this.relicTooltip = this.scene.add.container(0, 0).setDepth(4000).setVisible(false).setScrollFactor(0);
         this.relicTooltipBg = this.scene.add.rectangle(0, 0, 200, 50, 0x000000, 0.9).setOrigin(0, 0); // Origin Top-Left for easier resizing
         this.relicTooltip.add(this.relicTooltipBg);
-        this.container.add(this.relicTooltip);
+        // this.container.add(this.relicTooltip); // Do NOT add to TopBar container, so depth 4000 works globally vs Mastery Deck (3000)
 
         // --- Potions (Right Side) ---
         // Center around width * 0.65
@@ -127,6 +128,7 @@ export class TopBar {
 
     destroy() {
         EventBus.off('ui:refresh_topbar', this.render);
+        if (this.relicTooltip) this.relicTooltip.destroy(); // Destroy manually as it's not in container
         if (this.container) this.container.destroy();
     }
 
@@ -723,33 +725,37 @@ export class TopBar {
         // Container
         this.masteryContainer = this.scene.add.container(0, 0).setDepth(3000).setScrollFactor(0).setVisible(false);
 
-        // Fullscreen Dimensions
+        // Fullscreen Dimensions (Use nearly full screen)
         const width = this.scene.scale.width;
         const height = this.scene.scale.height;
-        const winW = width * 0.95;
-        const winH = height * 0.95;
+        const winW = width; // Full width
+        const winH = height; // Full height
         const centerX = width / 2;
         const centerY = height / 2;
 
         // Overlay (Darken BG)
-        const overlay = this.scene.add.rectangle(centerX, centerY, width, height, 0x000000, 0.90).setInteractive();
-        overlay.on('pointerdown', () => this.toggleMasteryDeck());
+        const overlay = this.scene.add.rectangle(centerX, centerY, width, height, 0x000000, 0.95).setInteractive();
+        // overlay.on('pointerdown', () => this.toggleMasteryDeck()); // Clicking bg shouldn't close if it's fullscreen, use X button
         this.masteryContainer.add(overlay);
 
-        // Window Frame
-        const windowBg = this.scene.add.rectangle(centerX, centerY, winW, winH, 0x1a1a1a).setStrokeStyle(3, 0x00aaff);
-        windowBg.setInteractive(); // Block clicks
-        this.masteryContainer.add(windowBg);
+        // Window Frame (Optional if fully black, but let's keep a border)
+        // const windowBg = this.scene.add.rectangle(centerX, centerY, winW, winH, 0x1a1a1a).setStrokeStyle(3, 0x00aaff);
+        // windowBg.setInteractive(); // Block clicks
+        // this.masteryContainer.add(windowBg);
+
+        // Just a border?
+        const border = this.scene.add.rectangle(centerX, centerY, winW - 10, winH - 10, 0x000000, 0).setStrokeStyle(4, 0x00aaff);
+        this.masteryContainer.add(border);
 
         // Title
-        const title = this.scene.add.text(centerX, centerY - winH / 2 + 40, 'MASTERY DECK', {
+        const title = this.scene.add.text(centerX, 40, 'MASTERY DECK', {
             font: 'bold 40px Arial', fill: '#00aaff', stroke: '#000000', strokeThickness: 4
         }).setOrigin(0.5);
         this.masteryContainer.add(title);
 
         // Close Button
-        const closeBtn = this.scene.add.text(centerX + winW / 2 - 40, centerY - winH / 2 + 40, '✕', {
-            font: 'bold 40px Arial', fill: '#ff4444'
+        const closeBtn = this.scene.add.text(width - 50, 50, '✕', {
+            font: 'bold 50px Arial', fill: '#ff4444'
         }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.toggleMasteryDeck());
         this.masteryContainer.add(closeBtn);
 
@@ -763,8 +769,10 @@ export class TopBar {
         this.masteryContainer.setVisible(!this.masteryContainer.visible);
         if (this.guideContainer) this.guideContainer.setVisible(false);
         if (this.settingsContainer) this.settingsContainer.setVisible(false);
+        this.hideTooltip(); // Hide any sticking tooltips
 
         if (this.masteryContainer.visible) {
+            this.masteryPage = 0; // Reset to first page
             this.refreshMasteryDeck();
         }
     }
@@ -777,8 +785,8 @@ export class TopBar {
         const height = this.scene.scale.height;
         const centerX = width / 2;
         const centerY = height / 2;
-        const winW = width * 0.95;
-        const winH = height * 0.95;
+        const winW = width;
+        const winH = height;
 
         if (traits.length === 0) {
             this.masteryContent.add(this.scene.add.text(centerX, centerY, 'No Traits collected yet.', {
@@ -787,119 +795,136 @@ export class TopBar {
             return;
         }
 
-        // --- DYNAMIC LAYOUT ENGINE ---
-        // Goal: Fit all traits within the available area (winW - padding, winH - header).
-        const availableW = winW - 100;
-        const availableH = winH - 150; // Accounting for Title/Header
-        const startY = centerY - winH / 2 + 120; // Start below title
-
-        // Base Sizes
-        const baseCardW = 280;
-        const baseCardH = 180;
+        // --- PAGES & FIXED LAYOUT ---
+        // Fixed Portrait Card Size
+        const cardW = 230;
+        const cardH = 320;
         const gap = 20;
 
-        // Try standard layout first
-        let scale = 1.0;
-        let cardW = baseCardW;
-        let cardH = baseCardH;
+        const startY = 120; // Top margin
+        // Bottom Margin for buttons: ~80px
+        const availableW = winW - 100;
+        const availableH = winH - 200;
 
-        // Iteratively reduce scale until they fit?
-        // Let's calculate Max Columns based on Width
+        // Calculate Capacity
         let cols = Math.floor(availableW / (cardW + gap));
-        let rows = Math.ceil(traits.length / cols);
+        let rows = Math.floor(availableH / (cardH + gap));
 
-        let requiredH = rows * (cardH + gap);
+        // Safety min
+        cols = Math.max(1, cols);
+        rows = Math.max(1, rows);
 
-        // If height doesn't fit, reduce SCALE
-        // Loop limit 10 to prevent freeze
-        let iterations = 0;
-        while (requiredH > availableH && iterations < 10) {
-            scale *= 0.9;
-            cardW = baseCardW * scale;
-            cardH = baseCardH * scale;
+        const itemsPerPage = cols * rows;
+        const totalPages = Math.ceil(traits.length / itemsPerPage);
 
-            // Re-calc cols/rows with new size
-            cols = Math.floor(availableW / (cardW + gap));
-            cols = Math.max(1, cols); // Safety
-            rows = Math.ceil(traits.length / cols);
-            requiredH = rows * (cardH + gap);
-            iterations++;
-        }
+        // Clamp Page
+        if (this.masteryPage < 0) this.masteryPage = 0;
+        if (this.masteryPage >= totalPages) this.masteryPage = totalPages - 1;
 
-        // Render
+        // Get Current Slice
+        const startIdx = this.masteryPage * itemsPerPage;
+        const endIdx = startIdx + itemsPerPage;
+        const pageTraits = traits.slice(startIdx, endIdx);
+
+        // Render Grid
         const totalGridW = cols * cardW + (cols - 1) * gap;
-        const startX = centerX - totalGridW / 2 + cardW / 2; // Offset to center
+        // const totalGridH = rows * cardH + (rows - 1) * gap;
+        const startX = centerX - totalGridW / 2 + cardW / 2;
+        const renderStartY = startY + cardH / 2;
 
-        traits.forEach((traitId, index) => {
+        pageTraits.forEach((traitId, index) => {
             const trait = masteryManager.traits.get(traitId);
             if (!trait) return;
 
             const col = index % cols;
             const row = Math.floor(index / cols);
             const x = startX + col * (cardW + gap);
-            const y = startY + row * (cardH + gap) + cardH / 2;
+            const y = renderStartY + row * (cardH + gap);
 
-            // Container for Card (Center Origin)
+            // Container
             const cardContainer = this.scene.add.container(x, y);
 
-            // Card BG
+            // Style
             let borderColor = 0x444444;
+            let bgColor = 0x222222;
             if (trait.rarity === 'UNCOMMON') borderColor = 0x448844;
             if (trait.rarity === 'RARE') borderColor = 0x4444aa;
-            if (trait.rarity === 'EPIC') borderColor = 0x8844aa;
-            if (trait.rarity === 'LEGENDARY') borderColor = 0xffaa00;
+            if (trait.rarity === 'EPIC') { borderColor = 0x8844aa; bgColor = 0x2a1a2a; }
+            if (trait.rarity === 'LEGENDARY') { borderColor = 0xffaa00; bgColor = 0x332200; }
 
-            const bg = this.scene.add.rectangle(0, 0, cardW, cardH, 0x222222)
-                .setStrokeStyle(3 * scale, borderColor);
+            const bg = this.scene.add.rectangle(0, 0, cardW, cardH, bgColor)
+                .setStrokeStyle(4, borderColor)
+            // .setInteractive(); // Tooltip removed as requested
 
-            // Text Sizes scaled
-            const nameSize = Math.max(12, Math.floor(22 * scale));
-            const descSize = Math.max(10, Math.floor(16 * scale));
-            const iconSize = Math.max(14, Math.floor(32 * scale)); // For rich text icon estimate
-
-            // Name
-            const name = this.scene.add.text(0, -cardH / 2 + 20 * scale, trait.name, {
-                font: `bold ${nameSize}px Arial`, fill: '#ffffff', wordWrap: { width: cardW - 20 * scale }, align: 'center'
+            // Name (Larger Font, Top)
+            const name = this.scene.add.text(0, -cardH / 2 + 30, trait.name, {
+                font: `bold 22px Arial`, fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
             }).setOrigin(0.5);
 
-            // Desc (Rich Text)
-            const descContainer = this.scene.add.container(0, 10 * scale);
+            // Description (Rich Text)
+            // Position: Start below name.
+            const descY = -cardH / 2 + 70;
+
+            // CRITICAL FIX: Center the container properly
+            // RichTextHelper draws from x=10 to maxWidth.
+            // If we want it centered, the content within the container needs to be centered.
+            // The RichTextHelper itself handles centering the text within its maxWidth if `center: true`.
+            // So, the container's x position should be set to align the RichText block's left edge.
+            // If the RichText block is `maxWidth` wide and we want it centered around the container's (0,0) x-axis,
+            // the container's x should be `-maxWidth / 2`.
+
+            const descMaxWidth = cardW - 30;
+            const descContainer = this.scene.add.container(-descMaxWidth / 2, descY);
 
             RichTextHelper.renderRichText(this.scene, descContainer, trait.description, {
-                fontSize: `${descSize}px`,
+                fontSize: `18px`,
                 color: '#cccccc',
-                maxWidth: cardW - 30 * scale,
-                center: true, // Use improved centering
-                iconSize: iconSize
-            });
-
-            // If RichTextHelper doesn't verify center:true support, we might need manual centering.
-            // Assumption: RichTextHelper was verified or assumes (0,0) start. 
-            // My previous thought on RichTextHelper suggested it might need offset.
-            // If Text flows down from (0,0) in container, and container is at center of card...
-            // It will render towards bottom-right.
-            // Need to offset container.
-            // RichTextHelper returns { width, height }.
-            // We can re-position descContainer after render?
-            // BUT renderRichText adds children. 
-            // Let's assume for now we place it at Top-Left of logic area and let it flow.
-            // Adjusted logic:
-            // descContainer at ( -cardW/2 + padding, 0 + offset )
-
-            // Re-render for safety with offset
-            descContainer.removeAll(true);
-            descContainer.setPosition(-cardW / 2 + 15 * scale, 10 * scale);
-
-            RichTextHelper.renderRichText(this.scene, descContainer, trait.description, {
-                fontSize: `${descSize}px`,
-                color: '#cccccc',
-                maxWidth: cardW - 30 * scale,
-                iconSize: iconSize
+                maxWidth: descMaxWidth, // Matches the shift
+                center: true,
+                iconSize: 26
             });
 
             cardContainer.add([bg, name, descContainer]);
             this.masteryContent.add(cardContainer);
         });
+
+        // --- PAGINATION CONTROLS ---
+        if (totalPages > 1) {
+            const controlsY = height - 60;
+
+            // Text: Page X / Y
+            this.masteryContent.add(this.scene.add.text(centerX, controlsY, `Page ${this.masteryPage + 1} / ${totalPages}`, {
+                font: 'bold 24px Arial', fill: '#ffffff'
+            }).setOrigin(0.5));
+
+            // Prev Button
+            if (this.masteryPage > 0) {
+                const prevBtn = this.scene.add.text(centerX - 120, controlsY, '◄ Prev', {
+                    font: 'bold 24px Arial', fill: '#00aaff', backgroundColor: '#222222', padding: { x: 10, y: 5 }
+                })
+                    .setOrigin(0.5)
+                    .setInteractive({ useHandCursor: true })
+                    .on('pointerdown', () => {
+                        this.masteryPage--;
+                        this.refreshMasteryDeck();
+                    });
+                this.masteryContent.add(prevBtn);
+            }
+
+            // Next Button
+            if (this.masteryPage < totalPages - 1) {
+                const nextBtn = this.scene.add.text(centerX + 120, controlsY, 'Next ►', {
+                    font: 'bold 24px Arial', fill: '#00aaff', backgroundColor: '#222222', padding: { x: 10, y: 5 }
+                })
+                    .setOrigin(0.5)
+                    .setInteractive({ useHandCursor: true })
+                    .on('pointerdown', () => {
+                        this.masteryPage++;
+                        this.refreshMasteryDeck();
+                    });
+                this.masteryContent.add(nextBtn);
+            }
+        }
     }
 
     setVolumeFromPointer(pointer, barW, centerX) {
