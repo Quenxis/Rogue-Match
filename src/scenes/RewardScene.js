@@ -72,10 +72,10 @@ export class RewardScene extends Phaser.Scene {
         // Background
         // Color based on Rarity?
         let borderColor = 0x555555;
-        if (choice.rarity === 'UNCOMMON') borderColor = 0x00ff00;
-        if (choice.rarity === 'RARE') borderColor = 0x00aaff;
-        if (choice.rarity === 'EPIC') borderColor = 0xaa00aa;
-        if (choice.rarity === 'LEGENDARY') borderColor = 0xffaa00;
+        if (choice.rarity === 'UNCOMMON') borderColor = 0x66ff66;
+        if (choice.rarity === 'RARE') borderColor = 0x44ccff;
+        if (choice.rarity === 'EPIC') borderColor = 0xd066ff;
+        if (choice.rarity === 'LEGENDARY') borderColor = 0xffcc00;
 
         if (choice.type === REWARD_TYPES.GOLD) borderColor = 0xffff00;
         if (choice.type === REWARD_TYPES.HEAL) borderColor = 0xff5555;
@@ -87,63 +87,58 @@ export class RewardScene extends Phaser.Scene {
 
         container.add(bg);
 
-        // Icon
-        let iconText = '❓';
+        // Icon (Large Sprite)
+        let iconKey = 'trash'; // Fallback
 
         if (choice.type === REWARD_TYPES.TRAIT) {
-            // Look up gem icon
-            if (choice.gemType === 'SWORD') iconText = '⚔️';
-            if (choice.gemType === 'SHIELD') iconText = '🛡️';
-            if (choice.gemType === 'POTION') iconText = '🧪';
-            if (choice.gemType === 'MANA') iconText = '🔮';
-            if (choice.gemType === 'COIN') iconText = '💰';
-            if (choice.gemType === 'BOW') iconText = '🏹';
+            // E.g. choice.gemType is 'SWORD', 'SHIELD' etc. which matches BootScene keys
+            if (choice.gemType) iconKey = choice.gemType;
         } else if (choice.type === REWARD_TYPES.GOLD) {
-            iconText = '💰';
+            iconKey = 'COIN';
         } else if (choice.type === REWARD_TYPES.HEAL || choice.type === REWARD_TYPES.MAX_HP) {
-            iconText = '❤️';
+            iconKey = 'POTION'; // Use Potion graphic for health related? Or Heart if available? 
+            // We have 'POTION' asset. 
         }
 
-        const icon = this.add.text(0, -90, iconText, { fontSize: '72px' }).setOrigin(0.5);
+        // Just in case check texture exists
+        if (!this.textures.exists(iconKey)) iconKey = 'trash';
+
+        const icon = this.add.image(0, -70, iconKey)
+            .setDisplaySize(100, 100)
+            .setOrigin(0.5);
         container.add(icon);
 
-        // Name
-        const name = this.add.text(0, -20, choice.title.toUpperCase(), {
-            font: 'bold 20px Arial', fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
-        }).setOrigin(0.5, 0);
+        // Name (UPPERCASE)
+        const nameText = choice.title ? choice.title.toUpperCase() : 'UNKNOWN';
+        const name = this.add.text(0, 0, nameText, {
+            font: 'bold 18px Arial', fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
+        }).setOrigin(0.5);
         container.add(name);
 
-        // Rarity Label
+        // Rarity Label (Colored)
+        let descStartY = 30; // Default if no rarity
         if (choice.rarity) {
             const rarityText = this.add.text(0, 25, choice.rarity, {
                 font: 'italic 14px Arial', fill: '#' + borderColor.toString(16).padStart(6, '0')
             }).setOrigin(0.5);
             container.add(rarityText);
+            descStartY = 55;
         }
 
-        // Desc (Using RichTextHelper for Icons)
-        // Position relative to Rarity or Name
-        const descY = choice.rarity ? 55 : 35;
+        // Desc (RichText)
+        // Center the container logic: 
+        // maxWidth is cardW - 30.
+        // Container X = -(maxWidth)/2 to center content.
+        const descMaxWidth = cardW - 30;
+        const descContainer = this.add.container(-descMaxWidth / 2, descStartY);
 
-        // Create a temporary container for rich text to center it?
-        // RichTextHelper renders to a container. Use a sub-container?
-        const descContainer = this.add.container(0, descY);
-        const { height: textH } = RichTextHelper.renderRichText(this, descContainer, choice.description, {
-            fontSize: '16px',
+        RichTextHelper.renderRichText(this, descContainer, choice.description || '', {
+            fontSize: '14px',
             color: '#dddddd',
-            maxWidth: cardW - 30,
-            center: true
+            maxWidth: descMaxWidth,
+            center: true,
+            iconSize: 20
         });
-
-        // Since renderRichText adds children to descContainer at (0,0) and flows down, 
-        // and we want it centered horizontally (handled by center:true helper update or manual offset).
-        // RichTextHelper default usually aligns left. I might need to check if it supports centering.
-        // Assuming I need to center the container manually if the helper doesn't.
-        // But if I pass 'center: true' I assume I might have implemented it or need to check.
-        // Let's check RichTextHelper.js to be sure. OR just center the container X.
-        // Actually, RichTextHelper adds objects. If I want them centered, I need to know the width.
-        // Let's assume standard behavior for now but shift X to start left.
-        descContainer.x = -(cardW / 2) + 15; // Start from left padding
 
         container.add(descContainer);
 

@@ -847,44 +847,55 @@ export class TopBar {
             // Style
             let borderColor = 0x444444;
             let bgColor = 0x222222;
-            if (trait.rarity === 'UNCOMMON') borderColor = 0x448844;
-            if (trait.rarity === 'RARE') borderColor = 0x4444aa;
-            if (trait.rarity === 'EPIC') { borderColor = 0x8844aa; bgColor = 0x2a1a2a; }
-            if (trait.rarity === 'LEGENDARY') { borderColor = 0xffaa00; bgColor = 0x332200; }
+            if (trait.rarity === 'UNCOMMON') borderColor = 0x66ff66;
+            if (trait.rarity === 'RARE') borderColor = 0x44ccff;
+            if (trait.rarity === 'EPIC') { borderColor = 0xd066ff; bgColor = 0x2a1a2a; }
+            if (trait.rarity === 'LEGENDARY') { borderColor = 0xffcc00; bgColor = 0x332200; }
 
             const bg = this.scene.add.rectangle(0, 0, cardW, cardH, bgColor)
                 .setStrokeStyle(4, borderColor)
             // .setInteractive(); // Tooltip removed as requested
 
-            // Name (Larger Font, Top)
-            const name = this.scene.add.text(0, -cardH / 2 + 30, trait.name, {
-                font: `bold 22px Arial`, fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
+            // Icon (Large)
+            // trait.type is expected to be 'SWORD', 'SHIELD' etc.
+            const iconKey = trait.type || 'trash';
+            const icon = this.scene.add.image(0, -cardH / 2 + 60, iconKey)
+                .setDisplaySize(90, 90)
+                .setOrigin(0.5);
+
+            // Name (Below Icon)
+            const name = this.scene.add.text(0, -cardH / 2 + 120, trait.name.toUpperCase(), {
+                font: `bold 20px Arial`, fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
+            }).setOrigin(0.5);
+
+            // Rarity (Below Name)
+            // Use border color for text color?
+            let rarityColor = '#aaaaaa';
+            if (trait.rarity === 'UNCOMMON') rarityColor = '#66ff66'; // Bright Green
+            if (trait.rarity === 'RARE') rarityColor = '#44ccff';     // Cyan/Light Blue
+            if (trait.rarity === 'EPIC') rarityColor = '#d066ff';     // Violet/Purple
+            if (trait.rarity === 'LEGENDARY') rarityColor = '#ffcc00'; // Gold
+
+            const rarityLabel = this.scene.add.text(0, -cardH / 2 + 145, trait.rarity, {
+                font: `italic 14px Arial`, fill: rarityColor
             }).setOrigin(0.5);
 
             // Description (Rich Text)
-            // Position: Start below name.
-            const descY = -cardH / 2 + 70;
-
-            // CRITICAL FIX: Center the container properly
-            // RichTextHelper draws from x=10 to maxWidth.
-            // If we want it centered, the content within the container needs to be centered.
-            // The RichTextHelper itself handles centering the text within its maxWidth if `center: true`.
-            // So, the container's x position should be set to align the RichText block's left edge.
-            // If the RichText block is `maxWidth` wide and we want it centered around the container's (0,0) x-axis,
-            // the container's x should be `-maxWidth / 2`.
+            // Position: Start below Rarity.
+            const descY = -cardH / 2 + 170;
 
             const descMaxWidth = cardW - 30;
             const descContainer = this.scene.add.container(-descMaxWidth / 2, descY);
 
             RichTextHelper.renderRichText(this.scene, descContainer, trait.description, {
-                fontSize: `18px`,
+                fontSize: `16px`,
                 color: '#cccccc',
                 maxWidth: descMaxWidth, // Matches the shift
                 center: true,
-                iconSize: 26
+                iconSize: 22
             });
 
-            cardContainer.add([bg, name, descContainer]);
+            cardContainer.add([bg, icon, name, rarityLabel, descContainer]);
             this.masteryContent.add(cardContainer);
         });
 

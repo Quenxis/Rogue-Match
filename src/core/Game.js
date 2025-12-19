@@ -17,7 +17,7 @@ import { initDebugTools } from './DebugTools.js';
 import { HeroSelectScene } from '../scenes/HeroSelectScene.js';
 import { RestScene } from '../scenes/RestScene.js';
 
-export const APP_VERSION = '0.3.52';
+export const APP_VERSION = '0.3.53';
 
 const config = {
     type: Phaser.AUTO,
