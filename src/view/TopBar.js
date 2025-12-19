@@ -6,6 +6,7 @@ import { audioManager } from '../core/AudioManager.js';
 import { settingsManager } from '../core/SettingsManager.js';
 import { RichTextHelper } from './RichTextHelper.js';
 import { DebugView } from './DebugView.js';
+import { MasteryDeckOverlay } from './MasteryDeckOverlay.js';
 
 export class TopBar {
 
@@ -722,219 +723,27 @@ export class TopBar {
     }
 
     createMasteryOverlay() {
-        // Container
-        this.masteryContainer = this.scene.add.container(0, 0).setDepth(3000).setScrollFactor(0).setVisible(false);
-
-        // Fullscreen Dimensions (Use nearly full screen)
-        const width = this.scene.scale.width;
-        const height = this.scene.scale.height;
-        const winW = width; // Full width
-        const winH = height; // Full height
-        const centerX = width / 2;
-        const centerY = height / 2;
-
-        // Overlay (Darken BG)
-        const overlay = this.scene.add.rectangle(centerX, centerY, width, height, 0x000000, 0.95).setInteractive();
-        // overlay.on('pointerdown', () => this.toggleMasteryDeck()); // Clicking bg shouldn't close if it's fullscreen, use X button
-        this.masteryContainer.add(overlay);
-
-        // Window Frame (Optional if fully black, but let's keep a border)
-        // const windowBg = this.scene.add.rectangle(centerX, centerY, winW, winH, 0x1a1a1a).setStrokeStyle(3, 0x00aaff);
-        // windowBg.setInteractive(); // Block clicks
-        // this.masteryContainer.add(windowBg);
-
-        // Just a border?
-        const border = this.scene.add.rectangle(centerX, centerY, winW - 10, winH - 10, 0x000000, 0).setStrokeStyle(4, 0x00aaff);
-        this.masteryContainer.add(border);
-
-        // Title
-        const title = this.scene.add.text(centerX, 40, 'MASTERY DECK', {
-            font: 'bold 40px Arial', fill: '#00aaff', stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5);
-        this.masteryContainer.add(title);
-
-        // Close Button
-        const closeBtn = this.scene.add.text(width - 50, 50, '✕', {
-            font: 'bold 50px Arial', fill: '#ff4444'
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.toggleMasteryDeck());
-        this.masteryContainer.add(closeBtn);
-
-        // Content Container (Centered)
-        this.masteryContent = this.scene.add.container(0, 0);
-        this.masteryContainer.add(this.masteryContent);
+        // Init Overlay Component
+        this.masteryDeck = new MasteryDeckOverlay(this.scene);
     }
 
     toggleMasteryDeck() {
-        if (!this.masteryContainer) return;
-        this.masteryContainer.setVisible(!this.masteryContainer.visible);
-        if (this.guideContainer) this.guideContainer.setVisible(false);
-        if (this.settingsContainer) this.settingsContainer.setVisible(false);
-        this.hideTooltip(); // Hide any sticking tooltips
+        if (!this.masteryDeck) return;
 
-        if (this.masteryContainer.visible) {
-            this.masteryPage = 0; // Reset to first page
-            this.refreshMasteryDeck();
+        // Toggle visibility
+        this.masteryDeck.toggle();
+
+        // Hide others if opening
+        if (this.masteryDeck.visible) {
+            if (this.guideContainer) this.guideContainer.setVisible(false);
+            if (this.settingsContainer) this.settingsContainer.setVisible(false);
         }
     }
 
     refreshMasteryDeck() {
-        this.masteryContent.removeAll(true);
-
-        const traits = Array.from(runManager.matchMasteries) || [];
-        const width = this.scene.scale.width;
-        const height = this.scene.scale.height;
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const winW = width;
-        const winH = height;
-
-        if (traits.length === 0) {
-            this.masteryContent.add(this.scene.add.text(centerX, centerY, 'No Traits collected yet.', {
-                font: 'italic 32px Arial', fill: '#888888'
-            }).setOrigin(0.5));
-            return;
-        }
-
-        // --- PAGES & FIXED LAYOUT ---
-        // Fixed Portrait Card Size
-        const cardW = 230;
-        const cardH = 320;
-        const gap = 20;
-
-        const startY = 120; // Top margin
-        // Bottom Margin for buttons: ~80px
-        const availableW = winW - 100;
-        const availableH = winH - 200;
-
-        // Calculate Capacity
-        let cols = Math.floor(availableW / (cardW + gap));
-        let rows = Math.floor(availableH / (cardH + gap));
-
-        // Safety min
-        cols = Math.max(1, cols);
-        rows = Math.max(1, rows);
-
-        const itemsPerPage = cols * rows;
-        const totalPages = Math.ceil(traits.length / itemsPerPage);
-
-        // Clamp Page
-        if (this.masteryPage < 0) this.masteryPage = 0;
-        if (this.masteryPage >= totalPages) this.masteryPage = totalPages - 1;
-
-        // Get Current Slice
-        const startIdx = this.masteryPage * itemsPerPage;
-        const endIdx = startIdx + itemsPerPage;
-        const pageTraits = traits.slice(startIdx, endIdx);
-
-        // Render Grid
-        const totalGridW = cols * cardW + (cols - 1) * gap;
-        // const totalGridH = rows * cardH + (rows - 1) * gap;
-        const startX = centerX - totalGridW / 2 + cardW / 2;
-        const renderStartY = startY + cardH / 2;
-
-        pageTraits.forEach((traitId, index) => {
-            const trait = masteryManager.traits.get(traitId);
-            if (!trait) return;
-
-            const col = index % cols;
-            const row = Math.floor(index / cols);
-            const x = startX + col * (cardW + gap);
-            const y = renderStartY + row * (cardH + gap);
-
-            // Container
-            const cardContainer = this.scene.add.container(x, y);
-
-            // Style
-            let borderColor = 0x444444;
-            let bgColor = 0x222222;
-            if (trait.rarity === 'UNCOMMON') borderColor = 0x66ff66;
-            if (trait.rarity === 'RARE') borderColor = 0x44ccff;
-            if (trait.rarity === 'EPIC') { borderColor = 0xd066ff; bgColor = 0x2a1a2a; }
-            if (trait.rarity === 'LEGENDARY') { borderColor = 0xffcc00; bgColor = 0x332200; }
-
-            const bg = this.scene.add.rectangle(0, 0, cardW, cardH, bgColor)
-                .setStrokeStyle(4, borderColor)
-            // .setInteractive(); // Tooltip removed as requested
-
-            // Icon (Large)
-            // trait.type is expected to be 'SWORD', 'SHIELD' etc.
-            const iconKey = trait.type || 'trash';
-            const icon = this.scene.add.image(0, -cardH / 2 + 60, iconKey)
-                .setDisplaySize(90, 90)
-                .setOrigin(0.5);
-
-            // Name (Below Icon)
-            const name = this.scene.add.text(0, -cardH / 2 + 120, trait.name.toUpperCase(), {
-                font: `bold 20px Arial`, fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
-            }).setOrigin(0.5);
-
-            // Rarity (Below Name)
-            // Use border color for text color?
-            let rarityColor = '#aaaaaa';
-            if (trait.rarity === 'UNCOMMON') rarityColor = '#66ff66'; // Bright Green
-            if (trait.rarity === 'RARE') rarityColor = '#44ccff';     // Cyan/Light Blue
-            if (trait.rarity === 'EPIC') rarityColor = '#d066ff';     // Violet/Purple
-            if (trait.rarity === 'LEGENDARY') rarityColor = '#ffcc00'; // Gold
-
-            const rarityLabel = this.scene.add.text(0, -cardH / 2 + 145, trait.rarity, {
-                font: `italic 14px Arial`, fill: rarityColor
-            }).setOrigin(0.5);
-
-            // Description (Rich Text)
-            // Position: Start below Rarity.
-            const descY = -cardH / 2 + 170;
-
-            const descMaxWidth = cardW - 30;
-            const descContainer = this.scene.add.container(-descMaxWidth / 2, descY);
-
-            RichTextHelper.renderRichText(this.scene, descContainer, trait.description, {
-                fontSize: `16px`,
-                color: '#cccccc',
-                maxWidth: descMaxWidth, // Matches the shift
-                center: true,
-                iconSize: 22
-            });
-
-            cardContainer.add([bg, icon, name, rarityLabel, descContainer]);
-            this.masteryContent.add(cardContainer);
-        });
-
-        // --- PAGINATION CONTROLS ---
-        if (totalPages > 1) {
-            const controlsY = height - 60;
-
-            // Text: Page X / Y
-            this.masteryContent.add(this.scene.add.text(centerX, controlsY, `Page ${this.masteryPage + 1} / ${totalPages}`, {
-                font: 'bold 24px Arial', fill: '#ffffff'
-            }).setOrigin(0.5));
-
-            // Prev Button
-            if (this.masteryPage > 0) {
-                const prevBtn = this.scene.add.text(centerX - 120, controlsY, '◄ Prev', {
-                    font: 'bold 24px Arial', fill: '#00aaff', backgroundColor: '#222222', padding: { x: 10, y: 5 }
-                })
-                    .setOrigin(0.5)
-                    .setInteractive({ useHandCursor: true })
-                    .on('pointerdown', () => {
-                        this.masteryPage--;
-                        this.refreshMasteryDeck();
-                    });
-                this.masteryContent.add(prevBtn);
-            }
-
-            // Next Button
-            if (this.masteryPage < totalPages - 1) {
-                const nextBtn = this.scene.add.text(centerX + 120, controlsY, 'Next ►', {
-                    font: 'bold 24px Arial', fill: '#00aaff', backgroundColor: '#222222', padding: { x: 10, y: 5 }
-                })
-                    .setOrigin(0.5)
-                    .setInteractive({ useHandCursor: true })
-                    .on('pointerdown', () => {
-                        this.masteryPage++;
-                        this.refreshMasteryDeck();
-                    });
-                this.masteryContent.add(nextBtn);
-            }
+        // Delegate
+        if (this.masteryDeck && this.masteryDeck.visible) {
+            this.masteryDeck.refresh();
         }
     }
 

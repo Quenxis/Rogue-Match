@@ -3,6 +3,7 @@ import { rewardService, REWARD_TYPES } from '../logic/RewardService.js';
 import { masteryManager } from '../logic/MasteryManager.js';
 import { TopBar } from '../view/TopBar.js';
 import { RichTextHelper } from '../view/RichTextHelper.js';
+import { MasteryCard } from '../view/MasteryCard.js';
 
 export class RewardScene extends Phaser.Scene {
     constructor() {
@@ -63,99 +64,40 @@ export class RewardScene extends Phaser.Scene {
     }
 
     createRewardCard(x, y, choice) {
-        const cardW = 240; // Wider
-        const cardH = 360; // Taller
+        // Adapt data for MasteryCard if needed
+        // MasteryCard expects { type (icon), name, rarity, description }
 
-        // Container
-        const container = this.add.container(x, y);
+        let cardData = { ...choice };
 
-        // Background
-        // Color based on Rarity?
-        let borderColor = 0x555555;
-        if (choice.rarity === 'UNCOMMON') borderColor = 0x66ff66;
-        if (choice.rarity === 'RARE') borderColor = 0x44ccff;
-        if (choice.rarity === 'EPIC') borderColor = 0xd066ff;
-        if (choice.rarity === 'LEGENDARY') borderColor = 0xffcc00;
+        // Map types for Assets if not present
+        if (choice.type === REWARD_TYPES.GOLD) cardData.type = 'COIN';
+        if (choice.type === REWARD_TYPES.HEAL) cardData.type = 'POTION';
+        if (choice.type === REWARD_TYPES.MAX_HP) cardData.type = 'POTION'; // Or Heart? logic handles POTION well.
 
-        if (choice.type === REWARD_TYPES.GOLD) borderColor = 0xffff00;
-        if (choice.type === REWARD_TYPES.HEAL) borderColor = 0xff5555;
-        if (choice.type === REWARD_TYPES.MAX_HP) borderColor = 0xff5555;
-
-        const bg = this.add.rectangle(0, 0, cardW, cardH, 0x222222)
-            .setStrokeStyle(4, borderColor)
-            .setInteractive({ useHandCursor: true });
-
-        container.add(bg);
-
-        // Icon (Large Sprite)
-        let iconKey = 'trash'; // Fallback
-
-        if (choice.type === REWARD_TYPES.TRAIT) {
-            // E.g. choice.gemType is 'SWORD', 'SHIELD' etc. which matches BootScene keys
-            if (choice.gemType) iconKey = choice.gemType;
-        } else if (choice.type === REWARD_TYPES.GOLD) {
-            iconKey = 'COIN';
-        } else if (choice.type === REWARD_TYPES.HEAL || choice.type === REWARD_TYPES.MAX_HP) {
-            iconKey = 'POTION'; // Use Potion graphic for health related? Or Heart if available? 
-            // We have 'POTION' asset. 
+        // FIX: If it is a TRAIT, set type to gemType (e.g. SWORD) so MasteryCard uses the correct icon
+        if (choice.type === REWARD_TYPES.TRAIT && choice.gemType) {
+            cardData.type = choice.gemType;
         }
 
-        // Just in case check texture exists
-        if (!this.textures.exists(iconKey)) iconKey = 'trash';
+        // If it's a TRAIT, choice.gemType is usually set (SWORD etc). 
+        // MasteryCard checks `type` OR `gemType`. So it should be fine.
 
-        const icon = this.add.image(0, -70, iconKey)
-            .setDisplaySize(100, 100)
-            .setOrigin(0.5);
-        container.add(icon);
+        const card = new MasteryCard(this, x, y, cardData, 240, 360);
+        this.add.existing(card);
 
-        // Name (UPPERCASE)
-        const nameText = choice.title ? choice.title.toUpperCase() : 'UNKNOWN';
-        const name = this.add.text(0, 0, nameText, {
-            font: 'bold 18px Arial', fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
-        }).setOrigin(0.5);
-        container.add(name);
-
-        // Rarity Label (Colored)
-        let descStartY = 30; // Default if no rarity
-        if (choice.rarity) {
-            const rarityText = this.add.text(0, 25, choice.rarity, {
-                font: 'italic 14px Arial', fill: '#' + borderColor.toString(16).padStart(6, '0')
-            }).setOrigin(0.5);
-            container.add(rarityText);
-            descStartY = 55;
-        }
-
-        // Desc (RichText)
-        // Center the container logic: 
-        // maxWidth is cardW - 30.
-        // Container X = -(maxWidth)/2 to center content.
-        const descMaxWidth = cardW - 30;
-        const descContainer = this.add.container(-descMaxWidth / 2, descStartY);
-
-        RichTextHelper.renderRichText(this, descContainer, choice.description || '', {
-            fontSize: '14px',
-            color: '#dddddd',
-            maxWidth: descMaxWidth,
-            center: true,
-            iconSize: 20
-        });
-
-        container.add(descContainer);
-
-        // Hover Effect
-        bg.on('pointerover', () => {
-            this.tweens.add({ targets: container, scale: 1.05, duration: 100 });
-            bg.setFillStyle(0x333333);
-        });
-        bg.on('pointerout', () => {
-            this.tweens.add({ targets: container, scale: 1.0, duration: 100 });
-            bg.setFillStyle(0x222222);
-        });
-
-        // Click Action
-        bg.on('pointerdown', () => {
-            this.handleChoice(choice);
-        });
+        // Hover Effect using Tween on Container
+        // MasteryCard extends Container.
+        // Hover Effect using Tween on Container
+        // Listener on BG to ensure hit area matches visual
+        card.bg.on('pointerover', () => {
+            this.tweens.add({ targets: card, scale: 1.05, duration: 100 });
+        })
+            .on('pointerout', () => {
+                this.tweens.add({ targets: card, scale: 1.0, duration: 100 });
+            })
+            .on('pointerdown', () => {
+                this.handleChoice(choice);
+            });
     }
 
     handleChoice(choice) {
