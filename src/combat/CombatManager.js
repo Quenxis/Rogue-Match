@@ -612,7 +612,8 @@ export class CombatManager {
             matchSize: size,
             hasCorruptedFlask: runManager.hasRelic('corrupted_flask')
         };
-        const traits = runManager.traits || [];
+        // Fix: Use correct matchMasteries Set
+        const traits = Array.from(runManager.matchMasteries) || [];
 
         // 0. Trigger Passive/Global trait modifiers (Optional, usually stats are pre-calced)
         // We might want `triggerTraits(TRIGGERS.ON_MATCH, type)` here if we had that trigger.
@@ -630,6 +631,7 @@ export class CombatManager {
                 // Execute Traits: Passive Dmg Mod?
                 // For now, hardcoded base formula + traits
                 let dmg = size * (2 + p.strength + sm.getStack(STATUS_TYPES.STRENGTH));
+                let lifestealPct = 0;
 
                 // UNCOMMON TRAIT: Sharpening Stone (+1 Base) logic finding? 
                 // Getting passive stats from traits is inefficient to do every match.
@@ -654,11 +656,21 @@ export class CombatManager {
                     sm.consumeStacks(STATUS_TYPES.CRITICAL);
                 }
 
+                // Match 3+ Traits (Micro)
+                if (size >= 3) {
+                    const res3 = masteryManager.triggerTraits(TRIGGERS.MATCH_3, type, traits, context);
+                    res3.forEach(r => {
+                        if (r.damageMult) dmg = Math.floor(dmg * r.damageMult);
+                        if (r.damageFlat) dmg += r.damageFlat;
+                    });
+                }
+
                 // Match 4+ Traits
                 if (size >= 4) {
                     const res = masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
                     res.forEach(r => {
                         if (r.damageMult) dmg = Math.floor(dmg * r.damageMult);
+                        if (r.damageFlat) dmg += r.damageFlat;
                     });
                 }
                 // Match 5+ Traits
@@ -679,16 +691,23 @@ export class CombatManager {
                         const res = masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
                         res.forEach(r => {
                             if (r.damageMult) dmg = Math.floor(dmg * r.damageMult);
+                            if (r.lifesteal) lifestealPct = Math.max(lifestealPct, r.lifesteal);
                         });
                     }
                 }
 
-                // Relic: Blood Tipped Edge (Kept for legacy compat, or move to Trait?)
-                if (runManager.hasRelic('blood_tipped_edge')) {
-                    e.statusManager.applyStack(STATUS_TYPES.BLEED, 1);
-                }
+
 
                 e.takeDamage(dmg, p);
+
+                // Lifesteal (Vampiric Blade)
+                if (lifestealPct > 0) {
+                    const healAmount = Math.floor(dmg * lifestealPct);
+                    if (healAmount > 0) {
+                        p.heal(healAmount);
+                        logManager.log(`Vampiric Blade healed ${healAmount} HP`, 'positive');
+                    }
+                }
                 break;
 
             case ITEM_TYPES.SHIELD:
@@ -778,6 +797,7 @@ export class CombatManager {
                         heal += 2;
                     }
 
+                    if (size >= 3) masteryManager.triggerTraits(TRIGGERS.MATCH_3, type, traits, context);
                     if (size >= 4) masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
                     if (size >= 5) {
 
@@ -816,6 +836,14 @@ export class CombatManager {
                     if (res.goldMod) goldAmount += res.goldMod;
                 });
 
+                // Match 3+ (Micro)
+                if (size >= 3) {
+                    const res3 = masteryManager.triggerTraits(TRIGGERS.MATCH_3, type, traits, context);
+                    res3.forEach(res => {
+                        if (res.goldMod) goldAmount += res.goldMod;
+                    });
+                }
+
                 // Greed Pact: 3x Gold
                 if (runManager.hasRelic('greed_pact')) {
                     goldAmount *= 3;
@@ -838,9 +866,11 @@ export class CombatManager {
                 // Piercing Damage (Ignores Shield)
                 let pierceDmg = 3; // Tier 1
 
-                // Splintered Arrowhead Relic
-                if (runManager.hasRelic('splintered_arrowhead')) {
-                    pierceDmg += 1;
+                // Quiver of Plenty Relic: Action Refund on 4+
+                if (size >= 4 && runManager.hasRelic('quiver_of_plenty')) {
+                    this.currentMoves++;
+                    this.emitState();
+                    logManager.log('Quiver of Plenty: Moves Refunded!', 'relic');
                 }
 
                 // TODO: Add Bow Traits to Match Mastery Logic (placeholder for now)
@@ -1174,7 +1204,18 @@ export class CombatManager {
         }
 
         this.currentMoves = this.maxMoves;
-        this.player.resetBlock();
+        if (runManager.hasRelic('enduring_guard')) {
+            const retained = Math.floor(this.player.block / 2);
+            this.player.block = retained;
+            if (retained > 0) logManager.log(`Enduring Guard retained ${retained} Block!`, 'relic');
+        } else if (this.player.statusManager.getStack(STATUS_TYPES.BARRICADE) > 0) {
+            // Barricade: Retain FULL Block
+            const retained = this.player.block;
+            logManager.log(`Barricade held ${retained} Block!`, 'buff');
+            this.player.statusManager.consumeStacks(STATUS_TYPES.BARRICADE);
+        } else {
+            this.player.resetBlock();
+        }
 
         // Generate Next Intent
         this.generateEnemyIntent();

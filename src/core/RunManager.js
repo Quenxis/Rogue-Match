@@ -1,6 +1,7 @@
 import { RELICS } from '../data/relics.js';
 import { ACTS } from '../data/acts.js';
 import { HEROES } from '../data/heroes.js';
+import { EventBus } from './EventBus.js';
 
 export class RunManager {
     constructor() {
@@ -30,6 +31,9 @@ export class RunManager {
         this.currentTier = 0;
         this.currentActIndex = 0; // Start with Act 1
         this.currentNode = null; // Track exact current node { tier, index }
+
+        // Initialize Masteries immediately to prevent Debug view crashes
+        this.matchMasteries = new Set();
     }
 
     resetRun() {
@@ -87,8 +91,17 @@ export class RunManager {
         return false;
     }
 
+    removeMastery(masteryId) {
+        if (this.matchMasteries.has(masteryId)) {
+            this.matchMasteries.delete(masteryId);
+            console.log(`[RunManager] Mastery Removed: ${masteryId}`);
+            return true;
+        }
+        return false;
+    }
+
     hasMastery(masteryId) {
-        return this.matchMasteries.has(masteryId);
+        return this.matchMasteries ? this.matchMasteries.has(masteryId) : false;
     }
 
     // --- Inventory System ---

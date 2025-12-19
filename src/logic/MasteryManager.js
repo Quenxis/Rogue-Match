@@ -16,10 +16,10 @@ export const RARITY = {
 };
 
 export const TRIGGERS = {
-    PASSIVE: 'PASSIVE',
     MATCH_3: 'MATCH_3',
     MATCH_4: 'MATCH_4',
     MATCH_5: 'MATCH_5', // 5+
+    PASSIVE: 'PASSIVE',
     ON_SWAP: 'ON_SWAP'
 };
 
@@ -48,7 +48,10 @@ export class MasteryManager {
             trigger: TRIGGERS.MATCH_3,
             description: 'Gain 1 Gold per [icon:icon_sword] match (Size 3+).',
             execute: (context) => {
-                if (context.player) context.player.addGold(1);
+                if (context.player) {
+                    context.player.addGold(1);
+                    logManager.log('Lightweight Hilt: +1 Gold', 'gold');
+                }
             }
         });
         this.registerTrait({
@@ -81,9 +84,10 @@ export class MasteryManager {
             type: GEM_TYPES.SWORD,
             rarity: RARITY.RARE,
             trigger: TRIGGERS.MATCH_4,
-            description: 'Match-4 [icon:icon_sword] grants 2 Block.',
+            description: 'Match-3 [icon:icon_sword] deals +2 DMG but you take 1 DMG.',
             execute: (context) => {
-                if (context.player) context.player.addBlock(2);
+                if (context.player) context.player.takeDamage(1);
+                return { damageFlat: 2 };
             }
         });
         this.registerTrait({
@@ -276,6 +280,80 @@ export class MasteryManager {
                     if (!context.combatManager.interest) context.combatManager.interest = 0;
                     context.combatManager.interest += 0.10;
                     logManager.log('Investment: Interest increased!', 'gold');
+                }
+            }
+        });
+        this.registerTrait({
+            id: 'coin_rare_midas_touch',
+            name: 'Midas Touch',
+            type: GEM_TYPES.COIN,
+            rarity: RARITY.RARE,
+            trigger: TRIGGERS.MATCH_4,
+            description: 'Match-4 [icon:icon_coin] turns a random gem into [icon:icon_coin].',
+            execute: (context) => {
+                if (window.grid) {
+                    const targets = window.grid.transmuteRandomGems(1, GEM_TYPES.COIN);
+                    if (targets.length > 0) logManager.log('Midas Touch: Gem turned to Gold!', 'gold');
+                }
+            }
+        });
+
+        // --- NEW ADDITIONS ---
+        this.registerTrait({
+            id: 'sword_epic_vampiric_blade',
+            name: 'Vampiric Blade',
+            type: GEM_TYPES.SWORD,
+            rarity: RARITY.EPIC,
+            trigger: TRIGGERS.MATCH_5,
+            description: 'Match-5 [icon:icon_sword] heals for 50% of damage dealt.',
+            execute: (context) => ({ lifesteal: 0.5 })
+        });
+
+        this.registerTrait({
+            id: 'sword_rare_blade_waltz',
+            name: 'Blade Waltz',
+            type: GEM_TYPES.SWORD,
+            rarity: RARITY.RARE,
+            trigger: TRIGGERS.MATCH_4,
+            description: 'Match-4 [icon:icon_sword] refunds 1 Move.',
+            execute: (context) => {
+                if (context.combatManager) {
+                    context.combatManager.currentMoves++;
+                    context.combatManager.emitState();
+                    logManager.log('Blade Waltz: Move Refunded!', 'mastery');
+                }
+            }
+        });
+
+        this.registerTrait({
+            id: 'mana_epic_surge',
+            name: 'Mana Surge',
+            type: GEM_TYPES.MANA,
+            rarity: RARITY.EPIC,
+            trigger: TRIGGERS.MATCH_5,
+            description: 'Match-5 [icon:icon_mana] deals DMG equal to 2x Current Mana.',
+            execute: (context) => {
+                if (context.player && context.enemy) {
+                    const dmg = context.player.mana * 2;
+                    if (dmg > 0) {
+                        context.enemy.takeDamage(dmg, context.player, { isSpell: true });
+                        logManager.log(`Mana Surge: ${dmg} DMG!`, 'mastery');
+                    }
+                }
+            }
+        });
+
+        this.registerTrait({
+            id: 'shield_epic_barricade',
+            name: 'Barricade',
+            type: GEM_TYPES.SHIELD,
+            rarity: RARITY.EPIC,
+            trigger: TRIGGERS.MATCH_5,
+            description: 'Match-5 [icon:icon_shield] grants Barricade (Block persists 1 turn).',
+            execute: (context) => {
+                if (context.player) {
+                    context.player.statusManager.applyStack('BARRICADE', 1);
+                    logManager.log('Barricade active!', 'mastery');
                 }
             }
         });

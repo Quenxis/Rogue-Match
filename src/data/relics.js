@@ -134,12 +134,13 @@ export const RELICS = {
             }
         }
     },
-    'splintered_arrowhead': {
-        name: 'Splintered Arrowhead',
-        description: 'Your [icon:icon_bow] attacks deal +1 Piercing Damage',
+    'quiver_of_plenty': {
+        name: 'Quiver of Plenty',
+        description: 'Match-4+ [icon:icon_bow] costs 0 Moves (Action Refunded).',
         icon: '🏹',
+        color: 0x228B22,
         type: 'PASSIVE',
-        hooks: {}, // No hooks, handled in CombatManager logic directly
+        hooks: {}, // Handled in CombatManager
         heroSpecific: true
     },
     'corrupted_flask': {
@@ -150,13 +151,13 @@ export const RELICS = {
         hooks: {}, // Handled in CombatManager
         heroSpecific: true
     },
-    'blood_tipped_edge': {
-        name: 'Blood-Tipped Edge',
-        description: 'Sword attacks apply +1 Bleed.\n(Match 3 [icon:icon_sword] now applies 1 Bleed)', // newline for cleaner layout
-        icon: '🗡️',
-        color: 0xA13535, // Blood Red
+    'enduring_guard': {
+        name: 'Enduring Guard',
+        description: 'At the end of your turn, Block is halved instead of lost.',
+        icon: '🛡️',
+        color: 0x708090, // Slate Gray
         type: 'PASSIVE',
-        hooks: {},
+        hooks: {}, // Handled in Entity.resetBlock or CombatManager
         heroSpecific: true
     },
     'tortoise_shell': {

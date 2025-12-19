@@ -178,6 +178,9 @@ export const STATUS_TYPES = {
     THORNS: 'THORNS',
     FOCUS: 'FOCUS',
     CRITICAL: 'CRITICAL',
+    WEAKNESS: 'WEAKNESS',
+    INVULNERABLE: 'INVULNERABLE',
+    BARRICADE: 'BARRICADE', // Block retention
     VULNERABLE: 'VULNERABLE', // New Debuff
     WEAKNESS: 'WEAKNESS', // Deals 25% less damage
     STRENGTH: 'STRENGTH',

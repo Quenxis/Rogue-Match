@@ -14,6 +14,8 @@ const CONFIG = {
     [STATUS_TYPES.CRITICAL]: { max: 2, category: 'BUFF' },
     [STATUS_TYPES.VULNERABLE]: { max: 99, category: 'DEBUFF' },
     [STATUS_TYPES.STRENGTH]: { max: 99, category: 'BUFF' },
+    [STATUS_TYPES.INVULNERABLE]: { max: 1, category: 'BUFF' },
+    [STATUS_TYPES.BARRICADE]: { max: 1, category: 'BUFF' },
     [STATUS_TYPES.GREED_CURSE]: { max: 1, category: 'DEBUFF' },
     [STATUS_TYPES.TOXIN]: { max: 999, category: 'DEBUFF', persistent: true },
     [STATUS_TYPES.WEAKNESS]: { max: 99, category: 'DEBUFF' },

@@ -5,6 +5,7 @@ import { masteryManager } from '../logic/MasteryManager.js';
 import { audioManager } from '../core/AudioManager.js';
 import { settingsManager } from '../core/SettingsManager.js';
 import { RichTextHelper } from './RichTextHelper.js';
+import { DebugView } from './DebugView.js';
 
 export class TopBar {
 
@@ -60,7 +61,9 @@ export class TopBar {
 
         this.createSettingsOverlay();
         this.createGuideOverlay();
+        this.createGuideOverlay();
         this.createMasteryOverlay();
+        this.debugView = new DebugView(this.scene);
 
         // --- HP Display ---
         this.hpText = this.scene.add.text(30, cy, '', { font: 'bold 22px Verdana', fill: '#ff4444' }) // Larger Font & Position
@@ -107,7 +110,13 @@ export class TopBar {
 
         // Listen for updates
         this.render = this.render.bind(this);
+        this.refreshMasteryDeck = this.refreshMasteryDeck.bind(this); // Bind this too
+
         EventBus.on('ui:refresh_topbar', this.render);
+        EventBus.on('relic_added', this.render);
+        EventBus.on('mastery_updated', () => {
+            if (this.masteryContainer && this.masteryContainer.visible) this.refreshMasteryDeck();
+        });
 
         // Cleanup on scene shutdown
         if (this.scene.events) {
@@ -763,7 +772,7 @@ export class TopBar {
     refreshMasteryDeck() {
         this.masteryContent.removeAll(true);
 
-        const traits = runManager.traits || [];
+        const traits = Array.from(runManager.matchMasteries) || [];
         const width = this.scene.scale.width;
         const height = this.scene.scale.height;
         const centerX = width / 2;
