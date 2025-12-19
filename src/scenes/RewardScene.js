@@ -1,5 +1,8 @@
 import { runManager } from '../core/RunManager.js';
-import { RELICS } from '../data/relics.js';
+import { rewardService, REWARD_TYPES } from '../logic/RewardService.js';
+import { masteryManager } from '../logic/MasteryManager.js';
+import { TopBar } from '../view/TopBar.js';
+import { RichTextHelper } from '../view/RichTextHelper.js';
 
 export class RewardScene extends Phaser.Scene {
     constructor() {
@@ -7,122 +10,151 @@ export class RewardScene extends Phaser.Scene {
     }
 
     init(data) {
-        // data.rewards expected: { gold: number, choices: [ {type:'RELIC', id:string}, {type:'GOLD', value:number} ] }
-        this.rewards = data.rewards || { gold: 0, choices: [] };
+        this.baseGold = data.rewards ? data.rewards.gold : 10;
+        this.tier = data.tier || runManager.currentTier || 1;
     }
 
     create() {
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
 
-        // Overlay Background
-        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000, 0.95);
+        // Overlay Background (Opaque to hide potential visual artifacts)
+        this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000, 1.0);
+
+        // UI: Top Bar
+        this.topBar = new TopBar(this);
 
         // Title
-        this.add.text(centerX, this.scale.height * 0.1, 'VICTORY!', {
+        this.add.text(centerX, this.scale.height * 0.15, 'VICTORY!', {
             font: 'bold 48px Arial',
             fill: '#ffd700',
             stroke: '#000000',
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        // --- GOLD REWARD ---
-        const goldY = this.scale.height * 0.2;
-        this.add.text(centerX, goldY, `Base Loot: 💰 +${this.rewards.gold}`, {
+        // Base Gold
+        const goldY = this.scale.height * 0.22;
+        this.add.text(centerX, goldY, `Base Loot: 💰 +${this.baseGold}`, {
             font: '24px Arial', fill: '#ffff00'
         }).setOrigin(0.5);
 
-        // Add base gold immediately (visual only, logic handled on click?)
-        // BattleScene passed gold here, but did we ADD it? 
-        // BattleScene code: "runManager.addGold(gold)" was in ELSE block.
-        // In IF block (Special), we just passed data.
-        // So we must ADD gold here when scene starts or when claiming.
-        // Let's add it immediately to be safe, or upon any exit.
-        // Safest: Add immediately, but visually show it.
-        // Actually, user might crash/close. Let's add immediately.
+        // Add base gold immediately
         if (!this.goldAdded) {
-            runManager.addGold(this.rewards.gold);
+            runManager.addGold(this.baseGold);
             this.goldAdded = true;
         }
 
-        // --- CHOICES ---
-        const choices = this.rewards.choices || [];
+        // GENERATE REWARDS
+        this.add.text(centerX, this.scale.height * 0.3, 'CHOOSE A MASTERY', {
+            font: 'bold 28px Arial', fill: '#ffffff'
+        }).setOrigin(0.5);
 
-        if (choices.length > 0) {
-            this.add.text(centerX, this.scale.height * 0.3, 'CHOOSE A REWARD', {
-                font: 'bold 28px Arial', fill: '#ffffff'
-            }).setOrigin(0.5);
+        // Check if draft already generated this session? 
+        // For now, generate new.
+        const rewards = rewardService.generateRewards(this.tier);
 
-            const startY = this.scale.height * 0.55;
-            const gapX = 220;
-            const startX = centerX - ((choices.length - 1) * gapX) / 2;
+        const startY = this.scale.height * 0.58;
+        const gapX = 260; // Slightly wider for larger cards
+        const startX = centerX - ((rewards.length - 1) * gapX) / 2;
 
-            choices.forEach((choice, index) => {
-                this.createRewardCard(startX + (index * gapX), startY, choice);
-            });
-
-        } else {
-            // No choices (Normal Battle fallback if we routed here?)
-            // Just Continue Button
-            this.createContinueButton(centerX, this.scale.height * 0.85);
-        }
+        rewards.forEach((choice, index) => {
+            this.createRewardCard(startX + (index * gapX), startY, choice);
+        });
     }
 
     createRewardCard(x, y, choice) {
-        const cardW = 200;
-        const cardH = 280;
+        const cardW = 240; // Wider
+        const cardH = 360; // Taller
 
         // Container
         const container = this.add.container(x, y);
 
         // Background
+        // Color based on Rarity?
+        let borderColor = 0x555555;
+        if (choice.rarity === 'UNCOMMON') borderColor = 0x00ff00;
+        if (choice.rarity === 'RARE') borderColor = 0x00aaff;
+        if (choice.rarity === 'EPIC') borderColor = 0xaa00aa;
+        if (choice.rarity === 'LEGENDARY') borderColor = 0xffaa00;
+
+        if (choice.type === REWARD_TYPES.GOLD) borderColor = 0xffff00;
+        if (choice.type === REWARD_TYPES.HEAL) borderColor = 0xff5555;
+        if (choice.type === REWARD_TYPES.MAX_HP) borderColor = 0xff5555;
+
         const bg = this.add.rectangle(0, 0, cardW, cardH, 0x222222)
-            .setStrokeStyle(4, 0x555555)
+            .setStrokeStyle(4, borderColor)
             .setInteractive({ useHandCursor: true });
 
         container.add(bg);
 
-        // Content
-        if (choice.type === 'RELIC') {
-            const data = RELICS[choice.id];
-            // Let's import RELICS in this file to be safe.
-            // Or assume runManager has it? It doesn't.
-            // We need to import RELICS at top.
+        // Icon
+        let iconText = '❓';
 
-            // Icon
-            const icon = this.add.text(0, -50, data ? data.icon : '❓', { fontSize: '64px' }).setOrigin(0.5);
-            container.add(icon);
-
-            // Name
-            const name = this.add.text(0, 10, data ? data.name : choice.id, {
-                font: 'bold 18px Arial', fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
-            }).setOrigin(0.5, 0);
-            container.add(name);
-
-            // Desc
-            const desc = this.add.text(0, 60, data ? data.description : 'Unknown Relic', {
-                font: '14px Arial', fill: '#cccccc', wordWrap: { width: cardW - 20 }, align: 'center'
-            }).setOrigin(0.5, 0);
-            container.add(desc);
-
-        } else if (choice.type === 'GOLD') {
-            const icon = this.add.text(0, -50, '💰', { fontSize: '64px' }).setOrigin(0.5);
-            container.add(icon);
-
-            const text = this.add.text(0, 20, `+${choice.value} GOLD`, {
-                font: 'bold 24px Arial', fill: '#ffff00'
-            }).setOrigin(0.5);
-            container.add(text);
+        if (choice.type === REWARD_TYPES.TRAIT) {
+            // Look up gem icon
+            if (choice.gemType === 'SWORD') iconText = '⚔️';
+            if (choice.gemType === 'SHIELD') iconText = '🛡️';
+            if (choice.gemType === 'POTION') iconText = '🧪';
+            if (choice.gemType === 'MANA') iconText = '🔮';
+            if (choice.gemType === 'COIN') iconText = '💰';
+            if (choice.gemType === 'BOW') iconText = '🏹';
+        } else if (choice.type === REWARD_TYPES.GOLD) {
+            iconText = '💰';
+        } else if (choice.type === REWARD_TYPES.HEAL || choice.type === REWARD_TYPES.MAX_HP) {
+            iconText = '❤️';
         }
+
+        const icon = this.add.text(0, -90, iconText, { fontSize: '72px' }).setOrigin(0.5);
+        container.add(icon);
+
+        // Name
+        const name = this.add.text(0, -20, choice.title.toUpperCase(), {
+            font: 'bold 20px Arial', fill: '#ffffff', wordWrap: { width: cardW - 20 }, align: 'center'
+        }).setOrigin(0.5, 0);
+        container.add(name);
+
+        // Rarity Label
+        if (choice.rarity) {
+            const rarityText = this.add.text(0, 25, choice.rarity, {
+                font: 'italic 14px Arial', fill: '#' + borderColor.toString(16).padStart(6, '0')
+            }).setOrigin(0.5);
+            container.add(rarityText);
+        }
+
+        // Desc (Using RichTextHelper for Icons)
+        // Position relative to Rarity or Name
+        const descY = choice.rarity ? 55 : 35;
+
+        // Create a temporary container for rich text to center it?
+        // RichTextHelper renders to a container. Use a sub-container?
+        const descContainer = this.add.container(0, descY);
+        const { height: textH } = RichTextHelper.renderRichText(this, descContainer, choice.description, {
+            fontSize: '16px',
+            color: '#dddddd',
+            maxWidth: cardW - 30,
+            center: true
+        });
+
+        // Since renderRichText adds children to descContainer at (0,0) and flows down, 
+        // and we want it centered horizontally (handled by center:true helper update or manual offset).
+        // RichTextHelper default usually aligns left. I might need to check if it supports centering.
+        // Assuming I need to center the container manually if the helper doesn't.
+        // But if I pass 'center: true' I assume I might have implemented it or need to check.
+        // Let's check RichTextHelper.js to be sure. OR just center the container X.
+        // Actually, RichTextHelper adds objects. If I want them centered, I need to know the width.
+        // Let's assume standard behavior for now but shift X to start left.
+        descContainer.x = -(cardW / 2) + 15; // Start from left padding
+
+        container.add(descContainer);
 
         // Hover Effect
         bg.on('pointerover', () => {
-            bg.setStrokeStyle(4, 0xffd700);
             this.tweens.add({ targets: container, scale: 1.05, duration: 100 });
+            bg.setFillStyle(0x333333);
         });
         bg.on('pointerout', () => {
-            bg.setStrokeStyle(4, 0x555555);
             this.tweens.add({ targets: container, scale: 1.0, duration: 100 });
+            bg.setFillStyle(0x222222);
         });
 
         // Click Action
@@ -132,25 +164,24 @@ export class RewardScene extends Phaser.Scene {
     }
 
     handleChoice(choice) {
-        if (choice.type === 'RELIC') {
-            runManager.addRelic(choice.id);
-        } else if (choice.type === 'GOLD') {
+        if (choice.type === REWARD_TYPES.TRAIT) {
+            // Add Trait Logic
+            if (!runManager.traits) runManager.traits = [];
+            runManager.traits.push(choice.id);
+            console.log(`[Reward] Gained Trait: ${choice.title}`);
+        } else if (choice.type === REWARD_TYPES.GOLD) {
             runManager.addGold(choice.value);
+        } else if (choice.type === REWARD_TYPES.HEAL) {
+            runManager.player.currentHP = Math.min(runManager.player.maxHP, runManager.player.currentHP + choice.value);
+            this.topBar.render(); // Refresh UI
+        } else if (choice.type === REWARD_TYPES.MAX_HP) {
+            runManager.player.maxHP += choice.value;
+            runManager.player.currentHP = Math.min(runManager.player.maxHP, runManager.player.currentHP + choice.value);
+            this.topBar.render(); // Refresh UI
         }
 
         // Proceed
         runManager.completeLevel(); // Move to next node
         this.scene.start('MapScene');
-    }
-
-    createContinueButton(x, y) {
-        const btn = this.add.text(x, y, 'Continue >>', {
-            font: '28px Arial', fill: '#ffffff', backgroundColor: '#00aa00', padding: { x: 20, y: 10 }
-        })
-            .setOrigin(0.5).setInteractive({ useHandCursor: true })
-            .on('pointerdown', () => {
-                runManager.completeLevel();
-                this.scene.start('MapScene');
-            });
     }
 }

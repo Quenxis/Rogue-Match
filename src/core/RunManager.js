@@ -66,7 +66,29 @@ export class RunManager {
         const startingRelics = heroData && heroData.startingRelics ? [...heroData.startingRelics] : [];
         startingRelics.forEach(r => this.addRelic(r));
 
+        // Initialize Match Masteries (Empty by default, gained via gameplay)
+        this.matchMasteries = new Set();
+        // New Trait System
+        this.traits = [];
+
+        // DEBUG: Add some starting traits for testing
+        // this.traits.push('sword_rare_serrated_edge');
+
         this.generateMap();
+    }
+
+    // --- Match Mastery System ---
+    unlockMastery(masteryId) {
+        if (!this.matchMasteries.has(masteryId)) {
+            this.matchMasteries.add(masteryId);
+            console.log(`[RunManager] Mastery Unlocked: ${masteryId}`);
+            return true;
+        }
+        return false;
+    }
+
+    hasMastery(masteryId) {
+        return this.matchMasteries.has(masteryId);
     }
 
     // --- Inventory System ---

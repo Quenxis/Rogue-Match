@@ -138,15 +138,79 @@ export class CombatView {
 
         EventBus.on(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
         EventBus.on(EVENTS.ENEMY_ATTACK, this.onEnemyAttack);
-        EventBus.on(EVENTS.PLAYER_DEFEND, this.onPlayerDefend);
-        EventBus.on(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
-        EventBus.on(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
-        EventBus.on(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
+        // EventBus.on(EVENTS.PLAYER_DEFEND, this.onPlayerDefend); // Replaced by Generic
+        // EventBus.on(EVENTS.PLAYER_HEAL, this.onPlayerHeal);     // Replaced by Generic
+        // EventBus.on(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);   // Replaced by Generic
+        // EventBus.on(EVENTS.ENEMY_HEAL, this.onEnemyHeal);       // Replaced by Generic
         EventBus.on(EVENTS.ENEMY_LOCK, this.onEnemyLock);
         EventBus.on(EVENTS.ENEMY_TRASH, this.onEnemyTrash);
         EventBus.on(EVENTS.TOXIN_APPLIED, this.onToxinApplied);
         EventBus.on(EVENTS.OUTBREAK_CAST, this.onOutbreakCast);
         EventBus.on(EVENTS.EXTRACTION_CAST, this.onExtractionCast);
+
+        // --- GENERIC ANIMATION HANDLERS ---
+        this.onEntityDamaged = (data) => {
+            if (data.skipAnimation) return;
+            // Identify Sprite
+            let targetSprite, attackerSprite;
+            // We assume runManager.player is the SINGLETON player object reference usually?
+            // Or compare ID/Name.
+            // data.entity is the actual Entity instance from CombatManager.
+            // runManager.player is the DATA source, but CombatManager creates a NEW Player instance.
+            // We need to check if data.entity === combatManager.player
+
+            const isPlayer = (data.entity === this.combatManager.player);
+            targetSprite = isPlayer ? this.heroSprite : this.enemySprite;
+
+            // Source logic (for lunge)
+            // If source is provided and it is an entity
+            if (data.source && data.source === this.combatManager.player) {
+                attackerSprite = this.heroSprite;
+            } else if (data.source && data.source === this.combatManager.enemy) {
+                attackerSprite = this.enemySprite;
+            }
+
+            // Animate HIT immediately on target
+            // But if we want Lunge, we need an Attacker.
+            // If skipAnimation was NOT set, we assume standard "Attack -> Hit" flow?
+            // OR just "Hit" effect?
+            // "Entity Damaged" usually implies the result. "Entity Attacked" implies the action.
+            // BUT our goal is to catch-all.
+            // If there is a Source, we should Lunge the Source.
+
+            const dmg = data.amount;
+            const tint = dmg > 0 ? 0xff0000 : 0x888888; // Red or Gray (Block)
+
+            if (attackerSprite) {
+                // Full Attack Animation (Lunge + Hit)
+                const offset = (attackerSprite === this.heroSprite) ? 50 : -50;
+                this.queueAnimation(done => this.animations.animateAttack(attackerSprite, targetSprite, offset, tint, done));
+            } else {
+                // Just Hit Effect (No lunge source, e.g. Thorns, DOT, Trap)
+                this.queueAnimation(done => {
+                    this.animations.animateHit(targetSprite, tint);
+                    if (done) done(); // Immediate done (or add small delay?)
+                });
+            }
+        };
+
+        this.onEntityHealed = (data) => {
+            if (data.skipAnimation) return;
+            const isPlayer = (data.entity === this.combatManager.player);
+            const targetSprite = isPlayer ? this.heroSprite : this.enemySprite;
+            this.queueAnimation(done => this.animations.animateHeal(targetSprite, done));
+        };
+
+        this.onEntityDefended = (data) => {
+            if (data.skipAnimation) return;
+            const isPlayer = (data.entity === this.combatManager.player);
+            const targetSprite = isPlayer ? this.heroSprite : this.enemySprite;
+            this.queueAnimation(done => this.animations.animateDefend(targetSprite, done));
+        };
+
+        EventBus.on(EVENTS.ENTITY_DAMAGED, this.onEntityDamaged);
+        EventBus.on(EVENTS.ENTITY_HEALED, this.onEntityHealed);
+        EventBus.on(EVENTS.ENTITY_DEFENDED, this.onEntityDefended);
     }
 
     destroy() {
@@ -155,15 +219,19 @@ export class CombatView {
         EventBus.off(EVENTS.SHOW_NOTIFICATION, this.showNotificationBind);
         EventBus.off(EVENTS.PLAYER_ATTACK, this.onPlayerAttack);
         EventBus.off(EVENTS.ENEMY_ATTACK, this.onEnemyAttack);
-        EventBus.off(EVENTS.PLAYER_DEFEND, this.onPlayerDefend);
-        EventBus.off(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
-        EventBus.off(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
-        EventBus.off(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
+        // EventBus.off(EVENTS.PLAYER_DEFEND, this.onPlayerDefend);
+        // EventBus.off(EVENTS.PLAYER_HEAL, this.onPlayerHeal);
+        // EventBus.off(EVENTS.ENEMY_DEFEND, this.onEnemyDefend);
+        // EventBus.off(EVENTS.ENEMY_HEAL, this.onEnemyHeal);
         EventBus.off(EVENTS.ENEMY_LOCK, this.onEnemyLock);
         EventBus.off(EVENTS.ENEMY_TRASH, this.onEnemyTrash);
         EventBus.off('enemy:prismatic_resonance', this.onPrismaticResonance);
         EventBus.off('visual:shake', this.onVisualShake);
         EventBus.off('enemy:mana_devour', this.onManaDevour);
+
+        EventBus.off(EVENTS.ENTITY_DAMAGED, this.onEntityDamaged);
+        EventBus.off(EVENTS.ENTITY_HEALED, this.onEntityHealed);
+        EventBus.off(EVENTS.ENTITY_DEFENDED, this.onEntityDefended);
 
         // 2. Destroy UI Elements
         if (this.centerText) this.centerText.destroy();
@@ -732,7 +800,13 @@ export class CombatView {
                 // Apply Text (with Strength calculation for Attack)
                 if (intent.type === 'ATTACK') {
                     const str = enemy.getStrength ? enemy.getStrength() : 0;
-                    const totalVal = intent.value + str;
+                    let totalVal = intent.value + str;
+
+                    // Weakness Calculation
+                    // Logic must match Entity.takeDamage
+                    if (enemy.statusManager && enemy.statusManager.getStack(STATUS_TYPES.WEAKNESS) > 0) {
+                        totalVal = Math.floor(totalVal * 0.75);
+                    }
 
                     if (intent.text) {
                         // If we have a base text like "Attack (12)", we want "Attack (22)" or "Attack (12 + 10)"
@@ -742,11 +816,11 @@ export class CombatView {
                         // Let's rely on the Action generator format "Name (Val)".
                         // We can regex replace the value?
                         // Or just append strength info: "Attack (12) + 10 Str"
-                        if (str > 0) {
-                            tooltipText = `${intent.text} + ${str} Str = ${totalVal}`;
-                        } else {
-                            tooltipText = intent.text;
-                        }
+                        let details = intent.text;
+                        if (str > 0) details += ` + ${str} Str`;
+                        if (enemy.statusManager.getStack(STATUS_TYPES.WEAKNESS) > 0) details += ` - 25% (Weak)`;
+
+                        tooltipText = `${details} = ${totalVal}`;
                     } else {
                         tooltipText = `Attack: ${totalVal} damage`;
                     }
@@ -1231,6 +1305,10 @@ export class CombatView {
         const vuln = statusManager.getStack(STATUS_TYPES.VULNERABLE);
         if (vuln > 0) items.push({ icon: '☠️', count: vuln, tooltip: 'Vulnerable: Takes 25% extra damage' });
 
+        const weak = statusManager.getStack(STATUS_TYPES.WEAKNESS);
+        if (weak > 0) items.push({ icon: '📉', count: weak, color: '#aa88ff', tooltip: 'Weakness: Deals 25% less damage' });
+
+
         const str = statusManager.getStack(STATUS_TYPES.STRENGTH);
         if (str > 0) {
             let desc = `Strength: Increases damage by ${str}`;
@@ -1244,6 +1322,9 @@ export class CombatView {
 
         const toxin = statusManager.getStack(STATUS_TYPES.TOXIN);
         if (toxin > 0) items.push({ icon: '☣️', count: toxin, color: '#76ff03', tooltip: 'Toxin: Non-decaying poison. Explodes at 12 stacks!' });
+
+        const invuln = statusManager.getStack(STATUS_TYPES.INVULNERABLE);
+        if (invuln > 0) items.push({ icon: '🔰', count: invuln, color: '#ffff00', tooltip: 'Banefire: Negates next hit' });
 
         return items;
     }

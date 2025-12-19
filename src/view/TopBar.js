@@ -1,6 +1,7 @@
 import { runManager } from '../core/RunManager.js';
 import { EventBus } from '../core/EventBus.js';
 import { RELICS } from '../data/relics.js';
+import { masteryManager } from '../logic/MasteryManager.js';
 import { audioManager } from '../core/AudioManager.js';
 import { settingsManager } from '../core/SettingsManager.js';
 import { RichTextHelper } from './RichTextHelper.js';
@@ -23,6 +24,17 @@ export class TopBar {
         // Center Y for elements
         const cy = this.height / 2;
         const rightEdge = this.width;
+
+        // --- Mastery Deck Button (📖) ---
+        this.masteryBtn = this.scene.add.text(rightEdge - 170, cy, '📖', {
+            font: '28px Verdana',
+            fill: '#ffffff',
+            padding: { x: 8, y: 5 }
+        })
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerdown', () => this.toggleMasteryDeck());
+        this.container.add(this.masteryBtn);
 
         // --- Guide Button (?) ---
         this.guideBtn = this.scene.add.text(rightEdge - 50, cy, '?', {
@@ -48,6 +60,7 @@ export class TopBar {
 
         this.createSettingsOverlay();
         this.createGuideOverlay();
+        this.createMasteryOverlay();
 
         // --- HP Display ---
         this.hpText = this.scene.add.text(30, cy, '', { font: 'bold 22px Verdana', fill: '#ff4444' }) // Larger Font & Position
@@ -81,7 +94,8 @@ export class TopBar {
         this.render();
 
         // --- Scene Title (Top Right) ---
-        this.titleText = this.scene.add.text(rightEdge - 180, cy, '', {
+        // Moved left due to buttons
+        this.titleText = this.scene.add.text(rightEdge - 230, cy, '', {
             font: 'bold 24px Verdana', // Larger Font
             fill: '#ffffff',
             align: 'right'
@@ -694,6 +708,189 @@ export class TopBar {
             isShowLog = settingsManager.get('showCombatLog', true);
             updateLogToggleVisuals();
         };
+    }
+
+    createMasteryOverlay() {
+        // Container
+        this.masteryContainer = this.scene.add.container(0, 0).setDepth(3000).setScrollFactor(0).setVisible(false);
+
+        // Fullscreen Dimensions
+        const width = this.scene.scale.width;
+        const height = this.scene.scale.height;
+        const winW = width * 0.95;
+        const winH = height * 0.95;
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        // Overlay (Darken BG)
+        const overlay = this.scene.add.rectangle(centerX, centerY, width, height, 0x000000, 0.90).setInteractive();
+        overlay.on('pointerdown', () => this.toggleMasteryDeck());
+        this.masteryContainer.add(overlay);
+
+        // Window Frame
+        const windowBg = this.scene.add.rectangle(centerX, centerY, winW, winH, 0x1a1a1a).setStrokeStyle(3, 0x00aaff);
+        windowBg.setInteractive(); // Block clicks
+        this.masteryContainer.add(windowBg);
+
+        // Title
+        const title = this.scene.add.text(centerX, centerY - winH / 2 + 40, 'MASTERY DECK', {
+            font: 'bold 40px Arial', fill: '#00aaff', stroke: '#000000', strokeThickness: 4
+        }).setOrigin(0.5);
+        this.masteryContainer.add(title);
+
+        // Close Button
+        const closeBtn = this.scene.add.text(centerX + winW / 2 - 40, centerY - winH / 2 + 40, '✕', {
+            font: 'bold 40px Arial', fill: '#ff4444'
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.toggleMasteryDeck());
+        this.masteryContainer.add(closeBtn);
+
+        // Content Container (Centered)
+        this.masteryContent = this.scene.add.container(0, 0);
+        this.masteryContainer.add(this.masteryContent);
+    }
+
+    toggleMasteryDeck() {
+        if (!this.masteryContainer) return;
+        this.masteryContainer.setVisible(!this.masteryContainer.visible);
+        if (this.guideContainer) this.guideContainer.setVisible(false);
+        if (this.settingsContainer) this.settingsContainer.setVisible(false);
+
+        if (this.masteryContainer.visible) {
+            this.refreshMasteryDeck();
+        }
+    }
+
+    refreshMasteryDeck() {
+        this.masteryContent.removeAll(true);
+
+        const traits = runManager.traits || [];
+        const width = this.scene.scale.width;
+        const height = this.scene.scale.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const winW = width * 0.95;
+        const winH = height * 0.95;
+
+        if (traits.length === 0) {
+            this.masteryContent.add(this.scene.add.text(centerX, centerY, 'No Traits collected yet.', {
+                font: 'italic 32px Arial', fill: '#888888'
+            }).setOrigin(0.5));
+            return;
+        }
+
+        // --- DYNAMIC LAYOUT ENGINE ---
+        // Goal: Fit all traits within the available area (winW - padding, winH - header).
+        const availableW = winW - 100;
+        const availableH = winH - 150; // Accounting for Title/Header
+        const startY = centerY - winH / 2 + 120; // Start below title
+
+        // Base Sizes
+        const baseCardW = 280;
+        const baseCardH = 180;
+        const gap = 20;
+
+        // Try standard layout first
+        let scale = 1.0;
+        let cardW = baseCardW;
+        let cardH = baseCardH;
+
+        // Iteratively reduce scale until they fit?
+        // Let's calculate Max Columns based on Width
+        let cols = Math.floor(availableW / (cardW + gap));
+        let rows = Math.ceil(traits.length / cols);
+
+        let requiredH = rows * (cardH + gap);
+
+        // If height doesn't fit, reduce SCALE
+        // Loop limit 10 to prevent freeze
+        let iterations = 0;
+        while (requiredH > availableH && iterations < 10) {
+            scale *= 0.9;
+            cardW = baseCardW * scale;
+            cardH = baseCardH * scale;
+
+            // Re-calc cols/rows with new size
+            cols = Math.floor(availableW / (cardW + gap));
+            cols = Math.max(1, cols); // Safety
+            rows = Math.ceil(traits.length / cols);
+            requiredH = rows * (cardH + gap);
+            iterations++;
+        }
+
+        // Render
+        const totalGridW = cols * cardW + (cols - 1) * gap;
+        const startX = centerX - totalGridW / 2 + cardW / 2; // Offset to center
+
+        traits.forEach((traitId, index) => {
+            const trait = masteryManager.traits.get(traitId);
+            if (!trait) return;
+
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            const x = startX + col * (cardW + gap);
+            const y = startY + row * (cardH + gap) + cardH / 2;
+
+            // Container for Card (Center Origin)
+            const cardContainer = this.scene.add.container(x, y);
+
+            // Card BG
+            let borderColor = 0x444444;
+            if (trait.rarity === 'UNCOMMON') borderColor = 0x448844;
+            if (trait.rarity === 'RARE') borderColor = 0x4444aa;
+            if (trait.rarity === 'EPIC') borderColor = 0x8844aa;
+            if (trait.rarity === 'LEGENDARY') borderColor = 0xffaa00;
+
+            const bg = this.scene.add.rectangle(0, 0, cardW, cardH, 0x222222)
+                .setStrokeStyle(3 * scale, borderColor);
+
+            // Text Sizes scaled
+            const nameSize = Math.max(12, Math.floor(22 * scale));
+            const descSize = Math.max(10, Math.floor(16 * scale));
+            const iconSize = Math.max(14, Math.floor(32 * scale)); // For rich text icon estimate
+
+            // Name
+            const name = this.scene.add.text(0, -cardH / 2 + 20 * scale, trait.name, {
+                font: `bold ${nameSize}px Arial`, fill: '#ffffff', wordWrap: { width: cardW - 20 * scale }, align: 'center'
+            }).setOrigin(0.5);
+
+            // Desc (Rich Text)
+            const descContainer = this.scene.add.container(0, 10 * scale);
+
+            RichTextHelper.renderRichText(this.scene, descContainer, trait.description, {
+                fontSize: `${descSize}px`,
+                color: '#cccccc',
+                maxWidth: cardW - 30 * scale,
+                center: true, // Use improved centering
+                iconSize: iconSize
+            });
+
+            // If RichTextHelper doesn't verify center:true support, we might need manual centering.
+            // Assumption: RichTextHelper was verified or assumes (0,0) start. 
+            // My previous thought on RichTextHelper suggested it might need offset.
+            // If Text flows down from (0,0) in container, and container is at center of card...
+            // It will render towards bottom-right.
+            // Need to offset container.
+            // RichTextHelper returns { width, height }.
+            // We can re-position descContainer after render?
+            // BUT renderRichText adds children. 
+            // Let's assume for now we place it at Top-Left of logic area and let it flow.
+            // Adjusted logic:
+            // descContainer at ( -cardW/2 + padding, 0 + offset )
+
+            // Re-render for safety with offset
+            descContainer.removeAll(true);
+            descContainer.setPosition(-cardW / 2 + 15 * scale, 10 * scale);
+
+            RichTextHelper.renderRichText(this.scene, descContainer, trait.description, {
+                fontSize: `${descSize}px`,
+                color: '#cccccc',
+                maxWidth: cardW - 30 * scale,
+                iconSize: iconSize
+            });
+
+            cardContainer.add([bg, name, descContainer]);
+            this.masteryContent.add(cardContainer);
+        });
     }
 
     setVolumeFromPointer(pointer, barW, centerX) {

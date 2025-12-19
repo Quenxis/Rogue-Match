@@ -125,7 +125,14 @@ export class BattleScene extends Phaser.Scene {
                 choices = runManager.generateEliteRewards();
             }
 
-            const totalGold = data.combat.goldReward;
+            let totalGold = data.combat.goldReward;
+
+            // Apply Interest (from Traits like Investment)
+            if (data.combat.interest && data.combat.interest > 0) {
+                const interestBonus = Math.floor(totalGold * data.combat.interest);
+                totalGold += interestBonus;
+                console.log(`[BattleScene] Applied Interest: +${interestBonus} Gold (${data.combat.interest * 100}%)`);
+            }
 
             // Launch Reward Scene (Always)
             // RewardScene handles: Adding Gold, Displaying Rewards, and Calling runManager.completeLevel()

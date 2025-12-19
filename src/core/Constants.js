@@ -38,7 +38,12 @@ export const EVENTS = {
     POTION_USE_REQUESTED: 'potion:use_requested',
     SCENE_READY: 'scene:ready',
     RELIC_TRIGGERED: 'ui:relic_triggered',
-    GRID_ITEM_UPDATED: 'grid:item_updated'
+    GRID_ITEM_UPDATED: 'grid:item_updated',
+
+    // Generic Entity Events (Animation Drivers)
+    ENTITY_HEALED: 'entity:healed',
+    ENTITY_DAMAGED: 'entity:damaged',
+    ENTITY_DEFENDED: 'entity:defended'
 };
 
 export const ASSETS = {
@@ -50,8 +55,8 @@ export const ASSETS = {
     SHIELD: 'SHIELD',
     POTION: 'POTION',
     COIN: 'COIN',
-    COIN: 'COIN',
     MANA: 'MANA',
+    BOW: 'BOW',
 
     // UI Icons
     ICON_SWORD: 'icon_sword',
@@ -59,10 +64,8 @@ export const ASSETS = {
     ICON_MANA: 'icon_mana',
     ICON_LOCK: 'icon_lock',
     ICON_TRASH: 'icon_trash',
-    ICON_BOW: 'icon_bow', // New
-    ICON_BOW: 'icon_bow', // New
-    ICON_TOXIN: 'icon_toxin', // New Toxin Icon
-    BOW: 'BOW' // New Gem Texture
+    ICON_BOW: 'icon_bow',
+    ICON_TOXIN: 'icon_toxin'
 };
 
 export const ENTITIES = {
@@ -74,7 +77,6 @@ export const ENTITIES = {
 export const SKILLS = {
     FIREBALL: 'FIREBALL',
     HEAL: 'HEAL',
-    SHIELD_SLAM: 'SHIELD_SLAM',
     SHIELD_SLAM: 'SHIELD_SLAM',
     AIMED_SHOT: 'AIMED_SHOT',
     EXTRACTION: 'EXTRACTION',
@@ -155,7 +157,6 @@ export const GAME_SETTINGS = {
     GRID_ROWS: 8,
     GRID_COLS: 8,
     REFILL_MATCH_CHANCE: 0.5, // Chance (0.0 - 1.0) to allow a new gem to create an immediate match during refill
-    REFILL_MATCH_CHANCE: 0.5, // Chance (0.0 - 1.0) to allow a new gem to create an immediate match during refill
     VULNERABLE_MULTIPLIER: 1.25, // 25% extra damage taken
     GRID_SCALE: 1.65, // Scale for Grid and Tokens
     MAP_SCALE: 1.2    // Scale for Map nodes (separate from Grid)
@@ -178,10 +179,24 @@ export const STATUS_TYPES = {
     FOCUS: 'FOCUS',
     CRITICAL: 'CRITICAL',
     VULNERABLE: 'VULNERABLE', // New Debuff
-    STRENGTH: 'STRENGTH',
+    WEAKNESS: 'WEAKNESS', // Deals 25% less damage
     STRENGTH: 'STRENGTH',
     GREED_CURSE: 'GREED_CURSE',
-    TOXIN: 'TOXIN' // New
+    TOXIN: 'TOXIN', // New
+    INVULNERABLE: 'INVULNERABLE' // Blocks 1 hit completely
+};
+
+// New Match Mastery Constants
+export const MATCH_MASTERY = {
+    SWORD_BLEED: 'SWORD_BLEED',
+    SWORD_CRUSH: 'SWORD_CRUSH',
+    SHIELD_THORNS: 'SHIELD_THORNS',
+    SHIELD_WALL: 'SHIELD_WALL',
+    POTION_REGEN: 'POTION_REGEN',
+    POTION_PURIFY: 'POTION_PURIFY',
+    MANA_FOCUS: 'MANA_FOCUS',
+    COIN_CRIT: 'COIN_CRIT',
+    BOW_RUPTURE: 'BOW_RUPTURE'
 };
 
 export const POTION_DATA = {

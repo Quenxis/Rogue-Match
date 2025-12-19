@@ -53,7 +53,7 @@ export class Enemy extends Entity {
         const { type, value } = this.currentIntent;
 
         if (type === 'ATTACK') {
-            const dealt = target.takeDamage(value);
+            const dealt = target.takeDamage(value, this);
             console.log(`${this.name} attacked ${target.name} for ${dealt} damage!`);
         } else if (type === 'DEFEND') {
             this.addBlock(value);

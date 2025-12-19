@@ -908,13 +908,18 @@ export class CombatAnimations {
         }
 
         // 2. STAGE 1: Pop Up Mana Gems (Visual Focus)
-        // We need to visually create duplicates of the gems being devoured because the grid logic might clear them?
-        // Actually, we can use the grid overlays again or just particles.
-        // Let's create particle sprites at the target options.
+        // Optimization: Cap visual particles to prevent freeze on full board (64 gems)
+        const maxVisuals = 20;
+        let visualTargets = targets;
+
+        if (targets.length > maxVisuals) {
+            // Randomly select subset for "Swarm" look without performance hit
+            visualTargets = [...targets].sort(() => 0.5 - Math.random()).slice(0, maxVisuals);
+        }
 
         let processed = 0;
         let completedCount = 0;
-        const total = targets.length;
+        const total = visualTargets.length;
 
         if (total === 0) {
             if (data.onComplete) data.onComplete();
@@ -922,7 +927,7 @@ export class CombatAnimations {
             return;
         }
 
-        targets.forEach((t, i) => {
+        visualTargets.forEach((t, i) => {
             // Create "Ghost" Gem that lifts up
             const pos = getTargetPos(t.r, t.c); // t.item, t.r, t.c
 

@@ -2,10 +2,11 @@ import { EventBus } from '../core/EventBus.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { ITEM_TYPES } from '../logic/GridDetails.js';
-import { EVENTS, ENTITIES, ASSETS, SKILLS, SKILL_DATA, GAME_SETTINGS, MOVESET_TYPES, STATUS_TYPES, POTION_DATA } from '../core/Constants.js';
+import { EVENTS, ENTITIES, ASSETS, SKILLS, SKILL_DATA, GAME_SETTINGS, MOVESET_TYPES, STATUS_TYPES, POTION_DATA, MATCH_MASTERY } from '../core/Constants.js';
 import { runManager } from '../core/RunManager.js';
 import { ENEMIES } from '../data/enemies.js';
 import { logManager } from '../core/LogManager.js';
+import { masteryManager, TRIGGERS } from '../logic/MasteryManager.js';
 import { settingsManager } from '../core/SettingsManager.js';
 
 
@@ -338,13 +339,11 @@ export class CombatManager {
         if (skillName === SKILLS.FIREBALL) {
             const data = SKILL_DATA.FIREBALL;
             useSkill(data.cost, () => {
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'FIREBALL' });
-                e.takeDamage(data.damage);
+                e.takeDamage(data.damage, p, { type: 'SKILL', skill: 'FIREBALL' });
             });
         } else if (skillName === SKILLS.HEAL) {
             const data = SKILL_DATA.HEAL;
             useSkill(data.cost, () => {
-                EventBus.emit(EVENTS.PLAYER_HEAL, { value: data.heal, type: 'SKILL' });
                 p.heal(data.heal);
             });
         } else if (skillName === SKILLS.SHIELD_SLAM) {
@@ -361,8 +360,7 @@ export class CombatManager {
                 p.addBlock(-shieldCost);
 
                 // Effect
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'SHIELD_SLAM' });
-                e.takeDamage(data.damage);
+                e.takeDamage(data.damage, p, { type: 'SKILL', skill: 'SHIELD_SLAM' });
 
                 // Consume Focus if used
                 if (focus > 0) {
@@ -392,9 +390,8 @@ export class CombatManager {
                 p.mana -= finalCost;
 
                 // Deal Damage FIRST
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: data.damage, type: 'SKILL', skill: 'AIMED_SHOT' });
                 // Assuming takeDamage supports options object as 3rd arg based on previous context
-                e.takeDamage(data.damage, p, { isPiercing: true });
+                e.takeDamage(data.damage, p, { isPiercing: true, type: 'SKILL', skill: 'AIMED_SHOT' });
 
                 // Effect: Vulnerable AFTER damage
                 if (data.vulnerable > 0) {
@@ -438,12 +435,12 @@ export class CombatManager {
                     // 3. Deal Damage
                     const dmg = stacks * data.damagePerStack;
                     // Skip standard Lunge animation because we have a custom visuals
-                    EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: 'SKILL', skill: 'EXTRACTION', skipAnimation: true });
-                    e.takeDamage(dmg, p);
+                    // EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: 'SKILL', skill: 'EXTRACTION', skipAnimation: true });
+                    e.takeDamage(dmg, p, { type: 'SKILL', skill: 'EXTRACTION', skipAnimation: true });
 
                     // 4. Heal
                     const heal = Math.floor(dmg * data.healRatio);
-                    EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal, type: 'SKILL', skipAnimation: true });
+                    // EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal, type: 'SKILL', skipAnimation: true });
                     p.heal(heal);
 
                     logManager.log(`Extraction: Consumed ${stacks} Toxin. Dealt ${dmg} DMG, Healed ${heal} HP.`, 'info');
@@ -607,6 +604,19 @@ export class CombatManager {
         const e = this.enemy;
         const sm = p.statusManager;
 
+        // Context for Traits
+        const context = {
+            player: p,
+            enemy: e,
+            combatManager: this,
+            matchSize: size,
+            hasCorruptedFlask: runManager.hasRelic('corrupted_flask')
+        };
+        const traits = runManager.traits || [];
+
+        // 0. Trigger Passive/Global trait modifiers (Optional, usually stats are pre-calced)
+        // We might want `triggerTraits(TRIGGERS.ON_MATCH, type)` here if we had that trigger.
+
         // Tier Logic
         // Tier 1: Size 3
         // Tier 2: Size 4
@@ -617,7 +627,17 @@ export class CombatManager {
                 // Base Dmg
                 if (this.turnState) this.turnState.damageDealt = true;
 
+                // Execute Traits: Passive Dmg Mod?
+                // For now, hardcoded base formula + traits
                 let dmg = size * (2 + p.strength + sm.getStack(STATUS_TYPES.STRENGTH));
+
+                // UNCOMMON TRAIT: Sharpening Stone (+1 Base) logic finding? 
+                // Getting passive stats from traits is inefficient to do every match.
+                // Should be cached in Player stats. But for now, let's iterate.
+                const passiveSwordTraits = masteryManager.triggerTraits(TRIGGERS.PASSIVE, type, traits, context);
+                passiveSwordTraits.forEach(res => {
+                    if (res.damageMod) dmg += res.damageMod;
+                });
 
                 // Consume Strength (One-Use)
                 sm.consumeStacks(STATUS_TYPES.STRENGTH);
@@ -634,32 +654,66 @@ export class CombatManager {
                     sm.consumeStacks(STATUS_TYPES.CRITICAL);
                 }
 
-                if (size >= 5) dmg = Math.floor(dmg * 1.5); // Tier 3 Dmg Boost
+                // Match 4+ Traits
+                if (size >= 4) {
+                    const res = masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
+                    res.forEach(r => {
+                        if (r.damageMult) dmg = Math.floor(dmg * r.damageMult);
+                    });
+                }
+                // Match 5+ Traits
+                if (size >= 5) {
+                    // Also trigger Match 4 traits for size 5? NO, design usually separates tiers.
+                    // But if I want "Serrated Edge" (Match 4) to trigger on Match 5, I explicitly need to say so or allow fallback.
+                    // New Design: Traits have specific triggers. Match-5 doesn't auto-trigger Match-4 traits unless specified.
+                    // BUT, typically a match 5 IS a match 4 mathematically?
+                    // Let's stick to EXACT trigger for now OR allow >= logic.
+                    // Design says: "Common/Rare Match-4". "Epic Match-5".
+                    // If I have Serrated Edge (Match-4), does a Match-5 trigger it?
+                    // User expectation: Yes, better match should include lower tier bonuses usually.
+                    // Let's Trigger Match-4 traits on size >= 4.
 
-                // Apply Bleed (Tier 2+) + Relic Logic
-                let bleedAmount = 0;
-                if (size === 4) bleedAmount = 2;
-                if (size >= 5) bleedAmount = 4;
+                    if (size >= 5) {
 
+
+                        const res = masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
+                        res.forEach(r => {
+                            if (r.damageMult) dmg = Math.floor(dmg * r.damageMult);
+                        });
+                    }
+                }
+
+                // Relic: Blood Tipped Edge (Kept for legacy compat, or move to Trait?)
                 if (runManager.hasRelic('blood_tipped_edge')) {
-                    bleedAmount += 1;
+                    e.statusManager.applyStack(STATUS_TYPES.BLEED, 1);
                 }
 
-                if (bleedAmount > 0) {
-                    e.statusManager.applyStack(STATUS_TYPES.BLEED, bleedAmount);
-                }
-
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: isCrit ? 'CRIT' : 'NORMAL' });
                 e.takeDamage(dmg, p);
                 break;
 
             case ITEM_TYPES.SHIELD:
                 let block = size * 2;
-                if (size >= 5) block = Math.floor(block * 1.5); // Boosted Block
 
-                // Thorns (Tier 2+)
-                if (size === 4) sm.applyStack(STATUS_TYPES.THORNS, 3);
-                if (size >= 5) sm.applyStack(STATUS_TYPES.THORNS, 6);
+                // Passives
+                const passiveShieldTraits = masteryManager.triggerTraits(TRIGGERS.PASSIVE, type, traits, context);
+                passiveShieldTraits.forEach(res => {
+                    if (res.blockMod) block += res.blockMod;
+                });
+
+                if (size >= 4) {
+                    const res = masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
+                    res.forEach(r => {
+                        if (r.blockMult) block = Math.floor(block * r.blockMult);
+                    });
+                }
+
+                if (size >= 5) {
+                    // Trigger Match 4 effects on 5?
+                    // Generally yes.
+
+
+                    masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
+                }
 
                 // Cracked Shield Relic
                 if (runManager.hasRelic('cracked_shield') && !this.hasDefended) {
@@ -668,95 +722,103 @@ export class CombatManager {
                     logManager.log('Cracked Shield: +50% Block!', 'relic');
                 }
 
-                EventBus.emit(EVENTS.PLAYER_DEFEND, { value: block });
                 p.addBlock(block);
                 break;
 
             case ITEM_TYPES.POTION:
-                const hasRelic = runManager.hasRelic('corrupted_flask');
-
-
-                if (hasRelic) {
-                    // CORRUPTED FLASK LOGIC
-                    // Disable Healing/Cleanse/Regen from match. Apply TOXIN instead.
+                if (context.hasCorruptedFlask) {
+                    // CORRUPTED FLASK LOGIC (Base Toxin)
                     let toxinStacks = 0;
                     if (size === 3) toxinStacks = 3;
-                    if (size === 4) toxinStacks = 5;
-                    if (size >= 5) toxinStacks = 8;
+                    if (size >= 4) toxinStacks = 5; // Simplified base scaling
+                    // Note: Traits might add more toxin via "Regen -> Toxin" conversion in MasteryManager logic.
 
                     // Healing Herb Synergy
                     if (runManager.hasRelic('healing_herb') && size >= 3) {
-                        const herbDmg = 2;
-                        logManager.log('Healing Herb deals 2 Extra Damage!', 'relic');
-                        e.takeDamage(herbDmg, p);
-                        EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: herbDmg, type: 'RELIC' });
+                        // Herb Dmg
+                        e.takeDamage(2, p);
+                    }
+
+                    // Trigger Traits (They will see hasCorruptedFlask = true)
+                    // Passives
+                    const passivePotionTraits = masteryManager.triggerTraits(TRIGGERS.PASSIVE, type, traits, context);
+                    // e.g. Larger Flasks (+2 HP -> ??? Maybe +2 Toxin?) - Implemented in MasteryManager to handle context?
+                    // Currently 'execute' returns { healMod: 2 }.
+                    let extraToxin = 0;
+                    passivePotionTraits.forEach(res => {
+                        if (res.healMod) extraToxin += res.healMod; // Convert Heal Mod to Toxin
+                    });
+                    toxinStacks += extraToxin;
+
+                    if (size >= 4) masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
+                    if (size >= 5) {
+
+                        masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
                     }
 
                     e.statusManager.applyStack(STATUS_TYPES.TOXIN, toxinStacks);
                     logManager.log(`Corrupted Flask: Applied ${toxinStacks} Toxin!`, 'relic');
 
-                    // 1. Player does Attack Animation (Visual Only - Damage is 0 or ignored for anim)
                     EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: 0, type: 'VISUAL_ONLY' });
-
-                    // 2. Enemy gets Toxic Bubble Effect
                     EventBus.emit(EVENTS.TOXIN_APPLIED);
-
-                    // No events emitted for Heal, but we MUST update UI to show stacks
                     this.emitState();
-                    // Immediate Explosion Check
                     this.checkToxinOverdose();
                 } else {
                     // STANDARD LOGIC
                     let heal = size * 1;
 
+                    // Passives
+                    const passivePotionTraits = masteryManager.triggerTraits(TRIGGERS.PASSIVE, type, traits, context);
+                    passivePotionTraits.forEach(res => {
+                        if (res.healMod) heal += res.healMod;
+                    });
+
                     // Healing Herb Relic
                     if (runManager.hasRelic('healing_herb') && size >= 3) {
-                        // Check for Corrupted Flask (Plague Doctor Synergy)
-                        if (runManager.hasRelic('corrupted_flask')) {
-                            // "Potion" deals damage/toxin instead of healing.
-                            // Boost this effect! +2 DMG per comments.
-                            // But wait, the damage comes from the relic logic above?
-                            // No, corrupted flask logic is in the 'if (hasRelic)' block ABOVE this else.
-                            // This block is only reached if !hasRelic('corrupted_flask').
-                            // Wait, I need to check where Corrupted Flask logic is.
-                            // It is in lines 671-692.
-                            // Standard logic is in else block (692+).
-                            // So Healing Herb here ONLY affects Standard Potions.
-                            // To support Corrupted Flask, I must edit the Corrupted Flask block too!
-                        } else {
-                            heal += 2;
-                        }
+                        heal += 2;
                     }
 
-                    // Regen (Tier 2+)
-                    if (size === 4) sm.applyStack(STATUS_TYPES.REGEN, 3);
-
-                    // Big Heal + 4 Regen + Cleanse (Tier 3)
+                    if (size >= 4) masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
                     if (size >= 5) {
-                        heal += 5;
-                        sm.applyStack(STATUS_TYPES.REGEN, 4);
-                        sm.cleanse(10);
+
+                        masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
+                        // Base Match 5 Bonus (if any left? We moved +5 heal to... nowhere? 
+                        // Spec design said: "Standard bonuses remove". 
+                        // So only traits apply. Base is just size*1.
                     }
 
-                    EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal });
                     p.heal(heal);
                 }
                 break;
 
             case ITEM_TYPES.MANA:
-                p.addMana(size);
-                // Focus: 4->1, 5+->2
-                if (size === 4) sm.applyStack(STATUS_TYPES.FOCUS, 1);
-                if (size >= 5) sm.applyStack(STATUS_TYPES.FOCUS, 2);
+                let mana = size;
+                // Passives
+                const passiveManaTraits = masteryManager.triggerTraits(TRIGGERS.PASSIVE, type, traits, context);
+                passiveManaTraits.forEach(res => {
+                    if (res.manaMod) mana += res.manaMod;
+                });
+                p.addMana(mana);
+
+                if (size >= 4) masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
+                if (size >= 5) {
+
+                    masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
+                }
                 break;
 
             case ITEM_TYPES.COIN:
                 let goldAmount = size;
 
+                // Passives
+                const passiveCoinTraits = masteryManager.triggerTraits(TRIGGERS.PASSIVE, type, traits, context);
+                passiveCoinTraits.forEach(res => {
+                    if (res.goldMod) goldAmount += res.goldMod;
+                });
+
                 // Greed Pact: 3x Gold
                 if (runManager.hasRelic('greed_pact')) {
                     goldAmount *= 3;
-                    // Visual feedback handled by log or floating text usually
                 }
 
                 p.addGold(goldAmount);
@@ -765,9 +827,11 @@ export class CombatManager {
                 // Track for Turn End Punishment
                 if (this.turnState) this.turnState.goldCollected = true;
 
-                // Critical: 4->1, 5+->2
-                if (size === 4) sm.applyStack(STATUS_TYPES.CRITICAL, 1);
-                if (size >= 5) sm.applyStack(STATUS_TYPES.CRITICAL, 2);
+                if (size >= 4) masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
+                if (size >= 5) {
+
+                    masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
+                }
                 break;
 
             case ITEM_TYPES.BOW:
@@ -779,23 +843,26 @@ export class CombatManager {
                     pierceDmg += 1;
                 }
 
-                if (size === 4) {
-                    pierceDmg = 4;
-                    if (runManager.hasRelic('splintered_arrowhead')) pierceDmg += 1;
-                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 1);
+                // TODO: Add Bow Traits to Match Mastery Logic (placeholder for now)
+
+                if (size >= 4) {
+                    pierceDmg += 1; // Base scaling
+                    masteryManager.triggerTraits(TRIGGERS.MATCH_4, type, traits, context);
                 }
                 if (size >= 5) {
-                    pierceDmg = 5;
-                    if (runManager.hasRelic('splintered_arrowhead')) pierceDmg += 1;
-                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, 2);
+                    pierceDmg += 1; // Base scaling
+
+                    masteryManager.triggerTraits(TRIGGERS.MATCH_5, type, traits, context);
                 }
 
                 logManager.log(`Piercing Shot!`, 'damage');
-                EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: pierceDmg, type: 'PIERCE' });
+                // Pass isPiercing option
                 // Pass isPiercing option
                 e.takeDamage(pierceDmg, p, { isPiercing: true });
                 break;
         }
+
+        this.emitState(); // Refresh UI after match resolution (traits/statuses)
     }
 
     endTurn() {
@@ -834,32 +901,36 @@ export class CombatManager {
 
             const intent = this.enemy.currentIntent;
 
-            // Emit Attack Event BEFORE damage is applied
+            // DEPRECATED MANUAL EMISSIONS:
+            // ENEMY_DEFEND -> Handled by Enemy.addBlock -> ENTITY_DEFENDED
+            // ENEMY_ATTACK -> Handled by Player.takeDamage -> ENTITY_DAMAGED
+            // ENEMY_HEAL -> Handled by Enemy.heal -> ENTITY_HEALED
 
-            if (intent && intent.type === 'ATTACK') {
-                EventBus.emit(EVENTS.ENEMY_ATTACK, {
-                    damage: intent.value,
-                    intent: intent
-                });
-            }
+            // Buffs might be special if they don't call heal/block? 
+            // e.g. Strength Up. Enemy.addStatus calls? No generic event for status add yet.
+            // But intent 'BUFF' usually does something.
 
-            if (intent && intent.type === 'DEFEND') {
-                EventBus.emit(EVENTS.ENEMY_DEFEND, { value: intent.value });
-            } else if (intent && intent.type === 'BUFF') {
-                // Placeholder Animation: Use HEAL animation for Buffs (e.g. Roar)
-                EventBus.emit(EVENTS.ENEMY_HEAL, { value: intent.value });
-
-            } else if (intent && intent.type === 'DEBUFF') {
-                if (intent.effect === 'LOCK' || intent.effect === 'TRASH') {
-                    // Handled in executeEnemyIntent to include target data
+            if (intent && intent.type === 'BUFF') {
+                if (intent.effect === 'HEAL') {
+                    // Handled by heal() called in execute
                 } else {
-                    // Fallback for unknown debuffs
-                    EventBus.emit(EVENTS.ENEMY_ATTACK, {
-                        damage: 0,
-                        intent: intent
-                    });
+                    // Strength etc. - View might want to know? 
+                    // For now, let's keep specific event or rely on status update UI?
+                    // View listens to UI_UPDATE.
+                    // But we want "Animation" for Buff.
+                    // Let's leave BUFF manual emission if it's NOT just heal.
                 }
             }
+
+            // NOTE: ENEMY_ATTACK is NOT emitted here anymore. 
+            // It is handled GENERICALLY by Entity.takeDamage() -> EVENTS.ENTITY_DAMAGED inside executeEnemyIntent()
+            // except for DEBUFFS which might need special handling if they don't deal damage?
+            // If DEBUFF deals 0 damage, Entity.takeDamage emits ENTITY_DAMAGED with 0 value.
+            // But we might want specific animations for Debuffs.
+            // Current Logic: DEBUFF triggers special effects via intent.effect check in CombatView (which listens to what?)
+            // CombatView listens to specific events like ENEMY_LOCK.
+            // If it's a generic debuff (weakness etc), we might miss it if we don't emit something?
+            // But the double animation issue was specifically for ATTACK.
 
             this.executeEnemyIntent();
 
@@ -1240,19 +1311,11 @@ export class CombatManager {
             logManager.log('VICTORY! Enemy defeated!', 'turn');
             EventBus.emit(EVENTS.VICTORY, { combat: this });
 
-            const finalGold = this.player.gold + this.goldReward;
-            // console.log(`[Victory] Local Gold: ${this.player.gold}, Reward: ${this.goldReward}, Final: ${finalGold}`);
+            // RewardScene handles Gold Reward application now!
+            const currentGold = this.player.gold;
 
             // SYNCHRONIZE LOCAL STATE
-            // Critical Fix: Update local player gold so future saves/syncs use correct value
-            this.player.gold = finalGold;
-
-            // console.log(`[Victory] RunManager Before: ${runManager.player.gold}`);
-
-            runManager.updatePlayerState(this.player.currentHP, finalGold);
-            // runManager.completeLevel(); // MOVED TO BattleScene.js to handle Rewards properly!
-
-            // console.log(`[Victory] RunManager After: ${runManager.player.gold}`);
+            runManager.updatePlayerState(this.player.currentHP, currentGold);
 
             // Navigation is handled by BattleScene (handleVictory) via EVENTS.VICTORY
             return;
