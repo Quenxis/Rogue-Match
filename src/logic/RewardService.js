@@ -75,11 +75,13 @@ export class RewardService {
         // Logic: specific rarity, NOT owned already, NOT in exclude list.
 
         const allTraits = Array.from(masteryManager.traits.values());
-        const owned = runManager.traits || [];
+
+        // Use the Set of unlocked masteries
+        const ownedSet = runManager.matchMasteries; // Set<string>
 
         const candidates = allTraits.filter(t =>
             rarityAllowed.includes(t.rarity) &&
-            !owned.includes(t.id) &&
+            !ownedSet.has(t.id) &&
             !excludeIds.includes(t.id)
         );
 

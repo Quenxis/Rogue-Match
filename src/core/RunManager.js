@@ -72,11 +72,8 @@ export class RunManager {
 
         // Initialize Match Masteries (Empty by default, gained via gameplay)
         this.matchMasteries = new Set();
-        // New Trait System
-        this.traits = [];
 
-        // DEBUG: Add some starting traits for testing
-        // this.traits.push('sword_rare_serrated_edge');
+
 
         this.generateMap();
     }
