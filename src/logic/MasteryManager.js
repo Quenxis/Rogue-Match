@@ -172,14 +172,7 @@ export class MasteryManager {
             trigger: TRIGGERS.MATCH_4,
             description: 'Match-4 [icon:icon_potion]grants 3 Regen.',
             execute: (context) => {
-                // PD Synergy check would happen in CombatManager or here? 
-                // Context should have "hasCorruptedFlask".
-                if (context.hasCorruptedFlask) {
-                    if (context.enemy) context.enemy.statusManager.applyStack(STATUS_TYPES.TOXIN, 3);
-                    logManager.log('Regen (Corrupted): 3 Toxin applied.', 'relic');
-                } else {
-                    if (context.player) context.player.statusManager.applyStack(STATUS_TYPES.REGEN, 3);
-                }
+                if (context.player) context.player.statusManager.applyStack(STATUS_TYPES.REGEN, 3);
             }
         });
         this.registerTrait({
@@ -190,12 +183,7 @@ export class MasteryManager {
             trigger: TRIGGERS.MATCH_4,
             description: 'Match-4 [icon:icon_potion] cleanses 1 Debuff.',
             execute: (context) => {
-                if (context.hasCorruptedFlask) {
-                    // PD Synergy: Maybe applying more toxins or damage?
-                    // Let's clear enemy buffs? Or no synergy.
-                } else {
-                    if (context.player) context.player.statusManager.cleanse(1);
-                }
+                if (context.player) context.player.statusManager.cleanse(1);
             }
         });
         this.registerTrait({
