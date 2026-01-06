@@ -13,11 +13,12 @@ import { EventScene } from '../scenes/EventScene.js';
 import { TreasureScene } from '../scenes/TreasureScene.js';
 import { logManager } from './LogManager.js';
 import { initDebugTools } from './DebugTools.js';
+import { DebugView } from '../view/DebugView.js';
 
 import { HeroSelectScene } from '../scenes/HeroSelectScene.js';
 import { RestScene } from '../scenes/RestScene.js';
 
-export const APP_VERSION = '0.3.56';
+export const APP_VERSION = '0.3.57';
 
 const config = {
     type: Phaser.AUTO,
@@ -45,4 +46,5 @@ export function startGame() {
     initDebugTools();
     const game = new Phaser.Game(config); // Keep local const
     window.game = game; // Expose global
+    window.debugView = new DebugView();
 }

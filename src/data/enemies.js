@@ -126,4 +126,57 @@ export const ENEMIES = {
             vulnerableStacks: 3 // Vulnerable derived from failure
         }
     },
+    // --- ACT 2 ENEMIES ---
+    'spider': {
+        name: 'Giant Spider',
+        texture: 'tex_rat', // Placeholder
+        scale: 1.1,
+        hp: 55,
+        maxHP: 55,
+        goldReward: 18,
+        moveset: [
+            Actions.Attack(8, 0.5),
+            Actions.DebuffLock(2, 0.5, 'Web Shot')
+        ]
+    },
+    'wolf': {
+        name: 'Dire Wolf',
+        texture: 'tex_orc', // Placeholder
+        scale: 1.2,
+        hp: 75,
+        maxHP: 75,
+        goldReward: 22,
+        moveset: [
+            Actions.Attack(14, 0.6),
+            Actions.BuffStrength(2, 0.4)
+        ]
+    },
+    'ent': {
+        name: 'Rotten Ent',
+        texture: 'tex_slime', // Placeholder (Greenish)
+        scale: 1.4,
+        hp: 110,
+        maxHP: 110,
+        goldReward: 28,
+        moveset: [
+            Actions.Attack(10, 0.4),
+            Actions.Defend(15, 0.4),
+            Actions.DebuffTrash(2, 0.2, 'Root Rot')
+        ]
+    },
+    'corrupted_treant': {
+        name: 'Corrupted Treant',
+        texture: 'tex_dragon', // Placeholder (Big)
+        hp: 300,
+        maxHP: 300,
+        scale: 1.5,
+        goldReward: 150,
+        isBoss: true,
+        moveset: [
+            Actions.Attack(20, 1.0), // Turn 1
+            Actions.DebuffLock(5, 1.0, 'Tangling Roots'), // Turn 2
+            Actions.BuffStrength(4, 1.0), // Turn 3
+            Actions.Earthquake(15, 1.0) // Turn 4
+        ]
+    }
 };

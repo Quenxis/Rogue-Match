@@ -17,6 +17,7 @@ export const EVENTS = {
     TOXIN_APPLIED: 'combat:toxin_applied',
     OUTBREAK_CAST: 'combat:outbreak_cast',
     EXTRACTION_CAST: 'combat:extraction_cast',
+    MIDAS_TOUCH_CAST: 'combat:midas_touch_cast',
     TURN_START: 'combat:turn_start',
     TURN_END: 'combat:turn_end',
     VICTORY: 'combat:victory',

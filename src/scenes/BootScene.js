@@ -47,6 +47,8 @@ export class BootScene extends Phaser.Scene {
 
         // Backgrounds
         this.load.image('map_bg', 'assets/backgrounds/map_bg.png');
+        this.load.image('bg_dungeon', 'assets/backgrounds/background.jpg');
+        this.load.image('bg_dungeon2', 'assets/backgrounds/background2.png');
 
         // Audio
         this.load.audio('bgm_main', 'assets/audio/bgm_main.mp3');

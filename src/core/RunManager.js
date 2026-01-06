@@ -2,6 +2,7 @@ import { RELICS } from '../data/relics.js';
 import { ACTS } from '../data/acts.js';
 import { HEROES } from '../data/heroes.js';
 import { EventBus } from './EventBus.js';
+import { EVENTS } from './Constants.js';
 
 export class RunManager {
     constructor() {
@@ -34,6 +35,10 @@ export class RunManager {
 
         // Initialize Masteries immediately to prevent Debug view crashes
         this.matchMasteries = new Set();
+    }
+
+    get currentAct() {
+        return ACTS[this.currentActIndex];
     }
 
     resetRun() {
@@ -550,8 +555,7 @@ export class RunManager {
                     }
                 }
 
-                // Assign Enemy if Combat
-                if (node.type === 'BATTLE' || node.type === 'ELITE') {
+                if (node.type === 'BATTLE' || node.type === 'ELITE' || node.type === 'BOSS') {
                     this._assignEnemyToNode(node, t, act);
                 }
             });
@@ -559,6 +563,14 @@ export class RunManager {
     }
 
     _assignEnemyToNode(node, tier, act) {
+        if (node.type === 'BOSS') {
+            // Boss is assigned in loop, but if we need to re-verify/fallback
+            const bosses = act.bosses || ['crystal_burrower'];
+            // Keep existing if invalid?
+            node.enemyId = bosses[Math.floor(Math.random() * bosses.length)];
+            return;
+        }
+
         if (node.type === 'ELITE') {
             const elites = act.elites || ['dragon'];
             node.enemyId = elites[Math.floor(Math.random() * elites.length)];
@@ -701,8 +713,7 @@ export class RunManager {
 
     completeLevel() {
         if (!this.currentNode) {
-            console.warn('Completed level but currentNode is null');
-            this.currentTier++;
+            console.warn('[RunManager] completeLevel called but currentNode is null. Ignoring.');
             return;
         }
 
@@ -721,7 +732,44 @@ export class RunManager {
             connectedIndices.forEach(index => {
                 if (nextTierNodes[index]) nextTierNodes[index].status = 'AVAILABLE';
             });
+        } else {
+            console.log(`[RunManager] No next tier found. Checking Boss condition. CurrentNode Type: ${this.currentNode ? this.currentNode.type : 'null'}`);
+            // No next tier? Check if Boss
+            if (this.currentNode && this.currentNode.type === 'BOSS') {
+                this.handleActCompletion();
+            } else {
+                console.warn('[RunManager] Level completed at end of map, but not a BOSS node!', this.currentNode);
+            }
         }
+    }
+
+    handleActCompletion() {
+        console.log(`[RunManager] Act ${this.currentActIndex + 1} Completed!`);
+
+        if (this.currentActIndex < ACTS.length - 1) {
+            this.startNextAct();
+        } else {
+            console.log('[RunManager] GAME VICTORY!');
+            // Trigger Victory Scene/Screen?
+            // For now, maybe loop or just stop. 
+            // Ideally notify Game.js or EventBus.
+            EventBus.emit(EVENTS.VICTORY_GAME); // Needs to be handled by Scene to show credits
+        }
+    }
+
+    startNextAct() {
+        this.currentActIndex++;
+        this.currentTier = 0;
+        this.currentNode = null;
+        this.map = [];
+
+        console.log(`[RunManager] Starting Act ${this.currentActIndex + 1}: ${ACTS[this.currentActIndex].name}`);
+
+        this.generateMap();
+
+        // Needs to communicate to UI/Scene that new map is ready?
+        // MapScene usually checks runManager map on create/update.
+        // If we are in RewardScene, the next scene.start('MapScene') will pick up the new map.
     }
 
     updatePlayerState(hp, gold) {

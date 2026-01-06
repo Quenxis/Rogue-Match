@@ -280,8 +280,21 @@ export class MasteryManager {
             description: 'Match-4 [icon:icon_coin] turns a random gem into [icon:icon_coin].',
             execute: (context) => {
                 if (window.grid) {
-                    const targets = window.grid.transmuteRandomGems(1, GEM_TYPES.COIN);
-                    if (targets.length > 0) logManager.log('Midas Touch: Gem turned to Gold!', 'gold');
+                    window.grid.transmuteRandomGems(1, GEM_TYPES.COIN, {
+                        preModificationCallback: async (targets) => {
+                            await new Promise(resolve => {
+                                EventBus.emit(EVENTS.MIDAS_TOUCH_CAST, {
+                                    sourceTiles: context.matchTiles || [],
+                                    targets,
+                                    onComplete: resolve
+                                });
+                            });
+                        }
+                    }).then(targets => {
+                        if (targets && targets.length > 0) {
+                            logManager.log('Midas Touch: Gem turned to Gold!', 'gold');
+                        }
+                    });
                 }
             }
         });

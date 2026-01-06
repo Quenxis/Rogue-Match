@@ -907,119 +907,144 @@ export class CombatAnimations {
             return;
         }
 
-        // 2. STAGE 1: Pop Up Mana Gems (Visual Focus)
-        // Optimization: Cap visual particles to prevent freeze on full board (64 gems)
-        const maxVisuals = 20;
+        // 2. STAGE 1: Setup visual ghosts
+        const maxVisuals = 30; // Increased limit slightly for better feel, batching handles it
         let visualTargets = targets;
 
         if (targets.length > maxVisuals) {
-            // Randomly select subset for "Swarm" look without performance hit
             visualTargets = [...targets].sort(() => 0.5 - Math.random()).slice(0, maxVisuals);
         }
 
-        let processed = 0;
-        let completedCount = 0;
         const total = visualTargets.length;
-
         if (total === 0) {
             if (data.onComplete) data.onComplete();
             if (onComplete) onComplete();
             return;
         }
 
-        visualTargets.forEach((t, i) => {
-            // Create "Ghost" Gem that lifts up
-            const pos = getTargetPos(t.r, t.c); // t.item, t.r, t.c
+        const ghosts = [];
+        const useManaAsset = this.scene.textures.exists(ASSETS.MANA);
+        const gemSize = 50 * GAME_SETTINGS.GRID_SCALE;
 
+        // Create all ghosts first (Batch creation)
+        visualTargets.forEach((t) => {
+            const pos = getTargetPos(t.r, t.c);
             let ghost;
-            if (this.scene.textures.exists(ASSETS.MANA)) {
-                const size = 50 * GAME_SETTINGS.GRID_SCALE;
-                ghost = this.scene.add.image(pos.x, pos.y, ASSETS.MANA).setDisplaySize(size, size);
+            if (useManaAsset) {
+                ghost = this.scene.add.image(pos.x, pos.y, ASSETS.MANA).setDisplaySize(gemSize, gemSize);
             } else {
-                ghost = this.scene.add.text(pos.x, pos.y, '💎', { fontSize: '32px' }).setOrigin(0.5);
+                // FALLBACK: Use Graphics instead of Text (High Performance)
+                ghost = this.scene.add.graphics();
+                ghost.fillStyle(0x00ffff, 1);
+                // Draw a diamond shape roughly centered
+                ghost.beginPath();
+                ghost.moveTo(0, -15);
+                ghost.lineTo(15, 0);
+                ghost.lineTo(0, 15);
+                ghost.lineTo(-15, 0);
+                ghost.closePath();
+                ghost.fillPath();
+                ghost.x = pos.x;
+                ghost.y = pos.y;
             }
-            ghost.setDepth(600);
-            ghost.setAlpha(1); // Start fully opaque
+            ghost.setDepth(600).setAlpha(1).setScale(1);
+            ghosts.push(ghost);
+        });
 
-            // Animate: Pulse (Pop Up) - No floating
-            this.scene.tweens.add({
-                targets: ghost,
-                scale: 0.8,
-                duration: 400,
-                ease: 'Back.out',
-                delay: i * 30,
-                onComplete: () => {
-                    // STAGE 2: If this was the last one, signal LOGIC to clear grid
-                    processed++;
-                    if (processed === total) {
-                        if (data.onComplete) data.onComplete(); // Logic clears grid now
-                    }
-
-                    // Fly to Boss
-                    this.scene.tweens.add({
-                        targets: ghost,
-                        x: bossX,
-                        y: bossY,
-                        scale: 0.2, // Shrink
-                        alpha: 1, // Keep opaque while flying
-                        duration: 600,
-                        ease: 'Quad.In',
-                        delay: 50,
-                        onComplete: () => {
-                            // Completed counting for final effect
-                            completedCount++; // Using a local var for flight completion
-
-                            if (completedCount === total) {
-                                // Final Absorb Effect on Boss & Outcome
-                                const count = data.manaCount || 0;
-                                const threshold = (data.config && data.config.threshold) || 6;
-
-                                if (source) {
-                                    if (count > threshold) {
-                                        // HIGH MANA: Power Up (Purple)
-                                        this.scene.tweens.add({
-                                            targets: source,
-                                            scaleX: source.scaleX * 1.15,
-                                            scaleY: source.scaleY * 1.15,
-                                            duration: 300,
-                                            yoyo: true,
-                                            ease: 'Sine.InOut',
-                                            onStart: () => source.setTint(0xaa44ff),
-                                            onComplete: () => {
-                                                source.clearTint();
-                                                if (onComplete) onComplete();
-                                            }
-                                        });
-
-                                        this.showFloatingText(bossX, bossY - 80, "STRENGTH", 0xaa44ff);
-                                    } else {
-                                        // LOW MANA: Weakened (Gray)
-                                        this.scene.tweens.add({
-                                            targets: source,
-                                            x: '+=6',
-                                            duration: 50,
-                                            yoyo: true,
-                                            repeat: 5,
-                                            onStart: () => source.setTint(0x888888),
-                                            onComplete: () => {
-                                                source.clearTint();
-                                                if (onComplete) onComplete();
-                                            }
-                                        });
-
-                                        this.showFloatingText(bossX, bossY - 80, "VULNERABLE", 0xff4444);
-                                    }
-                                } else {
-                                    // Fallback if no source sprite
-                                    if (onComplete) onComplete();
-                                }
-                            }
-                            // DESTROY SPRITE ALWAYS
-                            ghost.destroy();
+        // STAGE 2: Batched Animations
+        // Phase 1: All Pulse (Pop Up)
+        this.scene.tweens.add({
+            targets: ghosts,
+            scale: 1.2,
+            duration: 300,
+            ease: 'Back.out',
+            delay: (target, key, value, index) => index * 20,
+            onComplete: () => {
+                // Phase 2: All Fly to Boss (Staggered)
+                this.scene.tweens.add({
+                    targets: ghosts,
+                    x: bossX,
+                    y: bossY,
+                    scale: 0.2,
+                    alpha: 0.5,
+                    duration: 600,
+                    ease: 'Quad.In',
+                    delay: (target, key, value, index) => index * 25,
+                    onStart: () => {
+                        // OPTIMIZATION: Trigger Logic slightly AFTER flight starts
+                        // This prevents the "Grid Refill" calculation (Heavy) from hitting 
+                        // exactly when we spawn the flight tweens (Heavy).
+                        if (data.onComplete) {
+                            this.scene.time.delayedCall(100, () => {
+                                data.onComplete();
+                            });
                         }
-                    });
-                }
-            });
+                    },
+                    onComplete: (tween, targets) => {
+                        // All flights finished
+                        targets.forEach(g => g.destroy());
+
+                        // Impact Effect on Boss
+                        if (source) {
+                            this.createManaImpact(bossX, bossY);
+
+                            const count = data.manaCount || 0;
+                            const threshold = (data.config && data.config.threshold) || 6;
+
+                            if (count > threshold) {
+                                // HIGH MANA: Power Up
+                                this.scene.tweens.add({
+                                    targets: source,
+                                    scaleX: source.scaleX * 1.15,
+                                    scaleY: source.scaleY * 1.15,
+                                    duration: 300,
+                                    yoyo: true,
+                                    ease: 'Sine.InOut',
+                                    onStart: () => source.setTint(0xaa44ff),
+                                    onComplete: () => {
+                                        source.clearTint();
+                                        if (onComplete) onComplete();
+                                    }
+                                });
+                                this.showFloatingText(bossX, bossY - 80, "STRENGTH", 0xaa44ff);
+                            } else {
+                                // LOW MANA: Weakened
+                                this.scene.tweens.add({
+                                    targets: source,
+                                    x: '+=6',
+                                    duration: 50,
+                                    yoyo: true,
+                                    repeat: 5,
+                                    onStart: () => source.setTint(0x888888),
+                                    onComplete: () => {
+                                        source.clearTint();
+                                        if (onComplete) onComplete();
+                                    }
+                                });
+                                this.showFloatingText(bossX, bossY - 80, "VULNERABLE", 0xff4444);
+                            }
+                        } else {
+                            if (onComplete) onComplete();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    createManaImpact(x, y) {
+        if (!this.scene) return;
+        const circle = this.scene.add.graphics();
+        circle.setDepth(700);
+        circle.lineStyle(4, 0xaa44ff, 1);
+        circle.strokeCircle(x, y, 10);
+
+        this.scene.tweens.add({
+            targets: circle,
+            scale: 4,
+            alpha: 0,
+            duration: 400,
+            onComplete: () => circle.destroy()
         });
     }
 
@@ -1047,4 +1072,103 @@ export class CombatAnimations {
         });
     }
 
+    animateMidasTouch(sourceTiles, data, onComplete = null) {
+        if (!this.scene) return;
+        const targets = data.targets || [];
+        const sourcePositions = sourceTiles || [];
+
+        // Grid Helper
+        let getTargetPos;
+        if (this.scene.gridView && window.grid) {
+            const gv = this.scene.gridView;
+            getTargetPos = (r, c) => ({
+                x: gv.offsetX + c * gv.tileSize,
+                y: gv.offsetY + r * gv.tileSize
+            });
+        } else {
+            if (data.onComplete) data.onComplete();
+            if (onComplete) onComplete();
+            return;
+        }
+
+        const targetPositions = targets.map(t => getTargetPos(t.r, t.c));
+        const startPositions = sourcePositions.map(s => getTargetPos(s.r, s.c));
+
+        // If no sources, use center of grid
+        if (startPositions.length === 0) {
+            startPositions.push({ x: this.scene.scale.width / 2, y: this.scene.scale.height / 2 });
+        }
+
+        let completedCount = 0;
+        const totalProjectiles = targetPositions.length * startPositions.length;
+
+        targetPositions.forEach((tPos) => {
+            startPositions.forEach((sPos, idx) => {
+                // Create Particle (Spark/Coin Fragment)
+                const spark = this.scene.add.circle(sPos.x, sPos.y, 4, 0xffd700);
+                spark.setDepth(500);
+
+                this.scene.tweens.add({
+                    targets: spark,
+                    x: tPos.x,
+                    y: tPos.y,
+                    duration: 400 + Math.random() * 200,
+                    ease: 'Quad.Out',
+                    delay: idx * 50,
+                    onComplete: () => {
+                        spark.destroy();
+                        completedCount++;
+
+                        // First one to arrive triggers the impact
+                        if (completedCount === 1) {
+                            this.createGoldSplash(tPos.x, tPos.y);
+                            // Visual "transformation" - pop the scale of existing sprite if possible
+                            if (this.scene.gridView && targets[0]) {
+                                const sprite = this.scene.gridView.sprites[targets[0].id];
+                                if (sprite) {
+                                    this.scene.tweens.add({
+                                        targets: sprite,
+                                        scaleX: sprite.scaleX * 1.3,
+                                        scaleY: sprite.scaleY * 1.3,
+                                        duration: 100,
+                                        yoyo: true
+                                    });
+                                }
+                            }
+                        }
+
+                        if (completedCount === totalProjectiles) {
+                            if (data.onComplete) data.onComplete();
+                            if (onComplete) onComplete();
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    createGoldSplash(x, y) {
+        if (!this.scene) return;
+
+        // Create individual particles instead of one graphics object
+        for (let i = 0; i < 12; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 5 + Math.random() * 30;
+            const size = 1 + Math.random() * 3;
+
+            const particle = this.scene.add.circle(x, y, size, 0xffd700);
+            particle.setDepth(600);
+
+            // Animate each particle individually
+            this.scene.tweens.add({
+                targets: particle,
+                x: x + Math.cos(angle) * dist,
+                y: y + Math.sin(angle) * dist,
+                alpha: 0,
+                duration: 500,
+                ease: 'Quad.Out',
+                onComplete: () => particle.destroy()
+            });
+        }
+    }
 }

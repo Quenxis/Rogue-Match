@@ -5,7 +5,6 @@ import { masteryManager } from '../logic/MasteryManager.js';
 import { audioManager } from '../core/AudioManager.js';
 import { settingsManager } from '../core/SettingsManager.js';
 import { RichTextHelper } from './RichTextHelper.js';
-import { DebugView } from './DebugView.js';
 import { MasteryDeckOverlay } from './MasteryDeckOverlay.js';
 
 export class TopBar {
@@ -64,7 +63,6 @@ export class TopBar {
         this.createGuideOverlay();
         this.createGuideOverlay();
         this.createMasteryOverlay();
-        this.debugView = new DebugView(this.scene);
 
         // --- HP Display ---
         this.hpText = this.scene.add.text(30, cy, '', { font: 'bold 22px Verdana', fill: '#ff4444' }) // Larger Font & Position

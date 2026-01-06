@@ -16,8 +16,6 @@ export class GridData {
         this.grid = []; // 2D Array: grid[row][col]
         this.matches = []; // array of matched groups
         this.isFastForward = false;
-        this.matches = []; // array of matched groups
-        this.isFastForward = false;
 
         // Expose to global scope for CombatManager logic
         window.grid = this;
@@ -305,9 +303,6 @@ export class GridData {
             }
         });
 
-        // CRITICAL: Tell View about ALL matches (core + adjacent trash)
-        EventBus.emit(EVENTS.MATCHES_FOUND, { matches });
-
         // 1. Clear Matched Items
         matches.forEach(({ r, c }) => {
             if (this.grid[r][c].type !== ITEM_TYPES.EMPTY) {
@@ -317,6 +312,10 @@ export class GridData {
                 this.grid[r][c].type = ITEM_TYPES.EMPTY;
             }
         });
+
+        // 2. Emit Event AFTER clearing grid so listeners don't re-find the same gems
+        // CRITICAL: Tell View about ALL matches (core + adjacent trash)
+        EventBus.emit(EVENTS.MATCHES_FOUND, { matches });
 
         // WAIT for Match Animation (Destroy)
         await new Promise(resolve => setTimeout(resolve, this.isFastForward ? 1 : 300));
@@ -784,10 +783,10 @@ export class GridData {
         if (selected.length > 0) {
             const matches = this.findMatches();
             if (matches.length > 0) {
-                this.handleMatchResolution(matches);
+                await this.handleMatchResolution(matches);
             }
         }
 
-        return selected.length;
+        return selected;
     }
 }

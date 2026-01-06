@@ -13,6 +13,8 @@ export class RewardScene extends Phaser.Scene {
     init(data) {
         this.baseGold = data.rewards ? data.rewards.gold : 10;
         this.tier = data.tier || runManager.currentTier || 1;
+        this.hasChosen = false;
+        this.goldAdded = false; // Also ensure this is reset
     }
 
     create() {
@@ -101,6 +103,9 @@ export class RewardScene extends Phaser.Scene {
     }
 
     handleChoice(choice) {
+        if (this.hasChosen) return;
+        this.hasChosen = true;
+
         if (choice.type === REWARD_TYPES.TRAIT) {
             // Add Trait Logic - Use centralized manager method to ensure events fire and sets update
             runManager.unlockMastery(choice.id);

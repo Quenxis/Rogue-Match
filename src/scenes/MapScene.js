@@ -4,6 +4,7 @@ import { TopBar } from '../view/TopBar.js';
 import { EventBus } from '../core/EventBus.js';
 import { audioManager } from '../core/AudioManager.js';
 import { GAME_SETTINGS } from '../core/Constants.js';
+import { ACTS } from '../data/acts.js';
 
 export class MapScene extends Phaser.Scene {
     constructor() {
@@ -22,7 +23,7 @@ export class MapScene extends Phaser.Scene {
             return;
         }
 
-        // console.log(`[MapScene] Create. RunManager Gold: ${runManager.player.gold}`);
+        console.log(`[MapScene] Create. Act Index: ${runManager.currentActIndex}, Act Name: ${ACTS[runManager.currentActIndex]?.name}, Map Length: ${runManager.map.length}`);
 
         // --- SINGLE SCREEN CONFIGURATION ---
         const mapWidth = this.scale.width;
@@ -32,7 +33,8 @@ export class MapScene extends Phaser.Scene {
 
         // UI: TopBar
         this.topBar = new TopBar(this);
-        this.topBar.setTitle('The Cave');
+        const actName = ACTS[runManager.currentActIndex] ? ACTS[runManager.currentActIndex].name : 'The Unknown';
+        this.topBar.setTitle(actName);
 
         // Listen for Potion Use (Map context)
         this.onPotionUseBound = (index) => this.handlePotionUse(index);

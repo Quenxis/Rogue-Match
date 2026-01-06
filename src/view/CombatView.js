@@ -147,6 +147,10 @@ export class CombatView {
         EventBus.on(EVENTS.TOXIN_APPLIED, this.onToxinApplied);
         EventBus.on(EVENTS.OUTBREAK_CAST, this.onOutbreakCast);
         EventBus.on(EVENTS.EXTRACTION_CAST, this.onExtractionCast);
+        this.onMidasTouchCast = (data) => {
+            this.queueAnimation(done => this.animations.animateMidasTouch(data.sourceTiles, data, done));
+        };
+        EventBus.on(EVENTS.MIDAS_TOUCH_CAST, this.onMidasTouchCast);
 
         // --- GENERIC ANIMATION HANDLERS ---
         this.onEntityDamaged = (data) => {
@@ -228,6 +232,7 @@ export class CombatView {
         EventBus.off('enemy:prismatic_resonance', this.onPrismaticResonance);
         EventBus.off('visual:shake', this.onVisualShake);
         EventBus.off('enemy:mana_devour', this.onManaDevour);
+        EventBus.off(EVENTS.MIDAS_TOUCH_CAST, this.onMidasTouchCast);
 
         EventBus.off(EVENTS.ENTITY_DAMAGED, this.onEntityDamaged);
         EventBus.off(EVENTS.ENTITY_HEALED, this.onEntityHealed);
@@ -257,12 +262,18 @@ export class CombatView {
         const centerX = w * 0.5;
         const centerY = h * 0.5;
 
+        // --- ACT OFFSETS ---
+        // Get offsets from current act (default to 0)
+        const currentAct = runManager.currentAct || { combatOffsets: { x: 0, y: 0 } };
+        const actOffX = (currentAct.combatOffsets && currentAct.combatOffsets.x) || 0;
+        const actOffY = (currentAct.combatOffsets && currentAct.combatOffsets.y) || 0;
+
         // Ground/Entity Level (Approx 70% down)
-        this.groundY = h * 0.72;
+        this.groundY = (h * 0.72) + actOffY;
 
         // Entity Positions
-        this.leftX = w * 0.18;  // Player
-        this.rightX = w * 0.82; // Enemy (Symmetrical to 0.19)
+        this.leftX = (w * 0.18) + actOffX;  // Player
+        this.rightX = (w * 0.82) + actOffX; // Enemy (Symmetrical to 0.19)
 
         // 1. Entities & HUD (HP, Shield, Status)
         this.createEntityDisplay(true);  // Player

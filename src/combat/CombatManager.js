@@ -10,6 +10,8 @@ import { masteryManager, TRIGGERS } from '../logic/MasteryManager.js';
 import { settingsManager } from '../core/SettingsManager.js';
 
 
+import { SkillSystem } from './skills/SkillSystem.js';
+
 export class CombatManager {
     constructor(scene, data = {}) {
         // Scene no longer stored! Logic only.
@@ -70,6 +72,9 @@ export class CombatManager {
         this.onUIAnimComplete = this.emitState.bind(this);
         this.onEntityDied = this.handleEntityDied.bind(this);
 
+        this.onEntityDied = this.handleEntityDied.bind(this);
+
+        this.skillSystem = new SkillSystem(this);
         this.bindEvents();
     }
 
@@ -217,89 +222,7 @@ export class CombatManager {
     }
 
     canUseAnySkill() {
-        if (!this.player) return false;
-
-        // Helper to check standard cost
-        const check = (data) => {
-            const cost = Math.floor(data.cost * (this.player.statusManager.getStack(STATUS_TYPES.FOCUS) > 0 ? 0.5 : 1));
-            if (this.player.mana >= cost) {
-                // console.log(`[AutoEndTurn] Blocked by Usable Skill: ${data.name} (Mana ${this.player.mana}/${cost})`);
-                return true;
-            }
-            return false;
-        };
-
-        const p = this.player;
-        const multiplier = p.statusManager.getStack(STATUS_TYPES.FOCUS) > 0 ? 0.5 : 1;
-
-        // 1. Iterate Owned Skills
-        for (const skillId of this.player.skills) {
-            const data = SKILL_DATA[skillId];
-            if (!data) continue;
-
-            // Special handling for SHIELD_SLAM (Block check)
-            if (skillId === 'SHIELD_SLAM') {
-                const cost = Math.floor(data.cost * multiplier);
-                if (p.mana >= cost && p.block >= (data.shieldCost || 0)) {
-                    // console.log(`[AutoEndTurn] Blocked by Usable Skill: Shield Slam`);
-                    return true;
-                }
-                continue;
-            }
-
-            // Special handling for AIMED_SHOT (Sword check)
-            if (skillId === 'AIMED_SHOT') {
-                const cost = Math.floor(data.cost * multiplier);
-                if (p.mana >= cost) {
-                    // Must check swords
-                    let swordCount = 0;
-                    if (this.scene && this.scene.gridView) {
-                        this.scene.gridView.tokenContainer.list.forEach(sprite => {
-                            if (sprite.type === 'Container') return;
-                            const type = sprite.texture.key;
-                            const isTrash = sprite.getData('isTrash');
-                            // Need to check Constants/GridDetails logic if key matches?
-                            // Typically textures are mapped. Let's assume ASSETS or direct comparison.
-                            // Actually GridView uses 'SWORD' texture key?
-                            // Let's rely on ITEM_TYPES logic if possible or check key.
-                            // Better: Use GridData if possible? no, gridView is safer for "what's visible" 
-                            // BUT CombatView used 'ASSETS.SWORD'.
-                            if ((type === 'SWORD' || type === ASSETS.SWORD) && !isTrash) swordCount++; // Use ASSETS
-                        });
-                    } else if (window.grid && window.grid.grid) {
-                        // Fallback Logic
-                        window.grid.grid.forEach(row => {
-                            row.forEach(tile => {
-                                if (tile && tile.type === 'SWORD' && !tile.isTrash) swordCount++;
-                            });
-                        });
-                    }
-
-                    if (swordCount <= (data.maxSwords || 9)) {
-                        // console.log(`[AutoEndTurn] Blocked by Usable Skill: Aimed Shot (Swords ${swordCount}/${data.maxSwords})`);
-                        return true;
-                    }
-                }
-                continue;
-            }
-
-            // Special handling for EXTRACTION (Toxin check)
-            if (skillId === SKILLS.EXTRACTION) {
-                const cost = Math.floor(data.cost * multiplier);
-                const toxin = this.enemy.statusManager.getStack(STATUS_TYPES.TOXIN);
-
-                if (p.mana >= cost && toxin > 0) {
-                    // console.log(`[AutoEndTurn] Blocked by Usable Skill: Extraction`);
-                    return true;
-                }
-                continue;
-            }
-
-            // Standard Skills (Fireball, Heal, Outbreak, etc.)
-            if (check(data)) return true;
-        }
-
-        return false;
+        return this.skillSystem.canUseAnySkill();
     }
 
     tryUseSkill(skillName) {
@@ -307,189 +230,8 @@ export class CombatManager {
             logManager.log('Cannot use skill while busy!', 'warning');
             return;
         }
-        const p = this.player;
-        const e = this.enemy;
-        const sm = p.statusManager;
 
-        // Calculate Cost with Focus
-        const focus = sm.getStack(STATUS_TYPES.FOCUS);
-        let multiplier = 1.0;
-        if (focus === 1) multiplier = 0.5;
-        if (focus >= 2) multiplier = 0.0;
-
-        const useSkill = (baseCost, action) => {
-            const finalCost = Math.floor(baseCost * multiplier);
-            if (p.mana >= finalCost) {
-                p.mana -= finalCost;
-                action();
-
-                // Consume Focus if used
-                if (focus > 0) {
-                    sm.consumeStacks(STATUS_TYPES.FOCUS);
-                    logManager.log('Focus consumed for skill!', 'info');
-                }
-
-                this.emitState();
-                if (skillName === SKILLS.FIREBALL) this.checkWinCondition();
-                return true;
-            }
-            return false;
-        };
-
-        if (skillName === SKILLS.FIREBALL) {
-            const data = SKILL_DATA.FIREBALL;
-            useSkill(data.cost, () => {
-                e.takeDamage(data.damage, p, { type: 'SKILL', skill: 'FIREBALL' });
-            });
-        } else if (skillName === SKILLS.HEAL) {
-            const data = SKILL_DATA.HEAL;
-            useSkill(data.cost, () => {
-                p.heal(data.heal);
-            });
-        } else if (skillName === SKILLS.SHIELD_SLAM) {
-            const data = SKILL_DATA.SHIELD_SLAM;
-            const shieldCost = data.shieldCost || 0;
-
-            // Custom check because we need Block AND Mana
-            const finalCost = Math.floor(data.cost * multiplier); // Configurable Mana Cost
-
-            if (p.mana >= finalCost && p.block >= shieldCost) {
-                p.mana -= finalCost;
-
-                // Remove Block
-                p.addBlock(-shieldCost);
-
-                // Effect
-                e.takeDamage(data.damage, p, { type: 'SKILL', skill: 'SHIELD_SLAM' });
-
-                // Consume Focus if used
-                if (focus > 0) {
-                    sm.consumeStacks(STATUS_TYPES.FOCUS);
-                    logManager.log('Focus consumed for skill!', 'info');
-                }
-
-                this.emitState();
-                logManager.log(`Shield Slam! -${finalCost} Mana, -${shieldCost} Block`, 'info');
-                this.checkWinCondition();
-            }
-        } else if (skillName === SKILLS.AIMED_SHOT) {
-            const data = SKILL_DATA.AIMED_SHOT;
-            const maxSwords = data.maxSwords || 5;
-
-            // Check Sword Count on Grid
-            let swordCount = 0;
-            if (window.grid && window.grid.grid) {
-                window.grid.grid.forEach(row => row.forEach(tile => {
-                    if (tile && tile.type === ITEM_TYPES.SWORD) swordCount++;
-                }));
-            }
-
-            const finalCost = Math.floor(data.cost * multiplier);
-
-            if (p.mana >= finalCost && swordCount <= maxSwords) {
-                p.mana -= finalCost;
-
-                // Deal Damage FIRST
-                // Assuming takeDamage supports options object as 3rd arg based on previous context
-                e.takeDamage(data.damage, p, { isPiercing: true, type: 'SKILL', skill: 'AIMED_SHOT' });
-
-                // Effect: Vulnerable AFTER damage
-                if (data.vulnerable > 0) {
-                    e.statusManager.applyStack(STATUS_TYPES.VULNERABLE, data.vulnerable);
-                }
-
-                // Consume Focus if used
-                if (focus > 0) {
-                    sm.consumeStacks(STATUS_TYPES.FOCUS);
-                    logManager.log('Focus consumed for skill!', 'info');
-                }
-
-                this.emitState();
-                logManager.log(`Aimed Shot! ${data.damage} Piercing DMG.`, 'info');
-                this.checkWinCondition();
-            } else {
-                if (swordCount > maxSwords) {
-                    logManager.log(`Cannot use Aimed Shot! Too many swords (${swordCount}/${maxSwords})`, 'warning');
-                }
-            }
-        } else if (skillName === SKILLS.EXTRACTION) {
-            const data = SKILL_DATA.EXTRACTION;
-
-            // Validate Requirement (Server-side check)
-            const currentStacks = e.statusManager.getStack(STATUS_TYPES.TOXIN);
-            if (currentStacks <= 0) {
-                logManager.log('Extraction requires Toxin present on enemy.', 'warning');
-                return;
-            }
-
-            useSkill(data.cost, () => {
-                // 1. Get Stacks (Again, to be safe or reuse var)
-                const stacks = currentStacks;
-                if (stacks > 0) {
-                    // 2. Consume
-                    e.statusManager.stacks[STATUS_TYPES.TOXIN] = 0; // Clear all
-
-                    // Trigger Custom Visuals
-                    EventBus.emit(EVENTS.EXTRACTION_CAST, { stacks: stacks });
-
-                    // 3. Deal Damage
-                    const dmg = stacks * data.damagePerStack;
-                    // Skip standard Lunge animation because we have a custom visuals
-                    // EventBus.emit(EVENTS.PLAYER_ATTACK, { damage: dmg, type: 'SKILL', skill: 'EXTRACTION', skipAnimation: true });
-                    e.takeDamage(dmg, p, { type: 'SKILL', skill: 'EXTRACTION', skipAnimation: true });
-
-                    // 4. Heal
-                    const heal = Math.floor(dmg * data.healRatio);
-                    // EventBus.emit(EVENTS.PLAYER_HEAL, { value: heal, type: 'SKILL', skipAnimation: true });
-                    p.heal(heal);
-
-                    logManager.log(`Extraction: Consumed ${stacks} Toxin. Dealt ${dmg} DMG, Healed ${heal} HP.`, 'info');
-
-                    this.checkWinCondition(); // Check for kill or end turn state
-                } else {
-                    logManager.log('Extraction cast on 0 Toxin! Wasted.', 'warning');
-                }
-            });
-        } else if (skillName === SKILLS.OUTBREAK) {
-            const data = SKILL_DATA.OUTBREAK;
-
-            // Capture Toxin Stacks IMMEDIATELY
-            const currentToxin = e.statusManager.getStack(STATUS_TYPES.TOXIN);
-            const shouldGrantMove = currentToxin >= data.threshold;
-
-            useSkill(data.cost, async () => {
-                // Grant Move Immediately if condition was met at start
-                if (shouldGrantMove) {
-                    this.currentMoves++;
-                    logManager.log(`Outbreak: Threshold met (${currentToxin}), +1 Action!`, 'skill');
-                    this.emitState(); // Update UI immediately
-                } else {
-                    logManager.log(`Outbreak: Threshold not met (${currentToxin}/${data.threshold})`, 'info');
-                }
-
-                // 1. Transmute Gems
-                if (window.grid && window.grid.transmuteRandomGems) {
-                    const count = await window.grid.transmuteRandomGems(data.transmuteCount, ITEM_TYPES.POTION, {
-                        preModificationCallback: async (targets) => {
-                            await new Promise(resolve => {
-                                EventBus.emit(EVENTS.OUTBREAK_CAST, {
-                                    targets,
-                                    onComplete: resolve
-                                });
-                                // Safety fallback
-                                setTimeout(resolve, 3000);
-                            });
-                        }
-                    });
-                    logManager.log(`Outbreak: Transmuted ${count} gems to Potions.`, 'info');
-                } else {
-                    console.error('[DEBUG] Outbreak Failed: window.grid or transmuteRandomGems missing!', window.grid);
-                }
-
-                this.checkWinCondition(); // Ensure turn ends if moves = 0
-            });
-        }
-
+        this.skillSystem.execute(skillName);
     }
 
     handleSwap() {
@@ -550,7 +292,7 @@ export class CombatManager {
         Object.entries(byType).forEach(([type, tiles]) => {
             const groups = this.findConnectedGroups(tiles);
             groups.forEach(group => {
-                this.resolveMatchGroup(type, group.length);
+                this.resolveMatchGroup(type, group.length, group);
             });
         });
 
@@ -599,7 +341,7 @@ export class CombatManager {
         return groups;
     }
 
-    resolveMatchGroup(type, size) {
+    resolveMatchGroup(type, size, tiles = []) {
         const p = this.player;
         const e = this.enemy;
         const sm = p.statusManager;
@@ -610,6 +352,7 @@ export class CombatManager {
             enemy: e,
             combatManager: this,
             matchSize: size,
+            matchTiles: tiles,
             hasCorruptedFlask: runManager.hasRelic('corrupted_flask')
         };
         // Fix: Use correct matchMasteries Set
@@ -1035,7 +778,7 @@ export class CombatManager {
                                     setTimeout(resolve, 3000);
                                 });
                             }
-                        }).then(c => logManager.log(`Prismatic Resonance: ${c} gems became MANA!`, 'warning'));
+                        }).then(c => logManager.log(`Prismatic Resonance: ${c.length} gems became MANA!`, 'warning'));
                     }
                 }
 
@@ -1366,5 +1109,25 @@ export class CombatManager {
 
     log(message, type = 'info') {
         logManager.log(message, type);
+    }
+
+    destroy() {
+        EventBus.off(EVENTS.MATCHES_FOUND, this.onMatchesFound);
+        EventBus.off(EVENTS.ITEM_SWAPPED, this.onSwap);
+        EventBus.off(EVENTS.ITEM_SWAP_REVERTED, this.onSwapRevert);
+        EventBus.off(EVENTS.POTION_USE_REQUESTED, this.onPotionUse);
+        EventBus.off(EVENTS.UI_ANIMATION_COMPLETE, this.onUIAnimComplete);
+        EventBus.off(EVENTS.ENTITY_DIED, this.onEntityDied);
+        EventBus.off(EVENTS.GRID_REFILLED, this.onUIAnimComplete);
+
+        // Also destroy subsystems if they have cleanup
+        if (this.skillSystem && this.skillSystem.destroy) {
+            this.skillSystem.destroy();
+        }
+
+        // Clear references
+        this.player = null;
+        this.enemy = null;
+        this.scene = null;
     }
 }
